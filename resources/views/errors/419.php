@@ -1,0 +1,16 @@
+<?php /** @var string|null $message */ ?>
+<div class="code">419</div>
+<h1>Session expired</h1>
+<p class="muted">
+    <?= e($message !== null && $message !== '' ? $message : 'Your session expired for security reasons. Please sign in again and retry.') ?>
+</p>
+<p style="margin-top:18px">
+    <a class="btn" href="<?= e(url('/')) ?>">Back to LRMS</a>
+</p>
+<?php if (!empty($exception)): ?>
+    <pre style="text-align:left;background:#0b1220;color:#cbd5e1;padding:14px;border-radius:8px;overflow:auto;font-size:12px;margin-top:20px"><?= e($exception->getMessage()) ?>
+
+<?= e($exception->getFile() . ':' . $exception->getLine()) ?>
+
+<?= e($exception->getTraceAsString()) ?></pre>
+<?php endif; ?>

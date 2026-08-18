@@ -1,0 +1,14 @@
+# Your server's settings live here. Never committed, so `git pull` on the
+# server will not conflict with them.
+/config/config.local.php
+
+# Runtime output: uploads, generated exports and logs.
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+/storage/generated/*
+!/storage/generated/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+
+*.log
+.DS_Store
