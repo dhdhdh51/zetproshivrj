@@ -63,6 +63,21 @@ php database/migrate.php --fresh --seed      # schema + baseline data
 php -S localhost:8000 -t public public/index.php
 ```
 
+### Deploying to a web host
+
+Do not upload the repository — it contains the Android project, the test suites
+and CI workflows, none of which belong on a web server. Build the package
+instead:
+
+```bash
+bash deploy/build-package.sh 1.0.0     # -> dist/lrms-1.0.0.zip
+```
+
+Then follow [`docs/HOSTING-CYBERPANEL.md`](docs/HOSTING-CYBERPANEL.md) for
+CyberPanel / OpenLiteSpeed, or [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for
+cPanel, Apache or nginx. After uploading, `php deploy/preflight.php` checks the
+server can actually run it.
+
 Upgrading an existing install instead of a fresh one? `migrate.php --fresh` is
 destructive, so use the in-place upgrade, which only adds what is missing and is
 safe to re-run:
@@ -201,6 +216,7 @@ routes/            web.php, admin.php, manager.php, api.php
 storage/           uploads (photos, signatures, imports), generated exports, logs
 tests/             four executable suites
 bin/cron.php       deadline reminders, promise sweep, absentees, housekeeping
+deploy/            hosting package builder, preflight check, OLS rewrite rules
 android/           the Kotlin application
 docs/              deployment, API reference, Android build, operations
 ```
@@ -209,6 +225,8 @@ docs/              deployment, API reference, Android build, operations
 
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — install, cron, permissions,
   security checklist.
+- [`docs/HOSTING-CYBERPANEL.md`](docs/HOSTING-CYBERPANEL.md) — hosting on
+  CyberPanel / OpenLiteSpeed, step by step.
 - [`docs/API.md`](docs/API.md) — every endpoint the app uses, with payloads.
 - [`docs/ANDROID.md`](docs/ANDROID.md) — build, signing secrets, environments,
   releases.

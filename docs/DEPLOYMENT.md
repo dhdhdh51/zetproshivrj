@@ -1,5 +1,10 @@
 # Deployment
 
+> **On CyberPanel / OpenLiteSpeed?** Use
+> [`HOSTING-CYBERPANEL.md`](HOSTING-CYBERPANEL.md) instead — it covers the two
+> things that differ there: repointing the document root at `public/`, and making
+> OpenLiteSpeed honour `.htaccess`. This page covers cPanel, Apache and nginx.
+
 LRMS is a plain PHP application with no Composer dependencies, so it runs on
 ordinary shared hosting (cPanel) as well as a VPS.
 
