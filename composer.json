@@ -1,0 +1,30 @@
+{
+    "name": "docupilot/docupilot-ai",
+    "description": "DocuPilot AI — Create professional business documents with AI, in minutes.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-json": "*",
+        "ext-curl": "*",
+        "ext-mbstring": "*",
+        "dompdf/dompdf": "^3.0",
+        "phpmailer/phpmailer": "^6.9"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        },
+        "files": [
+            "app/Helpers/functions.php"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "lint": "find app config routes resources public -name '*.php' -print0 | xargs -0 -n1 php -l"
+    }
+}
