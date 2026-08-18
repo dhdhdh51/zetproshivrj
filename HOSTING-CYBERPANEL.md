@@ -95,9 +95,22 @@ max_execution_time = 300
 `public_html`.
 
 1. Delete the placeholder `index.html` CyberPanel created.
-2. Upload `lrms-1.0.0.zip`.
-3. Extract it, then move everything **out of** the `lrms-1.0.0/` folder so it
-   sits directly in `public_html`.
+2. Upload the archive.
+3. Extract it, then **flatten it** — move everything out of the folder the
+   archive created so it sits directly in `public_html`.
+
+> **This is the most common cause of a site that 404s on every page.** Both
+> archives contain a wrapper folder. GitHub's *Download ZIP* names it after the
+> commit, e.g. `dhdhdh51-zetpro-c94ffc5/`; `build-package.sh` names it
+> `lrms-1.0.0/`. If you skip the flatten step you end up with
+> `public_html/dhdhdh51-zetpro-c94ffc5/app/...`, there is no
+> `public_html/public/index.php` for the web server to reach, and every URL
+> returns 404.
+>
+> **Also: File Manager hides dotfiles by default.** When you move the contents,
+> turn on "show hidden files" so `.htaccess` comes across too — without it the
+> clean URLs stop working and you get 404s on everything except the home page.
+> In the terminal, `mv folder/* folder/.[!.]* public_html/` catches both.
 
 `public_html` should now look like this:
 
@@ -118,6 +131,16 @@ public_html/
 
 If `app/`, `config/` and `public/` are not siblings at that level, the extract
 went one directory too deep. Fix it now; nothing later will work otherwise.
+
+The decisive check, before you touch anything else:
+
+```bash
+ls -la /home/your-domain/public_html/public/index.php
+ls -la /home/your-domain/public_html/.htaccess
+```
+
+Both must exist. If `public/index.php` is missing you have the nesting problem
+above. If `.htaccess` is missing, the dotfiles were left behind in the move.
 
 ---
 
