@@ -120,6 +120,16 @@ Two ways, both fine.
 selected, then upload and extract into `public_html` using your host's file
 manager.
 
+> Two things to get right, and they cause almost every "404 on every page":
+>
+> 1. **Flatten the archive.** GitHub wraps everything in a folder named after the
+>    commit, like `dhdhdh51-zetpro-c94ffc5/`. Move the contents out so `app/`,
+>    `config/` and `public/` sit directly in `public_html`. There must be a
+>    `public_html/public/index.php`.
+> 2. **Bring the dotfiles.** File managers hide them by default, so `.htaccess`
+>    gets left behind — and the clean URLs stop working without it. In a shell,
+>    `mv folder/* folder/.[!.]* public_html/` moves both.
+
 **Or clone on the server**, which makes updates a single command:
 
 ```bash

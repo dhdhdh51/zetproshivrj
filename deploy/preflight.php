@@ -45,6 +45,59 @@ $pass = 0;
 $warn = 0;
 $fail = 0;
 
+/**
+ * The three ways a "404 on every page" happens, in the order they occur.
+ *
+ * This runs before anything else because when one of these is true nothing else
+ * matters, and the message you get from the web server ("404") says nothing about
+ * which one it is.
+ */
+function lrms_diagnose_404(?string $root): void
+{
+    $here = __DIR__;
+
+    // 1. The archive was never flattened, so there is no application root at all
+    //    and this script is sitting inside a wrapper folder.
+    if ($root === null) {
+        echo "\n";
+        echo "  DIAGNOSIS: the files are not where the web server expects them.\n\n";
+        echo "  There is no app/bootstrap.php next to this script, which means the\n";
+        echo "  archive was extracted without being flattened. You probably have:\n\n";
+        echo "      public_html/dhdhdh51-zetpro-<sha>/app/...\n\n";
+        echo "  when you need:\n\n";
+        echo "      public_html/app/...\n";
+        echo "      public_html/public/index.php\n\n";
+        echo "  Move the contents of that inner folder up into public_html,\n";
+        echo "  including the hidden files (.htaccess). In a shell:\n\n";
+        echo "      cd /home/<your-domain>/public_html\n";
+        echo "      mv */.[!.]* */* . 2>/dev/null\n\n";
+        echo "  Script location: " . $here . "\n";
+
+        return;
+    }
+
+    // 2. The front controller is missing, so the document root cannot be valid.
+    if (!is_file($root . '/public/index.php')) {
+        echo "\n";
+        echo "  DIAGNOSIS: public/index.php is missing from " . $root . "\n\n";
+        echo "  The web server has nothing to serve, so every URL returns 404.\n";
+        echo "  Re-upload the package and confirm public/ came with it.\n";
+
+        return;
+    }
+
+    // 3. The rewrite rules are missing, which breaks every URL except the
+    //    home page.
+    if (!is_file($root . '/public/.htaccess')) {
+        echo "\n";
+        echo "  WARNING: public/.htaccess is missing.\n\n";
+        echo "  File managers hide dotfiles, so it is easy to leave behind when\n";
+        echo "  moving files. Without it the home page may load but every other\n";
+        echo "  URL returns 404. Re-copy it, or paste the rules from\n";
+        echo "  deploy/openlitespeed-rewrite.conf into CyberPanel's Rewrite Rules.\n";
+    }
+}
+
 function heading(string $text): void
 {
     echo "\n" . $text . "\n" . str_repeat('-', strlen($text)) . "\n";
@@ -76,12 +129,13 @@ printf("  root   : %s\n", $root ?? 'NOT FOUND');
 printf("  server : %s\n", $_SERVER['SERVER_SOFTWARE'] ?? 'command line');
 
 if ($root === null) {
-    echo "\n  [FAIL] Could not find app/bootstrap.php.\n";
-    echo "         Run this from inside the LRMS directory, or check the upload\n";
-    echo "         finished — the archive should unzip to public_html with app/,\n";
-    echo "         config/, public/ and storage/ all at the same level.\n";
+    lrms_diagnose_404(null);
     exit(1);
 }
+
+// Say so immediately when the site cannot possibly work, rather than burying it
+// among thirty passing checks.
+lrms_diagnose_404($root);
 
 /* -------------------------------------------------------------------------- */
 heading('PHP version and extensions');
