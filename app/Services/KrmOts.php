@@ -25,6 +25,41 @@ final class KrmOts
         'cancelled' => 'Cancelled',
     ];
 
+    /** Section 4, "Applicable Scheme". */
+    public const SCHEMES = [
+        'krm_ots' => 'KRM OTS',
+        'general_ots' => 'General OTS',
+        'other' => 'Other',
+    ];
+
+    /** Section 4, "Customer Response". */
+    public const CUSTOMER_RESPONSES = [
+        'agreed' => 'Agreed for OTS',
+        'requested_time' => 'Requested time',
+        'financial_difficulty' => 'Financial difficulty',
+        'refused' => 'Refused OTS',
+        'not_eligible' => 'Not eligible',
+    ];
+
+    /** Section 9, the KRM OTS recommendation. */
+    public const RECOMMENDATIONS = [
+        'proposal_recommended' => 'OTS proposal recommended',
+        'followup_required' => 'Follow-up required',
+        'customer_refused' => 'Customer refused',
+        'not_eligible' => 'Not eligible',
+    ];
+
+    /** Section 13, "Final Report Status". */
+    public const FINAL_STATUSES = [
+        'customer_contacted' => 'Customer contacted',
+        'customer_verified' => 'Customer verified',
+        'ots_accepted' => 'OTS accepted',
+        'ots_rejected' => 'OTS rejected',
+        'initial_deposit_received' => 'Initial deposit received',
+        'ots_closed' => 'OTS closed',
+        'followup_required' => 'Follow-up required',
+    ];
+
     /**
      * Create or update the OTS case for an account.
      *
@@ -59,19 +94,29 @@ final class KrmOts
             throw new HttpException(422, 'The OTS amount cannot exceed the outstanding balance.');
         }
 
+        $scheme = self::option($payload['scheme'] ?? null, self::SCHEMES) ?? 'krm_ots';
+
         $data = [
             'branch_id' => (int) $account['branch_id'],
             'bc_supervisor_id' => $account['bc_supervisor_id'] === null ? null : (int) $account['bc_supervisor_id'],
             'visit_id' => $visitId,
+            'ots_eligible' => self::tristate($payload['ots_eligible'] ?? null),
+            'scheme' => $scheme,
+            'scheme_other' => $scheme === 'other' && isset($payload['scheme_other'])
+                ? mb_substr(trim((string) $payload['scheme_other']), 0, 120)
+                : null,
             'outstanding' => $outstanding,
             'ots_amount' => $otsAmount,
-            'sanctioned_amount' => isset($payload['sanctioned_amount']) && $payload['sanctioned_amount'] !== ''
-                ? self::money($payload['sanctioned_amount'])
-                : null,
+            'borrower_share' => self::optionalMoney($payload['borrower_share'] ?? null),
+            'initial_deposit_required' => self::optionalMoney($payload['initial_deposit_required'] ?? null),
+            'sanctioned_amount' => self::optionalMoney($payload['sanctioned_amount'] ?? null),
             'paid_amount' => self::money($payload['paid_amount'] ?? 0),
+            'customer_response' => self::option($payload['customer_response'] ?? null, self::CUSTOMER_RESPONSES),
             'ots_status' => $status,
             'visit_date' => self::date($payload['visit_date'] ?? null),
             'promise_date' => self::date($payload['promise_date'] ?? null),
+            'recommendation' => self::option($payload['recommendation'] ?? null, self::RECOMMENDATIONS),
+            'final_status' => self::option($payload['final_status'] ?? null, self::FINAL_STATUSES),
             'remarks' => isset($payload['remarks']) ? mb_substr((string) $payload['remarks'], 0, 500) : null,
             'updated_at' => now(),
         ];
@@ -141,7 +186,14 @@ final class KrmOts
         }
 
         $payload = is_array($payload) ? $payload : [];
+
+        // Section 4 of the report is filled in on the form, so the answers are
+        // read back from the submitted values. An explicit payload still wins,
+        // which is what lets the web screen and the API set these directly.
+        $payload = array_merge(self::fromFormValues($visitId), $payload);
+
         $payload['visit_date'] = $payload['visit_date'] ?? $visit['visit_date'];
+        $payload['remarks'] = $payload['remarks'] ?? $visit['remarks'];
 
         // Fall back to the promise captured in the visit form.
         if (!isset($payload['ots_amount'])) {
@@ -156,12 +208,62 @@ final class KrmOts
             }
         }
 
-        if (($payload['ots_amount'] ?? 0) <= 0 && !isset($payload['ots_status'])) {
-            // Nothing concrete to record yet.
+        // A visit of this type always opens a case: the report itself is the
+        // record, even when the borrower agreed to nothing.
+        $hasSubstance = ($payload['ots_amount'] ?? 0) > 0
+            || isset($payload['ots_status'])
+            || isset($payload['ots_eligible'])
+            || isset($payload['customer_response'])
+            || isset($payload['final_status']);
+
+        if (!$hasSubstance) {
             return;
         }
 
         self::save((int) $visit['loan_account_id'], $payload, $visitId);
+    }
+
+    /**
+     * Map the report form's section 4, 9 and 13 answers onto the payload keys
+     * this service understands. The form keys are prefixed (`ots_recommendation`)
+     * to keep them distinct from the shared fields on the same form.
+     *
+     * @return array<string, mixed>
+     */
+    private static function fromFormValues(int $visitId): array
+    {
+        $values = [];
+
+        foreach (Forms::values(Forms::KIND_VISIT, $visitId) as $row) {
+            $value = trim((string) $row['value']);
+
+            if ($value !== '') {
+                $values[(string) $row['field_key']] = $value;
+            }
+        }
+
+        $map = [
+            'ots_eligible' => 'ots_eligible',
+            'scheme' => 'scheme',
+            'scheme_other' => 'scheme_other',
+            'ots_amount' => 'ots_amount',
+            'borrower_share' => 'borrower_share',
+            'initial_deposit_required' => 'initial_deposit_required',
+            'customer_response' => 'customer_response',
+            'promise_date' => 'promise_date',
+            'ots_recommendation' => 'recommendation',
+            'ots_final_status' => 'final_status',
+        ];
+
+        $payload = [];
+
+        foreach ($map as $formKey => $payloadKey) {
+            if (isset($values[$formKey])) {
+                $payload[$payloadKey] = $values[$formKey];
+            }
+        }
+
+        return $payload;
     }
 
     private static function money(mixed $value): float
@@ -171,6 +273,53 @@ final class KrmOts
         }
 
         return round((float) str_replace(',', '', (string) $value), 2);
+    }
+
+    private static function optionalMoney(mixed $value): ?float
+    {
+        return $value === null || $value === '' ? null : self::money($value);
+    }
+
+    private static function tristate(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $value = strtolower(trim((string) $value));
+
+        if (in_array($value, ['yes', '1', 'true'], true)) {
+            return 1;
+        }
+
+        return in_array($value, ['no', '0', 'false'], true) ? 0 : null;
+    }
+
+    /**
+     * Resolve a value that may arrive either as the stored enum key or as the
+     * human label the report form shows ("Agreed for OTS" -> `agreed`).
+     *
+     * @param array<string, string> $options
+     */
+    private static function option(mixed $value, array $options): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (array_key_exists($value, $options)) {
+            return $value;
+        }
+
+        foreach ($options as $key => $label) {
+            if (strcasecmp($label, $value) === 0) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     private static function date(mixed $value): ?string

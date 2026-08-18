@@ -193,21 +193,62 @@ final class PdfWriter
     }
 
     /**
-     * Two-column key/value block used by the single-record reports
-     * (visit report, inspection report, OTS case).
-     *
-     * @param array<string, string|null> $pairs
+     * A numbered section band, as used by the field visit verification report
+     * ("1. GENERAL INFORMATION").
      */
-    public function keyValues(array $pairs, int $columns = 2): void
+    public function sectionBand(string $number, string $title): void
     {
+        $height = 16.0;
+        $this->ensurePage($height + 6);
+
+        $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $height, '0.878 0.902 0.937', true);
+        $this->setFont(self::FONT_BOLD, 9.0);
+        $this->drawText(
+            $this->marginLeft + 6,
+            $this->y + 11.5,
+            rtrim($number, '.') . '.  ' . strtoupper($title),
+            '0.10 0.14 0.22'
+        );
+
+        $this->y += $height + 6;
+    }
+
+    /**
+     * A tick-box list, laid out in columns like the printed form.
+     *
+     * The boxes are drawn as vector shapes rather than characters: the report
+     * uses U+2610 / U+2612, which do not exist in the standard PDF fonts this
+     * writer relies on, so a glyph would come out as "?". A drawn box also
+     * photocopies and faxes cleanly, which is what these reports are for.
+     *
+     * @param array<int, string> $options
+     * @param array<int, string> $selected values to tick (compared case-insensitively)
+     */
+    public function checkboxes(array $options, array $selected = [], int $columns = 3, ?string $label = null): void
+    {
+        if ($options === []) {
+            return;
+        }
+
+        if ($label !== null && $label !== '') {
+            $this->ensurePage(14);
+            $this->setFont(self::FONT_BOLD, 8.5);
+            $this->drawText($this->marginLeft, $this->y + 8.5, $label, '0.20 0.25 0.33');
+            $this->y += 13;
+        }
+
+        $ticked = array_map(
+            static fn (string $value): string => strtolower(trim($value)),
+            $selected
+        );
+
         $columns = max(1, $columns);
         $columnWidth = $this->contentWidth() / $columns;
-        $labelWidth = $columnWidth * 0.42;
-        $rowHeight = 15.0;
-
+        $rowHeight = 14.0;
+        $box = 7.5;
         $index = 0;
 
-        foreach ($pairs as $label => $value) {
+        foreach ($options as $option) {
             $column = $index % $columns;
 
             if ($column === 0) {
@@ -215,16 +256,25 @@ final class PdfWriter
             }
 
             $x = $this->marginLeft + ($column * $columnWidth);
+            $isTicked = in_array(strtolower(trim($option)), $ticked, true);
 
-            $this->setFont(self::FONT_REGULAR, 8);
-            $this->drawText($x, $this->y + 10, $this->fit((string) $label, $labelWidth - 6, 8, self::FONT_REGULAR), '0.45 0.50 0.58');
+            // The box itself.
+            $boxTop = $this->y + 2.5;
+            $this->rect($x, $boxTop, $box, $box, '0.45 0.50 0.58', false);
 
-            $this->setFont(self::FONT_BOLD, 8.5);
+            if ($isTicked) {
+                // A cross, drawn corner to corner inside the box.
+                $inset = 1.6;
+                $this->line($x + $inset, $boxTop + $inset, $x + $box - $inset, $boxTop + $box - $inset, '0.10 0.14 0.22');
+                $this->line($x + $inset, $boxTop + $box - $inset, $x + $box - $inset, $boxTop + $inset, '0.10 0.14 0.22');
+            }
+
+            $this->setFont($isTicked ? self::FONT_BOLD : self::FONT_REGULAR, 8.5);
             $this->drawText(
-                $x + $labelWidth,
-                $this->y + 10,
-                $this->fit($value === null || $value === '' ? '—' : (string) $value, $columnWidth - $labelWidth - 8, 8.5, self::FONT_BOLD),
-                '0.10 0.14 0.22'
+                $x + $box + 5,
+                $this->y + 9,
+                $this->fit($option, $columnWidth - $box - 10, 8.5, $isTicked ? self::FONT_BOLD : self::FONT_REGULAR),
+                $isTicked ? '0.10 0.14 0.22' : '0.35 0.40 0.48'
             );
 
             $index++;
@@ -235,6 +285,139 @@ final class PdfWriter
         }
 
         if ($index % $columns !== 0) {
+            $this->y += $rowHeight;
+        }
+
+        $this->y += 3;
+    }
+
+    /**
+     * A Yes / No pair, which the printed form uses for most of section 6.
+     * A null value leaves both boxes empty, which is a real answer on a
+     * verification report: it means the question was not reached.
+     */
+    public function yesNoRow(string $label, ?bool $value, int $columns = 3): void
+    {
+        $selected = $value === null ? [] : [$value ? 'Yes' : 'No'];
+
+        $this->checkboxes(['Yes', 'No'], $selected, $columns, $label);
+    }
+
+    /**
+     * Coerce a cell value to printable text.
+     *
+     * Report rows come straight from PDO, so a cell can be a string, an int, a
+     * float, null, a bool from a computed column, or a DateTimeInterface. Each
+     * has to become something a reader understands: null prints as an em dash
+     * rather than the word "null", and a bool as Yes/No rather than "1".
+     */
+    private function stringify(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('d M Y');
+        }
+
+        if (is_float($value)) {
+            // Whole numbers read better without trailing zeros.
+            return $value === floor($value) && abs($value) < 1.0e15
+                ? number_format($value, 0, '.', ',')
+                : number_format($value, 2, '.', ',');
+        }
+
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        if (is_array($value)) {
+            return implode(', ', array_map(fn (mixed $item): string => $this->stringify($item), $value));
+        }
+
+        if (is_object($value) && !method_exists($value, '__toString')) {
+            return '-';
+        }
+
+        return (string) $value;
+    }
+
+    /**
+     * Two-column key/value block used by the single-record reports
+     * (visit report, inspection report, verification report).
+     *
+     * Values WRAP rather than being clipped. On a report that is filed as
+     * evidence, a silently truncated company name, borrower name or address is
+     * worse than a taller row, so a long value takes up to three lines and the
+     * row grows to fit the tallest cell beside it.
+     *
+     * @param array<string, string|null> $pairs
+     */
+    public function keyValues(array $pairs, int $columns = 2): void
+    {
+        $columns = max(1, $columns);
+        $columnWidth = $this->contentWidth() / $columns;
+        $labelWidth = $columnWidth * 0.42;
+        $valueWidth = $columnWidth - $labelWidth - 8;
+        $lineHeight = 10.0;
+        $maxLines = 3;
+
+        // Lay the pairs out in rows of $columns so a row can be sized to its
+        // tallest cell.
+        $cells = [];
+
+        foreach ($pairs as $label => $value) {
+            $text = $value === null || $value === '' ? '—' : (string) $value;
+            $lines = $this->wrap($text, $valueWidth, 8.5, self::FONT_BOLD);
+
+            if (count($lines) > $maxLines) {
+                // Keep the first lines and mark the cut, rather than dropping
+                // the rest without saying so.
+                $lines = array_slice($lines, 0, $maxLines);
+                $lines[$maxLines - 1] = $this->fit($lines[$maxLines - 1] . ' ...', $valueWidth, 8.5, self::FONT_BOLD);
+            }
+
+            $cells[] = ['label' => (string) $label, 'lines' => $lines === [] ? ['—'] : $lines];
+        }
+
+        foreach (array_chunk($cells, $columns) as $row) {
+            $tallest = 1;
+
+            foreach ($row as $cell) {
+                $tallest = max($tallest, count($cell['lines']));
+            }
+
+            $rowHeight = max(15.0, ($tallest * $lineHeight) + 5.0);
+            $this->ensurePage($rowHeight + 2);
+
+            foreach ($row as $column => $cell) {
+                $x = $this->marginLeft + ($column * $columnWidth);
+
+                $this->setFont(self::FONT_REGULAR, 8);
+                $this->drawText(
+                    $x,
+                    $this->y + 10,
+                    $this->fit($cell['label'], $labelWidth - 6, 8, self::FONT_REGULAR),
+                    '0.45 0.50 0.58'
+                );
+
+                $this->setFont(self::FONT_BOLD, 8.5);
+
+                foreach ($cell['lines'] as $lineIndex => $line) {
+                    $this->drawText(
+                        $x + $labelWidth,
+                        $this->y + 10 + ($lineIndex * $lineHeight),
+                        $line,
+                        '0.10 0.14 0.22'
+                    );
+                }
+            }
+
             $this->y += $rowHeight;
         }
 

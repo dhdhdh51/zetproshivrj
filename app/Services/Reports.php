@@ -158,8 +158,10 @@ final class Reports
         return match ($slug) {
             'customer_visit' => array_merge($common, ['visit_status', 'status', 'visit_type', 'late_only', 'gps_invalid_only']),
             'bc_inspection' => array_merge($common, ['result', 'status']),
-            'krm_ots' => array_merge($common, ['ots_status']),
-            'ckcc_od2' => array_merge($common, ['renewal_status', 'documents_status']),
+            'krm_ots' => array_merge($common, ['ots_status', 'customer_response', 'final_status']),
+            'ckcc_od2' => array_merge($common, [
+                'renewal_status', 'documents_status', 'renewal_due_bucket', 'kyc_status', 'final_status',
+            ]),
             'recovery' => array_merge($common, ['payment_mode', 'status']),
             'ptp' => array_merge($common, ['status']),
             'followup' => array_merge($common, ['status', 'action']),
@@ -570,6 +572,22 @@ final class Reports
             $params['ots_status'] = $status;
         }
 
+        // Section 4 and 13 of the verification report, so the register can be
+        // narrowed to the cases that need a decision.
+        $response = self::enumFilter($filters, 'customer_response', array_keys(KrmOts::CUSTOMER_RESPONSES));
+
+        if ($response !== null) {
+            $where[] = 'k.customer_response = :customer_response';
+            $params['customer_response'] = $response;
+        }
+
+        $finalStatus = self::enumFilter($filters, 'final_status', array_keys(KrmOts::FINAL_STATUSES));
+
+        if ($finalStatus !== null) {
+            $where[] = 'k.final_status = :final_status';
+            $params['final_status'] = $finalStatus;
+        }
+
         if (!empty($filters['search'])) {
             $where[] = '(a.account_number LIKE :search OR a.cif LIKE :search OR a.borrower_name LIKE :search)';
             $params['search'] = '%' . trim((string) $filters['search']) . '%';
@@ -578,7 +596,9 @@ final class Reports
         $sql = 'SELECT k.id, a.id AS account_id, a.account_number, a.cif, a.borrower_name, a.father_name, a.village, a.mobile,
                        b.name AS branch_name, b.code AS branch_code,
                        u.name AS supervisor_name, s.bc_code,
-                       k.outstanding, k.ots_amount, k.sanctioned_amount, k.paid_amount, k.ots_status,
+                       k.ots_eligible, k.scheme, k.outstanding, k.ots_amount, k.borrower_share,
+                       k.initial_deposit_required, k.sanctioned_amount, k.paid_amount,
+                       k.customer_response, k.ots_status, k.recommendation, k.final_status,
                        k.visit_date, k.promise_date, k.remarks,
                        (SELECT COUNT(*) FROM visit_photos p WHERE p.visit_id = k.visit_id) AS photos,
                        g.latitude, g.longitude
@@ -602,12 +622,37 @@ final class Reports
                 ['key' => 'borrower_name', 'label' => 'Borrower', 'weight' => 1.4],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
                 ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.1],
+                ['key' => 'ots_eligible', 'label' => 'Eligible', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.7],
+                ['key' => 'scheme', 'label' => 'Scheme', 'type' => 'labels', 'labels' => KrmOts::SCHEMES, 'weight' => 0.9],
                 ['key' => 'outstanding', 'label' => 'Outstanding', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
-                ['key' => 'ots_amount', 'label' => 'OTS amount', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
+                ['key' => 'ots_amount', 'label' => 'Proposed settlement', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
+                ['key' => 'borrower_share', 'label' => "Borrower's share", 'type' => 'money', 'align' => 'right', 'weight' => 0.9],
+                ['key' => 'initial_deposit_required', 'label' => 'Initial deposit', 'type' => 'money', 'align' => 'right', 'weight' => 0.9],
                 ['key' => 'paid_amount', 'label' => 'Paid', 'type' => 'money', 'align' => 'right', 'weight' => 0.9],
-                ['key' => 'ots_status', 'label' => 'OTS status', 'type' => 'enum', 'weight' => 1.0],
+                [
+                    'key' => 'customer_response',
+                    'label' => 'Customer response',
+                    'type' => 'labels',
+                    'labels' => KrmOts::CUSTOMER_RESPONSES,
+                    'weight' => 1.2,
+                ],
+                ['key' => 'ots_status', 'label' => 'OTS status', 'type' => 'labels', 'labels' => KrmOts::STATUSES, 'weight' => 1.0],
+                [
+                    'key' => 'recommendation',
+                    'label' => 'Recommendation',
+                    'type' => 'labels',
+                    'labels' => KrmOts::RECOMMENDATIONS,
+                    'weight' => 1.3,
+                ],
+                [
+                    'key' => 'final_status',
+                    'label' => 'Final status',
+                    'type' => 'labels',
+                    'labels' => KrmOts::FINAL_STATUSES,
+                    'weight' => 1.2,
+                ],
                 ['key' => 'visit_date', 'label' => 'Visit date', 'type' => 'date', 'weight' => 0.9],
-                ['key' => 'promise_date', 'label' => 'Promise date', 'type' => 'date', 'weight' => 0.9],
+                ['key' => 'promise_date', 'label' => 'Expected deposit', 'type' => 'date', 'weight' => 0.9],
                 ['key' => 'remarks', 'label' => 'Remarks', 'weight' => 1.8],
             ],
         ];
@@ -640,6 +685,30 @@ final class Reports
             $params['documents_status'] = $documents;
         }
 
+        // Section 5 and 13 of the verification report. The due bucket is the one
+        // an Admin/Supervisor actually works from: it answers "what falls due
+        // next week".
+        $bucket = self::enumFilter($filters, 'renewal_due_bucket', array_keys(CkccRenewals::DUE_BUCKETS));
+
+        if ($bucket !== null) {
+            $where[] = 'c.renewal_due_bucket = :renewal_due_bucket';
+            $params['renewal_due_bucket'] = $bucket;
+        }
+
+        $kyc = self::enumFilter($filters, 'kyc_status', array_keys(CkccRenewals::KYC_STATUSES));
+
+        if ($kyc !== null) {
+            $where[] = 'c.kyc_status = :kyc_status';
+            $params['kyc_status'] = $kyc;
+        }
+
+        $finalStatus = self::enumFilter($filters, 'final_status', array_keys(CkccRenewals::FINAL_STATUSES));
+
+        if ($finalStatus !== null) {
+            $where[] = 'c.final_status = :final_status';
+            $params['final_status'] = $finalStatus;
+        }
+
         if (!empty($filters['search'])) {
             $where[] = '(a.account_number LIKE :search OR a.cif LIKE :search OR a.borrower_name LIKE :search)';
             $params['search'] = '%' . trim((string) $filters['search']) . '%';
@@ -649,6 +718,10 @@ final class Reports
                        b.name AS branch_name, b.code AS branch_code,
                        u.name AS supervisor_name, s.bc_code,
                        c.loan_type, c.limit_amount, c.outstanding, c.overdue,
+                       c.renewal_eligible, c.renewal_due_bucket, c.renewal_due_date, c.expected_npa_date,
+                       c.days_remaining, c.kyc_status, c.aadhaar_seeded, c.mobile_linked,
+                       c.aadhaar_authentication, c.renewal_consent, c.renewal_form_signed,
+                       c.biometrics_completed, c.recommendation, c.final_status,
                        c.renewal_status, c.visit_date, c.customer_availability, c.documents_status,
                        c.documents_remarks, c.renewed_on, c.remarks,
                        (SELECT COUNT(*) FROM visit_photos p WHERE p.visit_id = c.visit_id) AS photos
@@ -672,9 +745,71 @@ final class Reports
                 ['key' => 'limit_amount', 'label' => 'Limit', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
                 ['key' => 'outstanding', 'label' => 'Outstanding', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
                 ['key' => 'overdue', 'label' => 'Overdue', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
-                ['key' => 'renewal_status', 'label' => 'Renewal status', 'type' => 'enum', 'weight' => 1.2],
-                ['key' => 'customer_availability', 'label' => 'Customer', 'type' => 'enum', 'weight' => 1.0],
-                ['key' => 'documents_status', 'label' => 'Documents', 'type' => 'enum', 'weight' => 1.0],
+                ['key' => 'renewal_eligible', 'label' => 'Eligible', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.7],
+                [
+                    'key' => 'renewal_due_bucket',
+                    'label' => 'Renewal due',
+                    'type' => 'labels',
+                    'labels' => CkccRenewals::DUE_BUCKETS,
+                    'weight' => 1.0,
+                ],
+                ['key' => 'renewal_due_date', 'label' => 'Due date', 'type' => 'date', 'weight' => 0.9],
+                ['key' => 'days_remaining', 'label' => 'Days left', 'align' => 'right', 'weight' => 0.7],
+                ['key' => 'expected_npa_date', 'label' => 'Expected NPA', 'type' => 'date', 'weight' => 0.9],
+                [
+                    'key' => 'kyc_status',
+                    'label' => 'KYC',
+                    'type' => 'labels',
+                    'labels' => CkccRenewals::KYC_STATUSES,
+                    'weight' => 0.8,
+                ],
+                ['key' => 'aadhaar_seeded', 'label' => 'Aadhaar seeded', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.8],
+                ['key' => 'mobile_linked', 'label' => 'Mobile linked', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.8],
+                [
+                    'key' => 'aadhaar_authentication',
+                    'label' => 'Aadhaar auth',
+                    'type' => 'labels',
+                    'labels' => CkccRenewals::AUTHENTICATION,
+                    'weight' => 0.9,
+                ],
+                ['key' => 'renewal_consent', 'label' => 'Consent', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.7],
+                ['key' => 'renewal_form_signed', 'label' => 'Form signed', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.8],
+                ['key' => 'biometrics_completed', 'label' => 'Biometrics', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.8],
+                [
+                    'key' => 'renewal_status',
+                    'label' => 'Renewal status',
+                    'type' => 'labels',
+                    'labels' => CkccRenewals::STATUSES,
+                    'weight' => 1.2,
+                ],
+                [
+                    'key' => 'customer_availability',
+                    'label' => 'Customer',
+                    'type' => 'labels',
+                    'labels' => CkccRenewals::AVAILABILITY,
+                    'weight' => 1.0,
+                ],
+                [
+                    'key' => 'documents_status',
+                    'label' => 'Documents',
+                    'type' => 'labels',
+                    'labels' => CkccRenewals::DOCUMENT_STATUSES,
+                    'weight' => 1.0,
+                ],
+                [
+                    'key' => 'recommendation',
+                    'label' => 'Recommendation',
+                    'type' => 'labels',
+                    'labels' => CkccRenewals::RECOMMENDATIONS,
+                    'weight' => 1.4,
+                ],
+                [
+                    'key' => 'final_status',
+                    'label' => 'Final status',
+                    'type' => 'labels',
+                    'labels' => CkccRenewals::FINAL_STATUSES,
+                    'weight' => 1.2,
+                ],
                 ['key' => 'visit_date', 'label' => 'Visit date', 'type' => 'date', 'weight' => 0.9],
                 ['key' => 'remarks', 'label' => 'Remarks', 'weight' => 1.6],
             ],
@@ -1286,6 +1421,10 @@ final class Reports
             'hours' => minutes_to_hours((int) $value),
             'boolean' => ((int) $value === 1 || $value === true) ? 'Yes' : 'No',
             'enum' => enum_label((string) $value),
+            // An enum with an explicit label map, for values whose printed
+            // wording is not just the key tidied up: `agreed` must read
+            // "Agreed for OTS", and `sma_2` must read "SMA-2", not "Sma 2".
+            'labels' => (string) (($column['labels'] ?? [])[(string) $value] ?? enum_label((string) $value)),
             'visit_status' => visit_status_label((string) $value),
             'inspection_result' => inspection_result_label((string) $value),
             default => (string) $value,

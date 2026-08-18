@@ -214,6 +214,15 @@ final class Forms
                 array_map('strtolower', array_map('trim', explode(',', $expected))),
                 true
             ),
+            // For a checkbox parent, whose answer is a comma joined list: true
+            // when the expected choice is one of the ticked values. Compared
+            // per item rather than with a substring search, so "Other" does not
+            // match "Other Land Record".
+            'contains' => in_array(
+                strtolower($expected),
+                array_map('strtolower', array_map('trim', explode(',', $parentValue))),
+                true
+            ),
             'filled' => $parentValue !== '',
             'empty' => $parentValue === '',
             default => true,
@@ -656,7 +665,7 @@ final class Forms
             'condition_field_id' => $conditionFieldId,
             'condition_operator' => $conditionFieldId === null
                 ? null
-                : (in_array((string) ($data['condition_operator'] ?? 'equals'), ['equals', 'not_equals', 'in', 'filled', 'empty'], true)
+                : (in_array((string) ($data['condition_operator'] ?? 'equals'), ['equals', 'not_equals', 'in', 'contains', 'filled', 'empty'], true)
                     ? (string) $data['condition_operator']
                     : 'equals'),
             'condition_value' => $conditionFieldId === null || !isset($data['condition_value']) || $data['condition_value'] === ''

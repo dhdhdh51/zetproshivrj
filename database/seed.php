@@ -23,6 +23,12 @@ function lrms_seed(bool $demo = false): void
     $visitFormId = lrms_seed_visit_form();
     $inspectionFormId = lrms_seed_inspection_form();
 
+    // The two dedicated work streams each get their own Field Visit Verification
+    // Report form. They are separate on purpose: the KRM OTS form carries no
+    // renewal fields and the CKCC form carries no settlement fields.
+    lrms_seed_krm_ots_form();
+    lrms_seed_ckcc_form();
+
     App\Core\Settings::set('default_visit_form_id', (string) $visitFormId, 'forms');
     App\Core\Settings::set('default_inspection_form_id', (string) $inspectionFormId, 'forms');
 
@@ -252,6 +258,331 @@ function lrms_seed_visit_form(): int
 /**
  * TYPE B — the BC Supervisor inspection form used by Admin/Supervisor on the web.
  */
+/* -------------------------------------------------------------------------- */
+/* Field Visit Verification Report forms (KRM OTS and CKCC OD-2)              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The sections both work-stream reports share: 1-3 (auto-filled context),
+ * 6 (physical verification), 7 (documents), 8 (observations), 9 (general
+ * recommendation), 10 (evidence), 11 (declaration) and 12 (certification).
+ *
+ * Defined once so the two forms cannot drift apart. `$stream` decides the two
+ * checklist entries that belong to one stream only — the OTS consent letter for
+ * KRM OTS, the renewal form for CKCC — which is what keeps the reports separate.
+ *
+ * Field keys deliberately match the `visits` table columns, so the answers land
+ * in typed columns and not only in the form-values table.
+ *
+ * @param 'krm_ots'|'ckcc_od2' $stream
+ * @return array<int, array{0:string, 1:string, 2:string, 3:int, 4:?string, 5:?string, 6?:array{0:string,1:string,2:string}}>
+ */
+function lrms_report_context_fields(): array
+{
+    return [
+        ['case_context', '1-3. General information, borrower and loan account', 'section', 0, null,
+            'Visit date and time, branch, regional office, zone, SP/CBC name, BC Agent name, BC code, DRA ID, '
+            . 'district, village and GPS are recorded automatically. Borrower name, father/husband name, gender, '
+            . 'date of birth, mobile, Aadhaar (last 4), PAN, full address, loan account number, CIF, loan type, '
+            . 'sanction date and limit, drawing power, outstanding, interest overdue, overdue, NPA date and asset '
+            . 'classification come from the loan book. Correct anything that is wrong in the field below.'],
+        ['alternate_mobile', 'Alternate mobile (if found in the field)', 'text', 0, null, null],
+    ];
+}
+
+/**
+ * @return array<int, array<mixed>>
+ */
+function lrms_report_verification_fields(): array
+{
+    return [
+        ['verification_section', '6. Physical verification', 'section', 0, null, null],
+        ['customer_available', 'Borrower met', 'yes_no', 1, null, null],
+        ['family_met', 'Family member met', 'yes_no', 0, null, null],
+        ['house_locked', 'House locked', 'yes_no', 0, null, null],
+        ['is_alive', 'Borrower alive', 'yes_no', 0, null, 'Record "No" only when confirmed by the family.'],
+        ['address_shifted', 'Current address — borrower has shifted', 'yes_no', 0, null,
+            'Answer "No" when the borrower is still at the recorded address.'],
+        ['current_address', 'New address', 'textarea', 0, null, null,
+            ['address_shifted', 'equals', 'Yes']],
+        ['phone_contact', 'Mobile contacted', 'yes_no', 0, null, null],
+        ['residence_verified', 'Residence verification confirmed', 'yes_no', 0, null, null],
+        ['neighbour_verified', 'Neighbour verification conducted', 'yes_no', 0, null, null],
+        ['occupation', 'Current occupation', 'dropdown', 0,
+            "Agriculture\nDairy\nBusiness\nLabour\nService\nOther", null],
+    ];
+}
+
+/**
+ * `$streamRecommendation` is the stream's own section 9 dropdown, which must sit
+ * with the general recommendation rather than after the evidence checklist.
+ *
+ * @param 'krm_ots'|'ckcc_od2' $stream
+ * @param array<int, array<mixed>> $streamRecommendation
+ * @return array<int, array<mixed>>
+ */
+function lrms_report_evidence_fields(string $stream, array $streamRecommendation): array
+{
+    // The one entry in each checklist that belongs to this stream only. This is
+    // what keeps a KRM OTS report free of renewal wording and the reverse.
+    $streamDocument = $stream === 'krm_ots' ? 'OTS Consent Letter' : 'Renewal Form';
+    $streamEvidence = $stream === 'krm_ots' ? 'OTS Consent' : 'Renewal Form';
+
+    return array_merge(
+        [
+            ['documents_section', '7. Documents verified', 'section', 0, null, null],
+            ['documents_verified', 'Documents verified', 'checkbox', 0,
+                "Aadhaar Card\nPAN Card\nPassbook\nLand Record\nKhatauni\nElectricity Bill\nPhotograph\n"
+                . "Mobile Verified\n" . $streamDocument . "\nOther", 'Tick every document actually seen.'],
+            ['documents_other', 'Other document', 'text', 0, null, null,
+                ['documents_verified', 'contains', 'Other']],
+
+            ['observations_section', '8. BC Agent observations', 'section', 0, null, null],
+            ['remarks', 'Observations', 'remarks', 1, null,
+                'What was seen and said in the field, in your own words.'],
+
+            ['recommendation_section', '9. Recommendation', 'section', 0, null, null],
+        ],
+        $streamRecommendation,
+        [
+            ['recommendation', 'General recommendation', 'textarea', 0, null, null],
+
+            ['evidence_section', '10. Evidence attached', 'section', 0, null, null],
+            ['gps', 'GPS location', 'gps', 1, null, 'Captured automatically when the visit starts.'],
+            ['photo', 'Photographs', 'photo', 1, null,
+                'Borrower, house, land, Aadhaar copy, passbook copy as applicable.'],
+            ['evidence_attached', 'Evidence attached', 'checkbox', 0,
+                "Borrower Photograph\nHouse Photograph\nLand Photograph\nAadhaar Copy\nPassbook Copy\n"
+                . "GPS Location\n" . $streamEvidence . "\nOther", null],
+            ['evidence_other', 'Other evidence', 'text', 0, null, null,
+                ['evidence_attached', 'contains', 'Other']],
+        ]
+    );
+}
+
+/**
+ * Sections 11 and 12. The declaration is the RBI / Fair Practices Code
+ * certification the BC Agent makes; the report is refused unless it is accepted.
+ *
+ * @return array<int, array<mixed>>
+ */
+function lrms_report_declaration_fields(): array
+{
+    return [
+        ['declaration_section', '11. Declaration', 'section', 0, null, lrms_report_declaration_text()],
+        ['declaration_accepted', 'I accept the declaration above', 'yes_no', 1, null,
+            'The report cannot be submitted without accepting it.'],
+
+        ['certification_section', '12. Certification', 'section', 0, null,
+            'Your name, BC code, DRA ID and mobile number are printed from your profile. '
+            . 'The Admin/Supervisor countersigns when the report is approved.'],
+        ['borrower_signature', 'Borrower signature', 'signature', 0, null, null],
+        ['supervisor_signature', 'BC Agent signature', 'signature', 0, null, null],
+    ];
+}
+
+/**
+ * The declaration printed in section 11, held in one place because it is a
+ * compliance text: the web form, the Android form and the PDF must all show the
+ * same words.
+ */
+function lrms_report_declaration_text(): string
+{
+    return 'I hereby certify that the information contained in this report has been collected and verified during '
+        . 'my personal physical field visit through direct interaction with the borrower and/or other reliable local '
+        . 'sources, wherever applicable. The details recorded herein represent the factual position observed and '
+        . 'verified during the visit and have been documented fairly, accurately, objectively, and in good faith to '
+        . 'the best of my knowledge and belief. '
+        . 'I further certify that no information has been intentionally concealed, altered, or misrepresented. The '
+        . 'field verification has been conducted strictly in accordance with the applicable Reserve Bank of India '
+        . '(RBI) guidelines, the Bank\'s extant policies, operational instructions, the Fair Practices Code, and the '
+        . 'prescribed Code of Conduct governing field verification, customer interaction, and recovery-related '
+        . 'activities. '
+        . 'This report is submitted solely for the purpose of assessment, verification, recovery follow-up, and/or '
+        . 'renewal processing, as applicable, and shall be subject to verification and acceptance by the Bank.';
+}
+
+/**
+ * Insert a form's fields, resolving conditional visibility once every field has
+ * an id.
+ *
+ * @param array<int, array<mixed>> $fields
+ * @return array<string, int> field key => id
+ */
+function lrms_insert_form_fields(int $formId, array $fields): array
+{
+    $ids = [];
+    $conditions = [];
+    $order = 0;
+
+    foreach ($fields as $field) {
+        [$key, $label, $type, $required, $options, $help] = $field;
+        $order += 10;
+
+        $ids[$key] = Database::insert('visit_form_fields', [
+            'form_id' => $formId,
+            'field_key' => $key,
+            'label' => $label,
+            'field_type' => $type,
+            'options' => $options,
+            'help_text' => $help,
+            'is_required' => $required,
+            'sort_order' => $order,
+            'is_active' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        if (isset($field[6]) && is_array($field[6])) {
+            $conditions[$key] = $field[6];
+        }
+    }
+
+    foreach ($conditions as $key => [$dependsOn, $operator, $value]) {
+        if (!isset($ids[$dependsOn])) {
+            continue;
+        }
+
+        Database::update('visit_form_fields', [
+            'condition_field_id' => $ids[$dependsOn],
+            'condition_operator' => $operator,
+            'condition_value' => $value,
+            'updated_at' => now(),
+        ], 'id = :id', ['id' => $ids[$key]]);
+    }
+
+    return $ids;
+}
+
+/**
+ * KRM OTS Field Visit Verification Report: the shared sections plus section 4.
+ * Carries no CKCC OD-2 renewal fields.
+ */
+function lrms_seed_krm_ots_form(): int
+{
+    $existing = Database::selectOne(
+        "SELECT id FROM visit_forms WHERE visit_type = 'krm_ots' AND is_default = 1 LIMIT 1"
+    );
+
+    if ($existing !== null) {
+        return (int) $existing['id'];
+    }
+
+    $formId = Database::insert('visit_forms', [
+        'name' => 'KRM OTS Field Visit Verification Report',
+        'description' => 'One Time Settlement field verification. RBI guidelines and Code of Conduct compliant format.',
+        'visit_type' => 'krm_ots',
+        'version' => 1,
+        'is_active' => 1,
+        'is_default' => 1,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $fields = array_merge(
+        lrms_report_context_fields(),
+        [
+            ['ots_section', '4. KRM OTS details', 'section', 0, null, null],
+            ['ots_eligible', 'Eligible for KRM OTS', 'yes_no', 1, null, null],
+            ['scheme', 'Applicable scheme', 'dropdown', 0, "KRM OTS\nGeneral OTS\nOther", null],
+            ['scheme_other', 'Other scheme', 'text', 0, null, null, ['scheme', 'equals', 'Other']],
+            ['ots_amount', 'Proposed settlement', 'decimal', 0, null,
+                'Cannot be more than the outstanding balance.'],
+            ['borrower_share', 'Borrower\'s share', 'decimal', 0, null, null],
+            ['initial_deposit_required', 'Initial deposit required', 'decimal', 0, null, null],
+            ['customer_response', 'Customer response', 'dropdown', 1,
+                "Agreed for OTS\nRequested Time\nFinancial Difficulty\nRefused OTS\nNot Eligible", null],
+            ['promise_date', 'Expected deposit date', 'date', 0, null, null,
+                ['customer_response', 'equals', 'Agreed for OTS']],
+        ],
+        lrms_report_verification_fields(),
+        lrms_report_evidence_fields('krm_ots', [
+            ['ots_recommendation', 'KRM OTS recommendation', 'dropdown', 1,
+                "OTS Proposal Recommended\nFollow-up Required\nCustomer Refused\nNot Eligible", null],
+        ]),
+        lrms_report_declaration_fields(),
+        [
+            ['status_section', '13. Final report status', 'section', 0, null, null],
+            ['ots_final_status', 'Final status', 'dropdown', 0,
+                "Customer Contacted\nCustomer Verified\nOTS Accepted\nOTS Rejected\nInitial Deposit Received\n"
+                . "OTS Closed\nFollow-up Required", null],
+        ]
+    );
+
+    lrms_insert_form_fields($formId, $fields);
+
+    echo "  visit_forms: KRM OTS report form #{$formId} with " . count($fields) . " fields\n";
+
+    return $formId;
+}
+
+/**
+ * CKCC OD-2 Renewal Field Visit Verification Report: the shared sections plus
+ * section 5. Carries no KRM OTS settlement fields.
+ */
+function lrms_seed_ckcc_form(): int
+{
+    $existing = Database::selectOne(
+        "SELECT id FROM visit_forms WHERE visit_type = 'ckcc_od2' AND is_default = 1 LIMIT 1"
+    );
+
+    if ($existing !== null) {
+        return (int) $existing['id'];
+    }
+
+    $formId = Database::insert('visit_forms', [
+        'name' => 'CKCC OD-2 Renewal Field Visit Verification Report',
+        'description' => 'CKCC OD-2 renewal field verification. RBI guidelines and Code of Conduct compliant format.',
+        'visit_type' => 'ckcc_od2',
+        'version' => 1,
+        'is_active' => 1,
+        'is_default' => 1,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $fields = array_merge(
+        lrms_report_context_fields(),
+        [
+            ['renewal_section', '5. CKCC OD-2 renewal details', 'section', 0, null, null],
+            ['renewal_eligible', 'Eligible for renewal', 'yes_no', 1, null, null],
+            ['renewal_due_bucket', 'Renewal due', 'dropdown', 0,
+                "Within 30 Days\nWithin 15 Days\nWithin 7 Days\nOverdue", null],
+            ['renewal_due_date', 'Renewal due date', 'date', 0, null, null],
+            ['expected_npa_date', 'Expected NPA date', 'date', 0, null, null],
+            ['days_remaining', 'Days remaining', 'number', 0, null, null],
+            ['kyc_status', 'KYC status', 'dropdown', 0, "Complete\nPending", null],
+            ['aadhaar_seeded', 'Aadhaar seeded', 'yes_no', 0, null, null],
+            ['mobile_linked', 'Mobile linked', 'yes_no', 0, null, null],
+            ['aadhaar_authentication', 'Aadhaar authentication', 'dropdown', 0, "Completed\nPending", null],
+            ['renewal_consent', 'Borrower willing to renew', 'yes_no', 1, null, null],
+            ['renewal_form_signed', 'Renewal form signed', 'yes_no', 0, null, null,
+                ['renewal_consent', 'equals', 'Yes']],
+            ['biometrics_completed', 'Biometrics completed', 'yes_no', 0, null, null,
+                ['renewal_consent', 'equals', 'Yes']],
+        ],
+        lrms_report_verification_fields(),
+        lrms_report_evidence_fields('ckcc_od2', [
+            ['renewal_recommendation', 'CKCC renewal recommendation', 'dropdown', 1,
+                "Renewal Immediately Recommended\nDocuments Complete\nPending Documents\n"
+                . "Customer Not Interested\nBranch Follow-up Required", null],
+        ]),
+        lrms_report_declaration_fields(),
+        [
+            ['status_section', '13. Final report status', 'section', 0, null, null],
+            ['renewal_final_status', 'Final status', 'dropdown', 0,
+                "Customer Contacted\nCustomer Verified\nDocuments Collected\nRenewal Submitted\n"
+                . "Renewal Approved\nPending at Branch\nAccount Became NPA\nFollow-up Required", null],
+        ]
+    );
+
+    lrms_insert_form_fields($formId, $fields);
+
+    echo "  visit_forms: CKCC OD-2 report form #{$formId} with " . count($fields) . " fields\n";
+
+    return $formId;
+}
+
 function lrms_seed_inspection_form(): int
 {
     $existing = Database::selectOne('SELECT id FROM inspection_forms WHERE is_default = 1 LIMIT 1');

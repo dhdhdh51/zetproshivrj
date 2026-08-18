@@ -34,7 +34,7 @@ Material 3.
 cd android
 echo "sdk.dir=/path/to/Android/sdk" > local.properties   # or set ANDROID_HOME
 
-./gradlew testDebugUnitTest        # 21 unit tests
+./gradlew testDebugUnitTest        # 25 unit tests
 ./gradlew assembleDebug            # app/build/outputs/apk/debug/
 ./gradlew lintDebug
 ```
@@ -292,9 +292,10 @@ codegen for the same reason; R8 keep rules are in
 
 ## Not included
 
-- **Instrumentation (UI) tests.** The 21 unit tests cover the offline form rules,
-  conditional visibility and money/date formatting; the server contract is covered
-  by `tests/api-smoke.php` against a real server. There is no Espresso suite and
-  the pipeline runs no emulator.
+- **Instrumentation (UI) tests.** The 25 unit tests cover the offline form rules,
+  conditional visibility (including the `contains` operator used by the
+  verification report checklists) and money/date formatting; the server contract
+  is covered by `tests/api-smoke.php` against a real server. There is no Espresso
+  suite and the pipeline runs no emulator.
 - **Push notifications.** The `fcm_token` field is sent at sign-in and stored, but
   no Firebase dependency is wired up; notifications are delivered on sync.

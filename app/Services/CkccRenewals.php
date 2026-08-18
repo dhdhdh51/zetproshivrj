@@ -39,6 +39,47 @@ final class CkccRenewals
         'refused' => 'Refused',
     ];
 
+    /** Section 5, "Renewal Due". */
+    public const DUE_BUCKETS = [
+        'within_30_days' => 'Within 30 days',
+        'within_15_days' => 'Within 15 days',
+        'within_7_days' => 'Within 7 days',
+        'overdue' => 'Overdue',
+    ];
+
+    /** Section 5, "KYC Status". */
+    public const KYC_STATUSES = [
+        'complete' => 'Complete',
+        'pending' => 'Pending',
+    ];
+
+    /** Section 5, "Aadhaar Authentication". */
+    public const AUTHENTICATION = [
+        'completed' => 'Completed',
+        'pending' => 'Pending',
+    ];
+
+    /** Section 9, the CKCC renewal recommendation. */
+    public const RECOMMENDATIONS = [
+        'renew_immediately' => 'Renewal immediately recommended',
+        'documents_complete' => 'Documents complete',
+        'documents_pending' => 'Pending documents',
+        'customer_not_interested' => 'Customer not interested',
+        'branch_followup_required' => 'Branch follow-up required',
+    ];
+
+    /** Section 13, "Final Report Status". */
+    public const FINAL_STATUSES = [
+        'customer_contacted' => 'Customer contacted',
+        'customer_verified' => 'Customer verified',
+        'documents_collected' => 'Documents collected',
+        'renewal_submitted' => 'Renewal submitted',
+        'renewal_approved' => 'Renewal approved',
+        'pending_at_branch' => 'Pending at branch',
+        'became_npa' => 'Account became NPA',
+        'followup_required' => 'Follow-up required',
+    ];
+
     /**
      * @param array<string, mixed> $payload
      */
@@ -85,10 +126,26 @@ final class CkccRenewals
             'overdue' => isset($payload['overdue']) && $payload['overdue'] !== ''
                 ? self::money($payload['overdue'])
                 : (float) $account['overdue'],
+            // Section 5 of the report.
+            'renewal_eligible' => self::tristate($payload['renewal_eligible'] ?? null),
+            'renewal_due_bucket' => self::option($payload['renewal_due_bucket'] ?? null, self::DUE_BUCKETS),
+            'renewal_due_date' => self::date($payload['renewal_due_date'] ?? null),
+            'expected_npa_date' => self::date($payload['expected_npa_date'] ?? null)
+                ?? self::date($account['npa_date'] ?? null),
+            'days_remaining' => self::days($payload['days_remaining'] ?? null, self::date($payload['renewal_due_date'] ?? null)),
+            'kyc_status' => self::option($payload['kyc_status'] ?? null, self::KYC_STATUSES),
+            'aadhaar_seeded' => self::tristate($payload['aadhaar_seeded'] ?? null),
+            'mobile_linked' => self::tristate($payload['mobile_linked'] ?? null),
+            'aadhaar_authentication' => self::option($payload['aadhaar_authentication'] ?? null, self::AUTHENTICATION),
+            'renewal_consent' => self::tristate($payload['renewal_consent'] ?? null),
+            'renewal_form_signed' => self::tristate($payload['renewal_form_signed'] ?? null),
+            'biometrics_completed' => self::tristate($payload['biometrics_completed'] ?? null),
             'renewal_status' => $status,
             'visit_date' => self::date($payload['visit_date'] ?? null),
             'customer_availability' => $availability,
             'documents_status' => $documents,
+            'recommendation' => self::option($payload['recommendation'] ?? null, self::RECOMMENDATIONS),
+            'final_status' => self::option($payload['final_status'] ?? null, self::FINAL_STATUSES),
             'documents_remarks' => isset($payload['documents_remarks'])
                 ? mb_substr((string) $payload['documents_remarks'], 0, 500)
                 : null,
@@ -155,7 +212,13 @@ final class CkccRenewals
         }
 
         $payload = is_array($payload) ? $payload : [];
+
+        // Section 5 of the report is filled in on the form, so the answers are
+        // read back from the submitted values. An explicit payload still wins.
+        $payload = array_merge(self::fromFormValues($visitId), $payload);
+
         $payload['visit_date'] = $payload['visit_date'] ?? $visit['visit_date'];
+        $payload['remarks'] = $payload['remarks'] ?? $visit['remarks'];
 
         // Derive customer availability from the visit when the app did not send it.
         if (!isset($payload['customer_availability'])) {
@@ -171,6 +234,52 @@ final class CkccRenewals
         self::save((int) $visit['loan_account_id'], $payload, $visitId);
     }
 
+    /**
+     * Map the report form's section 5, 9 and 13 answers onto the payload keys
+     * this service understands.
+     *
+     * @return array<string, mixed>
+     */
+    private static function fromFormValues(int $visitId): array
+    {
+        $values = [];
+
+        foreach (Forms::values(Forms::KIND_VISIT, $visitId) as $row) {
+            $value = trim((string) $row['value']);
+
+            if ($value !== '') {
+                $values[(string) $row['field_key']] = $value;
+            }
+        }
+
+        $map = [
+            'renewal_eligible' => 'renewal_eligible',
+            'renewal_due_bucket' => 'renewal_due_bucket',
+            'renewal_due_date' => 'renewal_due_date',
+            'expected_npa_date' => 'expected_npa_date',
+            'days_remaining' => 'days_remaining',
+            'kyc_status' => 'kyc_status',
+            'aadhaar_seeded' => 'aadhaar_seeded',
+            'mobile_linked' => 'mobile_linked',
+            'aadhaar_authentication' => 'aadhaar_authentication',
+            'renewal_consent' => 'renewal_consent',
+            'renewal_form_signed' => 'renewal_form_signed',
+            'biometrics_completed' => 'biometrics_completed',
+            'renewal_recommendation' => 'recommendation',
+            'renewal_final_status' => 'final_status',
+        ];
+
+        $payload = [];
+
+        foreach ($map as $formKey => $payloadKey) {
+            if (isset($values[$formKey])) {
+                $payload[$payloadKey] = $values[$formKey];
+            }
+        }
+
+        return $payload;
+    }
+
     private static function money(mixed $value): float
     {
         if ($value === null || $value === '') {
@@ -178,6 +287,68 @@ final class CkccRenewals
         }
 
         return round((float) str_replace(',', '', (string) $value), 2);
+    }
+
+    private static function tristate(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $value = strtolower(trim((string) $value));
+
+        if (in_array($value, ['yes', '1', 'true'], true)) {
+            return 1;
+        }
+
+        return in_array($value, ['no', '0', 'false'], true) ? 0 : null;
+    }
+
+    /**
+     * Resolve a value that may arrive either as the stored enum key or as the
+     * human label the report form shows ("Within 30 Days" -> `within_30_days`).
+     *
+     * @param array<string, string> $options
+     */
+    private static function option(mixed $value, array $options): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (array_key_exists($value, $options)) {
+            return $value;
+        }
+
+        foreach ($options as $key => $label) {
+            if (strcasecmp($label, $value) === 0) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * "Days Remaining". Uses what the supervisor recorded, and otherwise counts
+     * from today to the renewal due date.
+     */
+    private static function days(mixed $value, ?string $dueDate): ?int
+    {
+        if ($value !== null && $value !== '' && is_numeric((string) $value)) {
+            return (int) $value;
+        }
+
+        if ($dueDate === null) {
+            return null;
+        }
+
+        $due = strtotime($dueDate . ' 00:00:00');
+        $today = strtotime(today() . ' 00:00:00');
+
+        return $due === false || $today === false ? null : (int) floor(($due - $today) / 86400);
     }
 
     private static function date(mixed $value): ?string

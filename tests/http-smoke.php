@@ -274,6 +274,130 @@ if ($supervisorId > 0) {
 }
 
 /* -------------------------------------------------------------------------- */
+section('BC creation form saves the full profile');
+/* -------------------------------------------------------------------------- */
+
+// The BC creation screen collects the identity the field visit verification
+// report prints. This posts the real form, so a field that is not wired through
+// the controller shows up here rather than as a blank on a printed report.
+$createPage = page('/admin/supervisors/create', 'Add BC supervisor');
+
+foreach (['sp_cbc_name', 'ssa', 'iibf_number', 'dra_id', 'designation', 'aadhaar_number',
+    'pan_number', 'block', 'tehsil', 'district', 'state', 'pincode'] as $field) {
+    ok(
+        str_contains($createPage, 'name="' . $field . '"'),
+        'BC creation form offers the ' . $field . ' field'
+    );
+}
+
+$branchForBc = (int) Database::scalar('SELECT id FROM branches ORDER BY id LIMIT 1');
+$bcCode = 'SMOKE' . random_int(100000, 999999);
+
+$created = request($base . '/admin/supervisors', [
+    'post' => [
+        '_token' => csrfToken($createPage),
+        'name' => 'CHANDRA SHEKHAR',
+        'bc_code' => $bcCode,
+        'branch_id' => (string) $branchForBc,
+        'mobile' => '7417343844',
+        'username' => 'smoke-bc-' . $bcCode,
+        'email' => strtolower($bcCode) . '@example.test',
+        'sp_cbc_name' => 'FIA TECHNOLOGY SERVICES PVT. LTD',
+        'ssa' => 'PATIYALI SSA',
+        'iibf_number' => '8014017889',
+        'dra_id' => 'DRA-9001',
+        'designation' => 'BC Agent',
+        // Deliberately a full Aadhaar number: only the last four may be stored.
+        'aadhaar_number' => '1234 5678 9012',
+        'pan_number' => 'abcde1234f',
+        'address' => 'NAGLA FULU',
+        'village' => 'NAGLA FULU',
+        'block' => 'PATIYALI BLOCK',
+        'tehsil' => 'PATIYALI',
+        'district' => 'KASGANJ',
+        'state' => 'UP',
+        'pincode' => '207248',
+    ],
+]);
+
+ok(in_array($created['status'], [200, 302], true), 'BC creation form accepted (HTTP ' . $created['status'] . ')');
+
+$newBc = Database::selectOne(
+    'SELECT s.*, u.name, u.email FROM bc_supervisors s JOIN users u ON u.id = s.user_id WHERE s.bc_code = :code',
+    ['code' => $bcCode]
+);
+
+if (ok($newBc !== null, 'BC Supervisor created through the form')) {
+    equals('FIA TECHNOLOGY SERVICES PVT. LTD', (string) $newBc['sp_cbc_name'], 'SP / CBC name saved');
+    equals('PATIYALI SSA', (string) $newBc['ssa'], 'SSA saved');
+    equals('8014017889', (string) $newBc['iibf_number'], 'IIBF number saved');
+    equals('DRA-9001', (string) $newBc['dra_id'], 'DRA ID saved');
+    equals('BC Agent', (string) $newBc['designation'], 'Designation saved');
+    equals('9012', (string) $newBc['aadhaar_last4'], 'Only the last four Aadhaar digits were stored');
+    equals('ABCDE1234F', (string) $newBc['pan_number'], 'PAN upper-cased on save');
+    equals('PATIYALI BLOCK', (string) $newBc['block'], 'Block saved');
+    equals('PATIYALI', (string) $newBc['tehsil'], 'Tehsil saved');
+    equals('KASGANJ', (string) $newBc['district'], 'District saved');
+    equals('UP', (string) $newBc['state'], 'State saved');
+    equals('207248', (string) $newBc['pincode'], 'Pincode saved');
+
+    // The edit screen must show what was saved, including the masked Aadhaar.
+    $editPage = page('/admin/supervisors/' . (int) $newBc['id'] . '/edit', 'Edit BC supervisor');
+
+    ok(str_contains($editPage, 'FIA TECHNOLOGY SERVICES PVT. LTD'), 'Edit form shows the saved SP / CBC name');
+    ok(str_contains($editPage, 'XXXX-XXXX-9012'), 'Edit form shows Aadhaar masked to the last four digits');
+    ok(!str_contains($editPage, '123456789012'), 'The full Aadhaar number is never rendered');
+
+    // Re-saving the masked value must not corrupt it.
+    $updated = request($base . '/admin/supervisors/' . (int) $newBc['id'], [
+        'post' => [
+            '_token' => csrfToken($editPage),
+            'name' => 'CHANDRA SHEKHAR',
+            'bc_code' => $bcCode,
+            'branch_id' => (string) $branchForBc,
+            'mobile' => '7417343844',
+            'username' => 'smoke-bc-' . $bcCode,
+            'status' => 'active',
+            'aadhaar_number' => 'XXXX-XXXX-9012',
+            'pan_number' => 'ABCDE1234F',
+            'sp_cbc_name' => 'FIA TECHNOLOGY SERVICES PVT. LTD',
+        ],
+    ]);
+
+    ok(in_array($updated['status'], [200, 302], true), 'BC edit form accepted');
+    equals(
+        '9012',
+        (string) Database::scalar('SELECT aadhaar_last4 FROM bc_supervisors WHERE id = :id', ['id' => (int) $newBc['id']]),
+        'Re-saving the masked Aadhaar keeps the same four digits'
+    );
+
+    // A malformed PAN must be refused rather than stored.
+    $badPan = request($base . '/admin/supervisors/' . (int) $newBc['id'], [
+        'post' => [
+            '_token' => csrfToken(page('/admin/supervisors/' . (int) $newBc['id'] . '/edit', 'Edit BC supervisor again')),
+            'name' => 'CHANDRA SHEKHAR',
+            'bc_code' => $bcCode,
+            'branch_id' => (string) $branchForBc,
+            'mobile' => '7417343844',
+            'username' => 'smoke-bc-' . $bcCode,
+            'status' => 'active',
+            'pan_number' => 'NOTAPAN',
+        ],
+    ]);
+
+    ok(in_array($badPan['status'], [200, 302], true), 'A malformed PAN is handled without an error page');
+    equals(
+        'ABCDE1234F',
+        (string) Database::scalar('SELECT pan_number FROM bc_supervisors WHERE id = :id', ['id' => (int) $newBc['id']]),
+        'A malformed PAN does not overwrite the stored one'
+    );
+}
+
+/* The branch form must offer Zone, which the report header prints. */
+$branchCreate = page('/admin/branches/create', 'Add branch');
+ok(str_contains($branchCreate, 'name="zone"'), 'Branch form offers the zone field');
+
+/* -------------------------------------------------------------------------- */
 section('Branch Manager portal and branch isolation');
 /* -------------------------------------------------------------------------- */
 

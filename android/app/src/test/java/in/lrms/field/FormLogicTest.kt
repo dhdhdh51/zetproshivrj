@@ -200,3 +200,57 @@ class FormLogicTest {
         assertEquals("Take at least 3 photographs before submitting (1 taken).", error)
     }
 }
+
+
+/**
+ * The `contains` operator, used by the KRM OTS and CKCC OD-2 field visit
+ * verification reports so "Other document" appears only when "Other" is one of
+ * the ticked entries in the documents checklist.
+ *
+ * A checkbox answer arrives as a comma joined list, so these cases mirror
+ * App\Services\Forms::isVisible exactly — including that a substring must not
+ * count as a match.
+ */
+class FormLogicContainsTest {
+
+    private val documentsOther = FormFieldEntity(
+        fieldKey = "documents_other",
+        label = "Other document",
+        type = "text",
+        required = false,
+        options = null,
+        placeholder = null,
+        help = null,
+        sortOrder = 0,
+        conditionField = "documents_verified",
+        conditionOperator = "contains",
+        conditionValue = "Other",
+    )
+
+    private fun visibleWhen(answer: String) =
+        FormLogic.isVisible(documentsOther, mapOf("documents_verified" to answer))
+
+    @Test
+    fun `visible when the ticked list includes the expected choice`() {
+        assertTrue(visibleWhen("Aadhaar Card,Other"))
+        assertTrue(visibleWhen("Other"))
+    }
+
+    @Test
+    fun `hidden when the choice was not ticked`() {
+        assertFalse(visibleWhen("Aadhaar Card,Passbook"))
+        assertFalse(visibleWhen(""))
+    }
+
+    @Test
+    fun `a substring is not a match`() {
+        // "Other Land Record" contains the letters of "Other" but is a different
+        // choice, so the dependent field must stay hidden.
+        assertFalse(visibleWhen("Other Land Record"))
+    }
+
+    @Test
+    fun `matching tolerates case and spacing`() {
+        assertTrue(visibleWhen("aadhaar card, other"))
+    }
+}

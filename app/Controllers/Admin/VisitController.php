@@ -10,6 +10,7 @@ use App\Core\Auth;
 use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
+use App\Services\Export\FieldVisitReport;
 use App\Services\Export\RecordExport;
 use App\Services\Forms;
 use App\Services\Visits;
@@ -75,15 +76,20 @@ final class VisitController extends BaseController
         Acl::authorize('reports.export');
 
         $id = $request->paramInt('id');
-        $branchId = (int) Database::scalar('SELECT branch_id FROM visits WHERE id = :id', ['id' => $id]);
+        $visit = Database::selectOne('SELECT branch_id, visit_type FROM visits WHERE id = :id', ['id' => $id]);
 
-        if ($branchId === 0) {
+        if ($visit === null) {
             $this->abort(404, 'Visit not found.');
         }
 
-        $this->assertBranch($branchId);
+        $this->assertBranch((int) $visit['branch_id']);
 
-        $file = RecordExport::visitPdf($id);
+        // A KRM OTS or CKCC OD-2 case prints on the client's official Field
+        // Visit Verification Report; a recovery visit prints the Customer Visit
+        // Report. They are separate documents and must not be interchanged.
+        $file = in_array((string) $visit['visit_type'], ['krm_ots', 'ckcc_od2'], true)
+            ? FieldVisitReport::pdf($id)
+            : RecordExport::visitPdf($id);
 
         Response::download($file['path'], $file['file_name'], 'application/pdf');
     }

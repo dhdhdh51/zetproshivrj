@@ -14,17 +14,33 @@ visits; their field activity is BC Supervisor inspection only.
 | Step | Where | Notes |
 | --- | --- | --- |
 | 1. Change the seeded admin password | prompted at first sign-in | `admin@lrms.local` / `ChangeMe@123` must not survive day one |
-| 2. Create branches | **Branches ▸ Add** | code, name, district, and the branch centroid (latitude/longitude) used for GPS drift checks |
+| 2. Create branches | **Branches ▸ Add** | code, name, district, **Regional office and Zone** (both print on the verification report), and the branch centroid (latitude/longitude) used for GPS drift checks |
 | 3. Create Branch Managers | **Staff ▸ Branch Managers** | one branch each; they see nothing outside it |
-| 4. Create BC Supervisors | **Staff ▸ BC Supervisors** | the **BC code** must match the code used in the bank's Excel sheets, or auto-allocation cannot match on it |
+| 4. Create BC Supervisors | **Staff ▸ BC Supervisors** | the **BCBF code** must match the code used in the bank's Excel sheets, or auto-allocation cannot match on it. Fill in SP/CBC name, SSA, IIBF number and DRA ID too — they are printed on every verification report this person files |
 | 5. Review the visit form | **Forms ▸ Visit form** | 21 fields are seeded; add or reorder to suit |
-| 6. Review the inspection form | **Forms ▸ Inspection form** | 11 fields seeded |
-| 7. Set the deadline and rules | **Settings** | see the settings table below |
-| 8. Install the cron entry | server | nothing below the "Automated" heading happens without it |
-| 9. Set targets | **Targets** | daily/monthly, per supervisor or per branch |
+| 6. Review the two work-stream forms | **Forms ▸ Visit form** | the KRM OTS (42 fields) and CKCC OD-2 (46 fields) verification reports are seeded and kept separate — do not copy fields between them |
+| 7. Review the inspection form | **Forms ▸ Inspection form** | 11 fields seeded |
+| 8. Set the deadline and rules | **Settings** | see the settings table below |
+| 9. Install the cron entry | server | nothing below the "Automated" heading happens without it |
+| 10. Set targets | **Targets** | daily/monthly, per supervisor or per branch |
 
 Hand each supervisor their username and first password. They sign in on the
 Android app; the app forces a password change, then binds to that handset.
+
+### Upgrading an existing installation
+
+`migrate.php --fresh` drops every table, so it must never be used once real loan
+data exists. Use the in-place upgrade, which adds only what is missing and is
+safe to run repeatedly:
+
+```bash
+php database/upgrade.php --dry-run    # list the changes, touch nothing
+php database/upgrade.php              # apply them
+php database/migrate.php --seed       # install any new default forms
+```
+
+Take a database backup first anyway. The script reports what it changed, what was
+already present and exits non-zero if anything failed.
 
 ---
 
@@ -134,8 +150,33 @@ status, category, amount — and exports to **PDF, Excel or CSV**.
 | Branch Performance | branch visits, recovery, coverage |
 | BC Supervisor Performance | supervisor visits, recovery, inspection outcomes |
 
-The day-end submissions themselves live under **Deadline**, not here. Per-record
-PDFs exist for a single Customer Visit and a single Inspection.
+The day-end submissions themselves live under **Deadline**, not here.
+
+### Per-record PDFs
+
+Open any record and use **Download PDF**:
+
+| Record | Document |
+| --- | --- |
+| A recovery visit | **Customer Visit Report** |
+| A KRM OTS case | **Field Visit Verification Report (KRM OTS)** — sections 1-4, 6-13 |
+| A CKCC OD-2 case | **Field Visit Verification Report (CKCC OD-2 Renewal)** — sections 1-3, 5-13 |
+| An inspection | **BC Supervisor Inspection Report** |
+
+The verification report is the bank's own format: numbered sections, tick boxes,
+the RBI / Fair Practices Code declaration and the certification block. It is
+produced from stored data only — **a blank on the paper means a blank in the
+database**, which is what makes it usable as evidence. The right document is
+chosen from the case type automatically; a recovery visit cannot be printed as a
+verification report and vice versa.
+
+Two things worth knowing before you file one:
+
+- The **declaration** in section 11 must be accepted by the BC Agent before the
+  report can be submitted at all, so a filed report always carries it.
+- The **Supervisor verification** block in section 12 prints empty until the
+  report is approved. An unapproved report must not look countersigned — approve
+  it under **Visits** first if the bank needs that block filled.
 
 Branch Managers see the same reports scoped to their own branch — enforced in
 `App\Core\Acl` and covered by tests that assert another branch's rows never
@@ -247,9 +288,10 @@ when someone asks "who changed this account's supervisor, and why".
 After changing anything on the server:
 
 ```bash
-php tests/test-import.php    # import, allocation, exports   (91 checks)
-php tests/http-smoke.php     # every screen, all reports     (79 checks)
-php tests/api-smoke.php      # the Android API end to end   (101 checks)
+php tests/test-import.php    # import, allocation, exports          (138 checks)
+php tests/http-smoke.php     # every screen, all reports            (117 checks)
+php tests/api-smoke.php      # the Android API end to end           (101 checks)
+php tests/test-reports.php   # the Field Visit Verification Reports (236 checks)
 ```
 
 These run against a real database, so point them at a scratch one — they migrate

@@ -253,6 +253,24 @@ Admin/Supervisor can change the form without an app release. Field types:
 `section`, `text`, `textarea`, `number`, `decimal`, `date`, `time`, `dropdown`,
 `radio`, `checkbox`, `yes_no`, `photo`, `signature`, `gps`, `remarks`.
 
+Condition operators, which the app must evaluate the same way the server does
+(`App\Services\Forms::isVisible` and its Kotlin mirror `FormLogic.isVisible`):
+
+| Operator | True when |
+| --- | --- |
+| `equals` / `not_equals` | the parent's answer matches, case-insensitively |
+| `in` | the parent's answer is one of a comma separated list |
+| `contains` | the expected choice is one of the parent's **ticked** values — for a `checkbox` parent, whose answer is a comma joined list. Compared per item, so `Other` does not match `Other Land Record` |
+| `filled` / `empty` | the parent has / has not been answered |
+
+**Work-stream forms.** `GET /visit-form?visit_type=krm_ots` and
+`?visit_type=ckcc_od2` return the two Field Visit Verification Report forms
+(42 and 46 fields). They are deliberately separate documents: the KRM OTS form
+carries no renewal fields and the CKCC form carries no settlement fields. Both
+end with a `declaration_accepted` field — the server **refuses** the submission
+with `422` unless it is answered `Yes`, so the app should require it before
+allowing submit.
+
 ### `POST /sync/push`
 
 The outbox drain. Up to **200 items** per batch; each item is processed

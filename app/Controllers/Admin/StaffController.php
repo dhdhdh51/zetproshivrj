@@ -282,7 +282,7 @@ final class StaffController extends BaseController
             'address' => 'nullable|max:255',
             'joined_on' => 'nullable|date',
             'password' => 'nullable|password',
-        ], [], '/admin/supervisors/create');
+        ] + $this->supervisorProfileRules(), [], '/admin/supervisors/create');
 
         $password = $data['password'] !== null && $data['password'] !== ''
             ? (string) $data['password']
@@ -290,7 +290,9 @@ final class StaffController extends BaseController
 
         $roleId = (int) Database::scalar('SELECT id FROM roles WHERE slug = :s', ['s' => Auth::ROLE_BC]);
 
-        $result = Database::transaction(function () use ($data, $password, $roleId): array {
+        $profile = $this->supervisorProfile($data);
+
+        $result = Database::transaction(function () use ($data, $password, $roleId, $profile): array {
             $userId = Database::insert('users', [
                 'role_id' => $roleId,
                 'branch_id' => (int) $data['branch_id'],
@@ -307,7 +309,7 @@ final class StaffController extends BaseController
                 'updated_at' => now(),
             ]);
 
-            $supervisorId = Database::insert('bc_supervisors', [
+            $supervisorId = Database::insert('bc_supervisors', array_merge($profile, [
                 'user_id' => $userId,
                 'branch_id' => (int) $data['branch_id'],
                 'bc_code' => strtoupper(trim((string) $data['bc_code'])),
@@ -319,7 +321,7 @@ final class StaffController extends BaseController
                 'created_by' => auth_id(),
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ]));
 
             return ['user_id' => $userId, 'supervisor_id' => $supervisorId];
         });
@@ -398,7 +400,7 @@ final class StaffController extends BaseController
             'address' => 'nullable|max:255',
             'joined_on' => 'nullable|date',
             'status' => 'required|in:active,inactive,suspended',
-        ], [], '/admin/supervisors/' . $id . '/edit');
+        ] + $this->supervisorProfileRules(), [], '/admin/supervisors/' . $id . '/edit');
 
         // Moving a supervisor between branches would orphan their allocations.
         $newBranch = (int) $data['branch_id'];
@@ -417,7 +419,9 @@ final class StaffController extends BaseController
             return;
         }
 
-        Database::transaction(function () use ($id, $userId, $data, $newBranch): void {
+        $profile = $this->supervisorProfile($data);
+
+        Database::transaction(function () use ($id, $userId, $data, $newBranch, $profile): void {
             Database::update('users', [
                 'name' => (string) $data['name'],
                 'email' => $data['email'] ?: null,
@@ -429,7 +433,7 @@ final class StaffController extends BaseController
                 'updated_at' => now(),
             ], 'id = :id', ['id' => $userId]);
 
-            Database::update('bc_supervisors', [
+            Database::update('bc_supervisors', array_merge($profile, [
                 'bc_code' => strtoupper(trim((string) $data['bc_code'])),
                 'mobile' => (string) $data['mobile'],
                 'village' => $data['village'] ?: null,
@@ -438,7 +442,7 @@ final class StaffController extends BaseController
                 'branch_id' => $newBranch,
                 'status' => (string) $data['status'],
                 'updated_at' => now(),
-            ], 'id = :id', ['id' => $id]);
+            ]), 'id = :id', ['id' => $id]);
         });
 
         if ((string) $data['status'] !== 'active') {
@@ -589,6 +593,78 @@ final class StaffController extends BaseController
     /* ------------------------------------------------------------------ */
     /* Helpers                                                            */
     /* ------------------------------------------------------------------ */
+
+    /* ------------------------------------------------------------------ */
+    /* BC Supervisor profile fields                                       */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The identity and address fields from the BC creation form, shared by the
+     * create and edit paths so the two cannot drift apart.
+     *
+     * All are optional: a supervisor can be set up with the essentials and
+     * completed later, which is how these are actually collected. They are the
+     * fields the field visit verification report prints in sections 1 and 12.
+     *
+     * @return array<string, string>
+     */
+    private function supervisorProfileRules(): array
+    {
+        return [
+            'sp_cbc_name' => 'nullable|max:190',
+            'ssa' => 'nullable|max:160',
+            'iibf_number' => 'nullable|max:60',
+            'dra_id' => 'nullable|max:60',
+            'designation' => 'nullable|max:120',
+            // Accepts a full Aadhaar number or just the last four; only the last
+            // four are stored (see below).
+            'aadhaar_number' => 'nullable|max:20',
+            'pan_number' => 'nullable|max:12|regex:/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/',
+            'block' => 'nullable|max:120',
+            'tehsil' => 'nullable|max:120',
+            'district' => 'nullable|max:120',
+            'state' => 'nullable|max:120',
+            'pincode' => 'nullable|max:12',
+        ];
+    }
+
+    /**
+     * Map the validated profile input onto `bc_supervisors` columns.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, string|null>
+     */
+    private function supervisorProfile(array $data): array
+    {
+        $text = static function (mixed $value): ?string {
+            $value = trim((string) ($value ?? ''));
+
+            return $value === '' ? null : $value;
+        };
+
+        // Only the last four digits of Aadhaar are kept. LRMS never prints more
+        // than XXXX-XXXX-nnnn, so storing the rest would be holding identity
+        // data the system has no use for.
+        $aadhaar = (string) preg_replace('/\D/', '', (string) ($data['aadhaar_number'] ?? ''));
+        $aadhaarLast4 = strlen($aadhaar) >= 4 ? substr($aadhaar, -4) : null;
+
+        $pan = $text($data['pan_number'] ?? null);
+
+        return [
+            'sp_cbc_name' => $text($data['sp_cbc_name'] ?? null),
+            'ssa' => $text($data['ssa'] ?? null),
+            'iibf_number' => $text($data['iibf_number'] ?? null),
+            'dra_id' => $text($data['dra_id'] ?? null),
+            'designation' => $text($data['designation'] ?? null),
+            'aadhaar_last4' => $aadhaarLast4,
+            'pan_number' => $pan === null ? null : strtoupper($pan),
+            'block' => $text($data['block'] ?? null),
+            'tehsil' => $text($data['tehsil'] ?? null),
+            'district' => $text($data['district'] ?? null),
+            'state' => $text($data['state'] ?? null),
+            'pincode' => $text($data['pincode'] ?? null),
+        ];
+    }
 
     private function findStaff(int $id, string $roleSlug): array
     {

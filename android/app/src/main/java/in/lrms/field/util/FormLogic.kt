@@ -32,6 +32,10 @@ object FormLogic {
         return when (operator) {
             "not_equals" -> actual != expected
             "in" -> expected.split(',').map { it.trim() }.contains(actual)
+            // For a checkbox parent, whose answer is a comma joined list: true
+            // when the expected choice is one of the ticked values. Compared per
+            // item, so "Other" does not match "Other Land Record".
+            "contains" -> actual.split(',').map { it.trim() }.contains(expected)
             "filled" -> actual.isNotEmpty()
             "empty" -> actual.isEmpty()
             else -> actual == expected

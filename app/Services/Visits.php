@@ -55,7 +55,12 @@ final class Visits
         $visitDate = $this->visitDate($payload['visit_date'] ?? null);
         $visitType = $this->visitType($payload['visit_type'] ?? null, $account);
 
-        $form = Forms::defaultForm(Forms::KIND_VISIT, $visitType);
+        // Only KRM OTS and CKCC OD-2 have a report form of their own. A
+        // follow-up or pre/post-NPA verification uses the customer form.
+        $form = Forms::defaultForm(
+            Forms::KIND_VISIT,
+            in_array($visitType, self::STREAM_TYPES, true) ? $visitType : 'customer'
+        );
 
         // GPS is mandatory to start a visit: without a validated point the visit
         // has no evidentiary value.
@@ -83,6 +88,10 @@ final class Visits
             'branch_id' => (int) $account['branch_id'],
             'form_id' => $form === null ? null : (int) $form['id'],
             'visit_type' => $visitType,
+            'visit_type_other' => $visitType === 'other' && isset($payload['visit_type_other'])
+                ? mb_substr(trim((string) $payload['visit_type_other']), 0, 120)
+                : null,
+            'visit_time' => $this->visitTime($payload['visit_time'] ?? null, $startedAt),
             'visit_date' => $visitDate,
             'started_at' => $startedAt,
             'server_received_at' => now(),
@@ -217,6 +226,29 @@ final class Visits
             $supervisorSignature = $photos->storeSignature((string) $payload['supervisor_signature'], 'supervisor-' . $visitId);
         }
 
+        /* Declaration (section 11) ----------------------------------------- */
+        // The KRM OTS and CKCC OD-2 reports carry the RBI / Fair Practices Code
+        // declaration. Where the form asks for it, the report is not a valid
+        // certification unless it was accepted, so refuse rather than store a
+        // report that says "No" against its own declaration.
+        $declarationAsked = false;
+
+        foreach ($fields as $field) {
+            if ((string) $field['field_key'] === 'declaration_accepted') {
+                $declarationAsked = true;
+                break;
+            }
+        }
+
+        $declarationAccepted = $this->tristate($validated['values']['declaration_accepted'] ?? null) === 1;
+
+        if ($declarationAsked && !$declarationAccepted) {
+            throw new HttpException(
+                422,
+                'The declaration must be accepted before this report can be submitted.'
+            );
+        }
+
         /* Deadline classification ------------------------------------------ */
         $visitDate = (string) $visit['visit_date'];
         $deadline = Deadline::status($visitDate);
@@ -235,12 +267,24 @@ final class Visits
             'house_locked' => $this->tristate($values['house_locked'] ?? null),
             'is_alive' => $this->tristate($values['is_alive'] ?? null),
             'current_address' => isset($values['current_address']) ? mb_substr($values['current_address'], 0, 500) : null,
+            'address_shifted' => $this->tristate($values['address_shifted'] ?? null),
             'occupation' => isset($values['occupation']) ? mb_substr($values['occupation'], 0, 160) : null,
+            // Section 6, the remaining two verification questions.
+            'residence_verified' => $this->tristate($values['residence_verified'] ?? null),
+            'neighbour_verified' => $this->tristate($values['neighbour_verified'] ?? null),
+            // Sections 7 and 10, stored as the ticked list so the report can be
+            // reprinted exactly as it was submitted.
+            'documents_verified' => $this->checklist($values['documents_verified'] ?? null),
+            'documents_other' => isset($values['documents_other']) ? mb_substr((string) $values['documents_other'], 0, 160) : null,
+            'evidence_attached' => $this->checklist($values['evidence_attached'] ?? null),
+            'evidence_other' => isset($values['evidence_other']) ? mb_substr((string) $values['evidence_other'], 0, 160) : null,
             'recovery_possibility' => $this->recoveryPossibility($values['recovery_possibility'] ?? ($payload['recovery_possibility'] ?? null)),
             'recommendation' => isset($values['recommendation']) ? mb_substr($values['recommendation'], 0, 500) : null,
             'remarks' => $values['remarks'] ?? ($payload['remarks'] ?? null),
             'borrower_signature' => $borrowerSignature,
             'supervisor_signature' => $supervisorSignature,
+            'declaration_accepted' => $declarationAccepted ? 1 : 0,
+            'declared_at' => $declarationAccepted ? now() : null,
             'photo_count' => $photoCount,
             'updated_at' => now(),
         ];
@@ -442,11 +486,28 @@ final class Visits
         return $date;
     }
 
+    /** "Case Type" in section 1 of the field visit verification report. */
+    public const CASE_TYPES = [
+        'customer' => 'Recovery visit',
+        'krm_ots' => 'KRM OTS',
+        'ckcc_od2' => 'CKCC OD-2 Renewal',
+        'recovery_followup' => 'Recovery Follow-up',
+        'pre_npa' => 'Pre-NPA Verification',
+        'post_npa' => 'Post-NPA Verification',
+        'other' => 'Other',
+    ];
+
+    /**
+     * Case types that have a form and a work stream of their own. The rest are
+     * verification visits that use the customer form.
+     */
+    private const STREAM_TYPES = ['krm_ots', 'ckcc_od2'];
+
     private function visitType(mixed $requested, array $account): string
     {
         $requested = (string) ($requested ?? '');
 
-        if (in_array($requested, ['customer', 'krm_ots', 'ckcc_od2'], true)) {
+        if (array_key_exists($requested, self::CASE_TYPES)) {
             return $requested;
         }
 
@@ -488,6 +549,47 @@ final class Visits
             'other' => 'other',
             default => null,
         };
+    }
+
+    /**
+     * A checkbox answer (sections 7 and 10) normalised to a clean comma
+     * separated list, so the report prints the ticked items in a stable form.
+     */
+    private function checklist(mixed $value): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        if ($value === '') {
+            return null;
+        }
+
+        $items = array_values(array_filter(
+            array_map('trim', explode(',', $value)),
+            static fn (string $item): bool => $item !== ''
+        ));
+
+        return $items === [] ? null : mb_substr(implode(', ', $items), 0, 500);
+    }
+
+    /**
+     * "Visit Time" as printed on the report. Falls back to the time of day the
+     * visit was started, which is what a supervisor means by it anyway.
+     */
+    private function visitTime(mixed $value, string $startedAt): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        if ($value !== '') {
+            $timestamp = strtotime($value);
+
+            if ($timestamp !== false) {
+                return date('H:i:s', $timestamp);
+            }
+        }
+
+        $timestamp = strtotime($startedAt);
+
+        return $timestamp === false ? null : date('H:i:s', $timestamp);
     }
 
     private function tristate(mixed $value): ?int

@@ -110,3 +110,83 @@ function throws(callable $callback, string $message, ?string $contains = null): 
 {
     return TestRunner::throws($callback, $message, $contains);
 }
+
+
+/**
+ * The visible text of a PDF produced by App\Services\Export\PdfWriter.
+ *
+ * The writer emits uncompressed content streams and draws every string with a
+ * `Tj` operator, so the printed words can be read back without a PDF library.
+ * This lets the suite assert what a report actually says — which section
+ * headings appear, which values are printed — instead of only checking that a
+ * file was created.
+ *
+ * Deflated streams are still handled, so this keeps working if the writer later
+ * compresses its output.
+ */
+function pdf_text(string $path): string
+{
+    if (!is_file($path)) {
+        return '';
+    }
+
+    $data = (string) file_get_contents($path);
+    $text = [];
+
+    if (preg_match_all('/stream\r?\n(.*?)endstream/s', $data, $streams) === false) {
+        return '';
+    }
+
+    foreach ($streams[1] ?? [] as $stream) {
+        $inflated = @gzuncompress($stream);
+
+        if ($inflated === false) {
+            $inflated = @gzinflate($stream);
+        }
+
+        $content = $inflated === false ? $stream : $inflated;
+
+        if (preg_match_all('/\(((?:\\\\.|[^\\\\()])*)\)\s*Tj/', $content, $matches) === false) {
+            continue;
+        }
+
+        foreach ($matches[1] ?? [] as $run) {
+            $text[] = str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $run);
+        }
+    }
+
+    // The writer encodes to CP1252, so bring it back to UTF-8 for comparison.
+    $joined = implode("\n", $text);
+    $converted = @mb_convert_encoding($joined, 'UTF-8', 'CP1252');
+
+    return $converted === false ? $joined : $converted;
+}
+
+/**
+ * Count the tick strokes in a PDF. The report draws a ticked box as two crossing
+ * lines, because the ballot-box characters do not exist in the standard PDF
+ * fonts, so this is how a test can tell a ticked box from an empty one.
+ */
+function pdf_tick_strokes(string $path): int
+{
+    if (!is_file($path)) {
+        return 0;
+    }
+
+    $data = (string) file_get_contents($path);
+
+    return preg_match_all('/m [\d.]+ [\d.]+ l S Q/', $data) ?: 0;
+}
+
+
+/**
+ * PDF text with all whitespace collapsed to single spaces.
+ *
+ * Long values wrap across lines in the PDF, so a value like a company name
+ * arrives as two separate text runs. Use this when asserting that a *value*
+ * appears; use pdf_text() when asserting on layout, such as a section heading.
+ */
+function pdf_text_flat(string $path): string
+{
+    return trim((string) preg_replace('/\s+/', ' ', pdf_text($path)));
+}

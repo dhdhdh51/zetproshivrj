@@ -233,13 +233,55 @@ $basePath = $canManage ? '/admin' : '/manager';
             <form method="post" action="<?= e(url('/admin/accounts/' . (int) $account['id'] . '/krm-ots')) ?>">
                 <?= csrf_field() ?>
                 <div class="card-body">
+                    <p class="muted small">Section 4, 9 and 13 of the KRM OTS field visit verification report.</p>
                     <div class="form-grid">
                         <div class="field">
-                            <label for="ots_amount">OTS amount</label>
+                            <label for="ots_eligible">Eligible for KRM OTS</label>
+                            <select id="ots_eligible" name="ots_eligible">
+                                <option value="">—</option>
+                                <option value="yes" <?= ($krmCase['ots_eligible'] ?? null) !== null && (int) $krmCase['ots_eligible'] === 1 ? 'selected' : '' ?>>Yes</option>
+                                <option value="no" <?= ($krmCase['ots_eligible'] ?? null) !== null && (int) $krmCase['ots_eligible'] === 0 ? 'selected' : '' ?>>No</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="scheme">Applicable scheme</label>
+                            <select id="scheme" name="scheme">
+                                <?php foreach (App\Services\KrmOts::SCHEMES as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= ($krmCase['scheme'] ?? 'krm_ots') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="ots_amount">Proposed settlement</label>
                             <input type="text" id="ots_amount" name="ots_amount" value="<?= e($krmCase['ots_amount'] ?? '') ?>">
                         </div>
                         <div class="field">
-                            <label for="ots_status">Status</label>
+                            <label for="borrower_share">Borrower's share</label>
+                            <input type="text" id="borrower_share" name="borrower_share" value="<?= e($krmCase['borrower_share'] ?? '') ?>">
+                        </div>
+                        <div class="field">
+                            <label for="initial_deposit_required">Initial deposit required</label>
+                            <input type="text" id="initial_deposit_required" name="initial_deposit_required" value="<?= e($krmCase['initial_deposit_required'] ?? '') ?>">
+                        </div>
+                        <div class="field">
+                            <label for="paid_amount">Paid so far</label>
+                            <input type="text" id="paid_amount" name="paid_amount" value="<?= e($krmCase['paid_amount'] ?? '') ?>">
+                        </div>
+                        <div class="field">
+                            <label for="customer_response">Customer response</label>
+                            <select id="customer_response" name="customer_response">
+                                <option value="">—</option>
+                                <?php foreach (App\Services\KrmOts::CUSTOMER_RESPONSES as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= ($krmCase['customer_response'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="promise_date">Expected deposit date</label>
+                            <input type="date" id="promise_date" name="promise_date" value="<?= e($krmCase['promise_date'] ?? '') ?>">
+                        </div>
+                        <div class="field">
+                            <label for="ots_status">Case status</label>
                             <select id="ots_status" name="ots_status">
                                 <?php foreach (App\Services\KrmOts::STATUSES as $key => $label): ?>
                                     <option value="<?= $key ?>" <?= ($krmCase['ots_status'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
@@ -247,12 +289,22 @@ $basePath = $canManage ? '/admin' : '/manager';
                             </select>
                         </div>
                         <div class="field">
-                            <label for="paid_amount">Paid so far</label>
-                            <input type="text" id="paid_amount" name="paid_amount" value="<?= e($krmCase['paid_amount'] ?? '') ?>">
+                            <label for="krm_recommendation">Recommendation</label>
+                            <select id="krm_recommendation" name="recommendation">
+                                <option value="">—</option>
+                                <?php foreach (App\Services\KrmOts::RECOMMENDATIONS as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= ($krmCase['recommendation'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
-                        <div class="field">
-                            <label for="promise_date">Promise date</label>
-                            <input type="date" id="promise_date" name="promise_date" value="<?= e($krmCase['promise_date'] ?? '') ?>">
+                        <div class="field span-2">
+                            <label for="krm_final_status">Final report status</label>
+                            <select id="krm_final_status" name="final_status">
+                                <option value="">—</option>
+                                <?php foreach (App\Services\KrmOts::FINAL_STATUSES as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= ($krmCase['final_status'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                         <div class="field span-2">
                             <label for="krm_remarks">Remarks</label>
@@ -274,7 +326,95 @@ $basePath = $canManage ? '/admin' : '/manager';
             <form method="post" action="<?= e(url('/admin/accounts/' . (int) $account['id'] . '/ckcc')) ?>">
                 <?= csrf_field() ?>
                 <div class="card-body">
+                    <p class="muted small">Section 5, 9 and 13 of the CKCC OD-2 renewal field visit verification report.</p>
                     <div class="form-grid">
+                        <div class="field">
+                            <label for="renewal_eligible">Eligible for renewal</label>
+                            <select id="renewal_eligible" name="renewal_eligible">
+                                <option value="">&mdash;</option>
+                                <option value="yes" <?= ($ckccCase['renewal_eligible'] ?? null) !== null && (int) $ckccCase['renewal_eligible'] === 1 ? 'selected' : '' ?>>Yes</option>
+                                <option value="no" <?= ($ckccCase['renewal_eligible'] ?? null) !== null && (int) $ckccCase['renewal_eligible'] === 0 ? 'selected' : '' ?>>No</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="renewal_due_bucket">Renewal due</label>
+                            <select id="renewal_due_bucket" name="renewal_due_bucket">
+                                <option value="">&mdash;</option>
+                                <?php foreach (App\Services\CkccRenewals::DUE_BUCKETS as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= ($ckccCase['renewal_due_bucket'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="renewal_due_date">Renewal due date</label>
+                            <input type="date" id="renewal_due_date" name="renewal_due_date" value="<?= e($ckccCase['renewal_due_date'] ?? '') ?>">
+                        </div>
+                        <div class="field">
+                            <label for="expected_npa_date">Expected NPA date</label>
+                            <input type="date" id="expected_npa_date" name="expected_npa_date" value="<?= e($ckccCase['expected_npa_date'] ?? '') ?>">
+                        </div>
+                        <div class="field">
+                            <label for="days_remaining">Days remaining</label>
+                            <input type="number" id="days_remaining" name="days_remaining" value="<?= e($ckccCase['days_remaining'] ?? '') ?>">
+                        </div>
+                        <div class="field">
+                            <label for="kyc_status">KYC status</label>
+                            <select id="kyc_status" name="kyc_status">
+                                <option value="">&mdash;</option>
+                                <?php foreach (App\Services\CkccRenewals::KYC_STATUSES as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= ($ckccCase['kyc_status'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="aadhaar_seeded">Aadhaar seeded</label>
+                            <select id="aadhaar_seeded" name="aadhaar_seeded">
+                                <option value="">&mdash;</option>
+                                <option value="yes" <?= ($ckccCase['aadhaar_seeded'] ?? null) !== null && (int) $ckccCase['aadhaar_seeded'] === 1 ? 'selected' : '' ?>>Yes</option>
+                                <option value="no" <?= ($ckccCase['aadhaar_seeded'] ?? null) !== null && (int) $ckccCase['aadhaar_seeded'] === 0 ? 'selected' : '' ?>>No</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="mobile_linked">Mobile linked</label>
+                            <select id="mobile_linked" name="mobile_linked">
+                                <option value="">&mdash;</option>
+                                <option value="yes" <?= ($ckccCase['mobile_linked'] ?? null) !== null && (int) $ckccCase['mobile_linked'] === 1 ? 'selected' : '' ?>>Yes</option>
+                                <option value="no" <?= ($ckccCase['mobile_linked'] ?? null) !== null && (int) $ckccCase['mobile_linked'] === 0 ? 'selected' : '' ?>>No</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="aadhaar_authentication">Aadhaar authentication</label>
+                            <select id="aadhaar_authentication" name="aadhaar_authentication">
+                                <option value="">&mdash;</option>
+                                <?php foreach (App\Services\CkccRenewals::AUTHENTICATION as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= ($ckccCase['aadhaar_authentication'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="renewal_consent">Borrower willing to renew</label>
+                            <select id="renewal_consent" name="renewal_consent">
+                                <option value="">&mdash;</option>
+                                <option value="yes" <?= ($ckccCase['renewal_consent'] ?? null) !== null && (int) $ckccCase['renewal_consent'] === 1 ? 'selected' : '' ?>>Yes</option>
+                                <option value="no" <?= ($ckccCase['renewal_consent'] ?? null) !== null && (int) $ckccCase['renewal_consent'] === 0 ? 'selected' : '' ?>>No</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="renewal_form_signed">Renewal form signed</label>
+                            <select id="renewal_form_signed" name="renewal_form_signed">
+                                <option value="">&mdash;</option>
+                                <option value="yes" <?= ($ckccCase['renewal_form_signed'] ?? null) !== null && (int) $ckccCase['renewal_form_signed'] === 1 ? 'selected' : '' ?>>Yes</option>
+                                <option value="no" <?= ($ckccCase['renewal_form_signed'] ?? null) !== null && (int) $ckccCase['renewal_form_signed'] === 0 ? 'selected' : '' ?>>No</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="biometrics_completed">Biometrics completed</label>
+                            <select id="biometrics_completed" name="biometrics_completed">
+                                <option value="">&mdash;</option>
+                                <option value="yes" <?= ($ckccCase['biometrics_completed'] ?? null) !== null && (int) $ckccCase['biometrics_completed'] === 1 ? 'selected' : '' ?>>Yes</option>
+                                <option value="no" <?= ($ckccCase['biometrics_completed'] ?? null) !== null && (int) $ckccCase['biometrics_completed'] === 0 ? 'selected' : '' ?>>No</option>
+                            </select>
+                        </div>
                         <div class="field">
                             <label for="renewal_status">Renewal status</label>
                             <select id="renewal_status" name="renewal_status">
@@ -294,7 +434,7 @@ $basePath = $canManage ? '/admin' : '/manager';
                         <div class="field">
                             <label for="customer_availability">Customer availability</label>
                             <select id="customer_availability" name="customer_availability">
-                                <option value="">—</option>
+                                <option value="">&mdash;</option>
                                 <?php foreach (App\Services\CkccRenewals::AVAILABILITY as $key => $label): ?>
                                     <option value="<?= $key ?>" <?= ($ckccCase['customer_availability'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
                                 <?php endforeach; ?>
@@ -304,12 +444,29 @@ $basePath = $canManage ? '/admin' : '/manager';
                             <label for="renewed_on">Renewed on</label>
                             <input type="date" id="renewed_on" name="renewed_on" value="<?= e($ckccCase['renewed_on'] ?? '') ?>">
                         </div>
+                        <div class="field">
+                            <label for="ckcc_recommendation">Recommendation</label>
+                            <select id="ckcc_recommendation" name="recommendation">
+                                <option value="">&mdash;</option>
+                                <?php foreach (App\Services\CkccRenewals::RECOMMENDATIONS as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= ($ckccCase['recommendation'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field span-2">
+                            <label for="ckcc_final_status">Final report status</label>
+                            <select id="ckcc_final_status" name="final_status">
+                                <option value="">&mdash;</option>
+                                <?php foreach (App\Services\CkccRenewals::FINAL_STATUSES as $key => $label): ?>
+                                    <option value="<?= $key ?>" <?= ($ckccCase['final_status'] ?? '') === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                         <div class="field span-2">
                             <label for="ckcc_remarks">Remarks</label>
                             <input type="text" id="ckcc_remarks" name="remarks" value="<?= e($ckccCase['remarks'] ?? '') ?>" maxlength="500">
                         </div>
-                    </div>
-                </div>
+                    </div>                </div>
                 <div class="card-foot"><button type="submit" class="btn btn-sm">Save renewal</button></div>
             </form>
         </div>

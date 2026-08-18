@@ -92,16 +92,23 @@ $exportQuery = query_string(['page' => null], ['page']);
                 ]],
                 'result' => ['label' => 'Result', 'options' => inspection_results()],
                 'ots_status' => ['label' => 'OTS status', 'options' => KrmOts::STATUSES],
+                'customer_response' => ['label' => 'Customer response', 'options' => KrmOts::CUSTOMER_RESPONSES],
                 'renewal_status' => ['label' => 'Renewal status', 'options' => CkccRenewals::STATUSES],
                 'documents_status' => ['label' => 'Documents', 'options' => CkccRenewals::DOCUMENT_STATUSES],
+                'renewal_due_bucket' => ['label' => 'Renewal due', 'options' => CkccRenewals::DUE_BUCKETS],
+                'kyc_status' => ['label' => 'KYC status', 'options' => CkccRenewals::KYC_STATUSES],
+                // Section 13 exists on both registers with a different option
+                // set, so it follows whichever report is open.
+                'final_status' => ['label' => 'Final status', 'options' => $slug === 'krm_ots'
+                    ? KrmOts::FINAL_STATUSES
+                    : CkccRenewals::FINAL_STATUSES],
                 'action' => ['label' => 'Action', 'options' => [
                     'call' => 'Call', 'visit' => 'Visit', 'notice' => 'Notice', 'legal' => 'Legal', 'other' => 'Other',
                 ]],
                 'photo_type' => ['label' => 'Photo type', 'options' => photo_types()],
                 'period' => ['label' => 'Period', 'options' => ['daily' => 'Daily', 'monthly' => 'Monthly']],
-                'visit_type' => ['label' => 'Visit type', 'options' => [
-                    'customer' => 'Customer', 'krm_ots' => 'KRM OTS', 'ckcc_od2' => 'CKCC OD-2',
-                ]],
+                // "Case Type" in section 1 of the field visit verification report.
+                'visit_type' => ['label' => 'Case type', 'options' => \App\Services\Visits::CASE_TYPES],
             ];
             ?>
 

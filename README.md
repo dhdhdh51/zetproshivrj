@@ -31,6 +31,11 @@ a verification result and remarks.
 > An Admin/Supervisor never performs customer recovery visits. Their field
 > activity is inspection and monitoring only.
 
+The BC Supervisor is the **BC Agent** named on the bank's paperwork — one person,
+one role. Their KRM OTS and CKCC OD-2 field work produces the **Field Visit
+Verification Report** (below), which is again two separate documents and neither
+of them is the customer visit report.
+
 ## Roles
 
 There are exactly three, and no separate "super admin":
@@ -58,6 +63,16 @@ php database/migrate.php --fresh --seed      # schema + baseline data
 php -S localhost:8000 -t public public/index.php
 ```
 
+Upgrading an existing install instead of a fresh one? `migrate.php --fresh` is
+destructive, so use the in-place upgrade, which only adds what is missing and is
+safe to re-run:
+
+```bash
+php database/upgrade.php --dry-run    # show what would change
+php database/upgrade.php              # apply
+php database/migrate.php --seed       # install any new default forms
+```
+
 Sign in at `http://localhost:8000/login` with `admin@lrms.local` /
 `ChangeMe@123` (the password must be changed at first sign-in). Override the
 seeded account with `LRMS_ADMIN_EMAIL` and `LRMS_ADMIN_PASSWORD`.
@@ -68,9 +83,10 @@ managers and six BC Supervisors for testing.
 ### Tests
 
 ```bash
-php tests/test-import.php    # Excel import, allocation, exports   (91 checks)
-php tests/http-smoke.php     # every web screen, all 13 reports    (79 checks)
-php tests/api-smoke.php      # the Android API end to end         (101 checks)
+php tests/test-import.php    # Excel import, allocation, exports    (138 checks)
+php tests/http-smoke.php     # every web screen, all 13 reports     (117 checks)
+php tests/api-smoke.php      # the Android API end to end           (101 checks)
+php tests/test-reports.php   # the Field Visit Verification Reports (236 checks)
 ```
 
 The suites run against a real database and a real HTTP server — they start
@@ -81,7 +97,7 @@ warning leaks into a page.
 
 ```bash
 cd android
-./gradlew testDebugUnitTest assembleDebug          # 21 unit tests + APK
+./gradlew testDebugUnitTest assembleDebug          # 25 unit tests + APK
 ./gradlew assembleRelease bundleRelease lintRelease
 ```
 
@@ -94,9 +110,16 @@ release process.
 
 **Loan book**
 - Excel/CSV upload with a dependency-free `.xlsx` reader (ZipArchive + XMLReader).
-- Automatic column matching with confidence scoring — `A/C No` → Account Number,
-  `OD Amount` → Overdue, `NPA Dt` → NPA Date — and a mapping screen where every
-  system field has a dropdown of the detected headers.
+- Automatic column matching with confidence scoring across **29 importable
+  fields** — `A/C No` → Account Number, `OD Amount` → Overdue, `NPA Dt` → NPA
+  Date, `Drawing Power` and `Interest Overdue` as their own columns, `SMA-2` →
+  asset classification — and a mapping screen where every system field has a
+  dropdown of the detected headers.
+- Borrower identity is importable too (gender, date of birth, PAN, Aadhaar,
+  gram panchayat / tehsil / district / state / PIN), because the verification
+  report prints it. An unusable value warns and is left blank rather than
+  blocking the account, and only the **last four digits** of an Aadhaar number
+  are ever stored.
 - Saveable mapping templates, matched by column caption so they survive columns
   moving between uploads.
 - Preview before writing anything: mapped values, missing required fields,
@@ -121,12 +144,20 @@ release process.
   coordinates, hashed for duplicate detection and stored outside the web root.
 - Recovery, PTP (with automatic kept/broken sweeping), follow-ups, attendance
   with selfie, KRM OTS and CKCC OD-2 work streams.
+- Six case types on a visit: recovery, KRM OTS, CKCC OD-2 renewal, recovery
+  follow-up, pre-NPA and post-NPA verification.
 
 **Reporting**
-- 13 reports, each with its own filters and PDF / Excel / CSV export, plus
-  per-record Customer Visit and BC Supervisor Inspection report PDFs.
+- 13 reports, each with its own filters and PDF / Excel / CSV export.
+- Per-record PDFs: Customer Visit, BC Supervisor Inspection, and the client's
+  official **Field Visit Verification Report** — 13 numbered sections, tick
+  boxes, the RBI / Fair Practices Code declaration and the certification block.
+- The verification report exists as **two separate documents** that never share
+  fields: KRM OTS (section 4) and CKCC OD-2 Renewal (section 5). A recovery visit
+  is refused by it and prints the Customer Visit Report instead.
 - Exporters are dependency-free: an `.xlsx` writer and a PDF writer (tables,
-  key/value blocks, embedded photographs) are part of the application.
+  key/value blocks, tick-box grids drawn as vectors, embedded photographs) are
+  part of the application.
 
 **Operations**
 - Report deadline with server-authoritative time, countdown, reminders, locking
@@ -163,12 +194,12 @@ app/
                    Photos, Forms, Reports, Audit, Excel/*, Export/*
   Middleware/
 config/            config.example.php → config.php (git-ignored local overrides)
-database/          schema.sql (40 tables), migrate.php, seed.php
+database/          schema.sql (40 tables), migrate.php, upgrade.php, seed.php
 public/            the only web-exposed directory
 resources/views/   layouts, partials, admin/*, manager/*, auth, errors
 routes/            web.php, admin.php, manager.php, api.php
 storage/           uploads (photos, signatures, imports), generated exports, logs
-tests/             three executable suites
+tests/             four executable suites
 bin/cron.php       deadline reminders, promise sweep, absentees, housekeeping
 android/           the Kotlin application
 docs/              deployment, API reference, Android build, operations

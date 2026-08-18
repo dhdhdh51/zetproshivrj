@@ -576,15 +576,43 @@ final class LoanImporter
         $data['cif'] = ValueParser::text($get('cif'), 60);
         $data['father_name'] = ValueParser::text($get('father_name'), 190);
         $data['village'] = ValueParser::text($get('village'), 160);
+        $data['gram_panchayat'] = ValueParser::text($get('gram_panchayat'), 160);
+        $data['tehsil'] = ValueParser::text($get('tehsil'), 120);
+        $data['district'] = ValueParser::text($get('district'), 120);
+        $data['state'] = ValueParser::text($get('state'), 120);
+        $data['pincode'] = ValueParser::text($get('pincode'), 12);
         $data['address'] = ValueParser::text($get('address'), 500);
         $data['loan_type'] = ValueParser::text($get('loan_type'), 120);
 
-        /* Mobile -------------------------------------------------------- */
-        [$mobile, $mobileError] = ValueParser::mobile($get('mobile'));
-        $data['mobile'] = $mobile;
+        /* Mobiles ------------------------------------------------------- */
+        foreach (['mobile' => 'mobile', 'alternate_mobile' => 'alternate_mobile'] as $field => $column) {
+            [$mobile, $mobileError] = ValueParser::mobile($get($column));
+            $data[$field] = $mobile;
 
-        if ($mobileError !== '') {
-            $warnings[] = ['type' => 'invalid_data', 'message' => $mobileError, 'column' => 'mobile'];
+            if ($mobileError !== '') {
+                $warnings[] = [
+                    'type' => 'invalid_data',
+                    'message' => SystemFields::label($column) . ': ' . $mobileError,
+                    'column' => $column,
+                ];
+            }
+        }
+
+        /* Identity fields printed in section 2 of the report ------------- */
+        // These are warnings, never errors: a malformed PAN must not stop a loan
+        // account being loaded and allocated.
+        foreach ([
+            'gender' => [ValueParser::class, 'gender'],
+            'pan_number' => [ValueParser::class, 'pan'],
+            'aadhaar_last4' => [ValueParser::class, 'aadhaarLast4'],
+            'asset_classification' => [ValueParser::class, 'assetClassification'],
+        ] as $field => $parser) {
+            [$value, $warning] = $parser($get($field));
+            $data[$field] = $value;
+
+            if ($warning !== '') {
+                $warnings[] = ['type' => 'invalid_data', 'message' => $warning, 'column' => $field];
+            }
         }
 
         /* Amounts ------------------------------------------------------- */
@@ -604,8 +632,23 @@ final class LoanImporter
             $data[$field] = $amount ?? 0.0;
         }
 
+        // Drawing power and interest overdue stay NULL when absent rather than
+        // becoming 0.00: on a compliance report "not supplied" and "nil" are
+        // different statements.
+        foreach (['drawing_power', 'interest_overdue'] as $field) {
+            [$amount, $error] = ValueParser::amount($get($field));
+
+            if ($error !== '') {
+                $errors[] = ['type' => 'invalid_data', 'message' => SystemFields::label($field) . ': ' . $error, 'column' => $field];
+                $flags[] = 'invalid_data';
+                continue;
+            }
+
+            $data[$field] = $amount;
+        }
+
         /* Dates --------------------------------------------------------- */
-        foreach (['sanction_date', 'npa_date'] as $field) {
+        foreach (['sanction_date', 'npa_date', 'date_of_birth'] as $field) {
             [$date, $error] = ValueParser::date($get($field));
 
             if ($error !== '') {
@@ -716,7 +759,17 @@ final class LoanImporter
             'borrower_name' => $data['borrower_name'],
             'father_name' => $data['father_name'] ?? null,
             'mobile' => $data['mobile'] ?? null,
+            'alternate_mobile' => $data['alternate_mobile'] ?? null,
+            'gender' => $data['gender'] ?? null,
+            'date_of_birth' => $data['date_of_birth'] ?? null,
+            'aadhaar_last4' => $data['aadhaar_last4'] ?? null,
+            'pan_number' => $data['pan_number'] ?? null,
             'village' => $data['village'] ?? null,
+            'gram_panchayat' => $data['gram_panchayat'] ?? null,
+            'tehsil' => $data['tehsil'] ?? null,
+            'district' => $data['district'] ?? null,
+            'state' => $data['state'] ?? null,
+            'pincode' => $data['pincode'] ?? null,
             'address' => $data['address'] ?? null,
             'branch_id' => $branchId,
             'branch_code_raw' => $data['branch_code_raw'] ?? null,
@@ -725,8 +778,11 @@ final class LoanImporter
             'sanction_date' => $data['sanction_date'] ?? null,
             'npa_date' => $data['npa_date'] ?? null,
             'limit_amount' => $data['limit_amount'] ?? 0.0,
+            'drawing_power' => $data['drawing_power'] ?? null,
             'outstanding' => $data['outstanding'] ?? 0.0,
+            'interest_overdue' => $data['interest_overdue'] ?? null,
             'overdue' => $data['overdue'] ?? 0.0,
+            'asset_classification' => $data['asset_classification'] ?? null,
             'excel_import_id' => $importId,
             'updated_at' => now(),
         ];

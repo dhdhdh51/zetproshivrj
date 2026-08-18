@@ -448,4 +448,158 @@ equals(
 
 @unlink($file);
 
+/* -------------------------------------------------------------------------- */
+section('Borrower and loan detail columns for the verification report');
+/* -------------------------------------------------------------------------- */
+
+// The field visit verification report prints borrower identity, address parts
+// and loan detail that were not previously importable. These headers use the
+// spellings the client's own sheets use.
+$wideHeaders = [
+    'A/C No', 'CIF No', 'Customer Name', "Father's Name", 'Gender', 'DOB',
+    'Mobile No', 'Alternate Mobile', 'Aadhaar No', 'PAN Card', 'Village',
+    'Gram Panchayat', 'Tehsil', 'District', 'State', 'PIN Code', 'Full Address',
+    'Branch Code', 'Scheme', 'Sanction Dt', 'Sanction Limit', 'Drawing Power',
+    'Outstanding Amount', 'Interest Overdue', 'OD Amount', 'NPA Dt',
+    'Asset Classification', 'BC Code',
+];
+
+$branchCode = (string) Database::scalar('SELECT code FROM branches ORDER BY id LIMIT 1');
+
+$wideRows = [[
+    '9911000001', 'CIF9911', 'SEEMA DEVI', 'SURESH SINGH', 'Female', '12/04/1985',
+    '6398648339', '9123456780', '1234-5678-4417', 'abcde1234f', 'NAGALA FULU',
+    'NAGLA', 'PATIYALI', 'KASGANJ', 'UP', '207248', 'NAGALA FULU, PATIYALI',
+    $branchCode, 'CKCC', '01/06/2021', '60000', '55,000',
+    '52000', '3200', '8000', '31/03/2026',
+    'SMA-2', '',
+]];
+
+$wideFile = sys_get_temp_dir() . '/lrms-wide-import.xlsx';
+$wideWriter = new XlsxWriter('Accounts');
+$wideWriter->headers($wideHeaders);
+$wideWriter->rows($wideRows);
+$wideWriter->save($wideFile);
+
+$wideImport = $importer->store([
+    'name' => 'verification-report-columns.xlsx',
+    'tmp_name' => $wideFile,
+    'size' => filesize($wideFile),
+    'error' => UPLOAD_ERR_OK,
+]);
+
+$detected = $importer->mapping($wideImport);
+
+// Automatic matching must not confuse the similar headers: PAN vs Gram
+// Panchayat, Village vs Gram Panchayat, Sanction Limit vs Drawing Power,
+// Outstanding vs Interest Overdue vs OD Amount.
+$expectedMatches = [
+    'gender' => 'Gender',
+    'date_of_birth' => 'DOB',
+    'alternate_mobile' => 'Alternate Mobile',
+    'aadhaar_last4' => 'Aadhaar No',
+    'pan_number' => 'PAN Card',
+    'village' => 'Village',
+    'gram_panchayat' => 'Gram Panchayat',
+    'tehsil' => 'Tehsil',
+    'district' => 'District',
+    'state' => 'State',
+    'pincode' => 'PIN Code',
+    'limit_amount' => 'Sanction Limit',
+    'drawing_power' => 'Drawing Power',
+    'outstanding' => 'Outstanding Amount',
+    'interest_overdue' => 'Interest Overdue',
+    'overdue' => 'OD Amount',
+    'asset_classification' => 'Asset Classification',
+];
+
+foreach ($expectedMatches as $field => $header) {
+    equals($header, (string) ($detected[$field] ?? ''), sprintf('"%s" auto-matched to %s', $header, $field));
+}
+
+$importer->saveMapping((int) $wideImport['id'], $detected);
+$widePreview = $importer->preview((int) $wideImport['id']);
+equals(1, $widePreview['summary']['ready'], 'The wide sheet previews as ready to import');
+equals(0, $widePreview['summary']['invalid_data'], 'No invalid-data rows in the wide sheet');
+equals(0, $widePreview['summary']['unknown_branch'], 'Branch resolved in the wide sheet');
+
+$importer->import((int) $wideImport['id']);
+
+$imported = Database::selectOne(
+    'SELECT * FROM loan_accounts WHERE account_number = :n',
+    ['n' => '9911000001']
+);
+
+ok($imported !== null, 'Account imported from the wide sheet');
+equals('female', (string) $imported['gender'], 'Gender imported (section 2)');
+equals('1985-04-12', (string) $imported['date_of_birth'], 'Date of birth imported (section 2)');
+equals('9123456780', (string) $imported['alternate_mobile'], 'Alternate mobile imported (section 2)');
+equals('4417', (string) $imported['aadhaar_last4'], 'Only the last four Aadhaar digits are stored (section 2)');
+equals('ABCDE1234F', (string) $imported['pan_number'], 'PAN imported and upper-cased (section 2)');
+equals('NAGLA', (string) $imported['gram_panchayat'], 'Gram panchayat imported (section 2)');
+equals('PATIYALI', (string) $imported['tehsil'], 'Tehsil imported (section 2)');
+equals('KASGANJ', (string) $imported['district'], 'District imported (section 2)');
+equals('UP', (string) $imported['state'], 'State imported (section 2)');
+equals('207248', (string) $imported['pincode'], 'PIN code imported (section 2)');
+equals(60000.0, (float) $imported['limit_amount'], 'Sanction limit imported (section 3)');
+equals(55000.0, (float) $imported['drawing_power'], 'Drawing power imported separately from the limit (section 3)');
+equals(3200.0, (float) $imported['interest_overdue'], 'Interest overdue imported separately from overdue (section 3)');
+equals(8000.0, (float) $imported['overdue'], 'Overdue imported (section 3)');
+equals('sma_2', (string) $imported['asset_classification'], 'Asset classification imported (section 3)');
+
+/* A malformed PAN or gender must warn, never block the account. */
+$messyRows = [[
+    '9911000002', '', 'RAM SINGH', 'MOHAN SINGH', 'unknown', '',
+    '', '', 'abc', 'NOTAPAN', 'X VILLAGE',
+    '', '', '', '', '', '',
+    $branchCode, '', '', '1000', '',
+    '1000', '', '0', '',
+    'gibberish', '',
+]];
+
+$messyFile = sys_get_temp_dir() . '/lrms-messy-import.xlsx';
+$messyWriter = new XlsxWriter('Accounts');
+$messyWriter->headers($wideHeaders);
+$messyWriter->rows($messyRows);
+$messyWriter->save($messyFile);
+
+$messyImport = $importer->store([
+    'name' => 'messy-identity-columns.xlsx',
+    'tmp_name' => $messyFile,
+    'size' => filesize($messyFile),
+    'error' => UPLOAD_ERR_OK,
+]);
+
+$importer->saveMapping((int) $messyImport['id'], $importer->mapping($messyImport));
+$messyPreview = $importer->preview((int) $messyImport['id']);
+
+// Identity values that cannot be understood must not block the row: the row is
+// still "ready", and the problems come back as warnings on the previewed row.
+equals(1, $messyPreview['summary']['ready'], 'A row with unusable identity values is still ready to import');
+equals(0, $messyPreview['summary']['invalid_data'], 'Unrecognised identity values are not counted as invalid data');
+
+$messyWarnings = $messyPreview['rows'][0]['warnings'] ?? [];
+$warnedColumns = array_column($messyWarnings, 'column');
+
+ok(in_array('gender', $warnedColumns, true), 'Unrecognised gender reported as a warning');
+ok(in_array('pan_number', $warnedColumns, true), 'Malformed PAN reported as a warning');
+ok(in_array('asset_classification', $warnedColumns, true), 'Unrecognised asset classification reported as a warning');
+
+$importer->import((int) $messyImport['id']);
+
+$messy = Database::selectOne(
+    'SELECT * FROM loan_accounts WHERE account_number = :n',
+    ['n' => '9911000002']
+);
+
+ok($messy !== null, 'The account still imported despite unusable identity values');
+equals(null, $messy['gender'], 'Unrecognised gender left blank rather than guessed');
+equals(null, $messy['pan_number'], 'Malformed PAN left blank rather than stored');
+equals(null, $messy['asset_classification'], 'Unrecognised asset classification left blank');
+equals(null, $messy['drawing_power'], 'Absent drawing power stays NULL, not 0.00');
+equals(null, $messy['interest_overdue'], 'Absent interest overdue stays NULL, not 0.00');
+
+@unlink($wideFile);
+@unlink($messyFile);
+
 exit(TestRunner::summary());

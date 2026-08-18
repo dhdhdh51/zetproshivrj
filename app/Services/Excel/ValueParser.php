@@ -204,6 +204,150 @@ final class ValueParser
      * Account numbers must survive Excel's habit of turning long digit strings
      * into floats ("31234567890.0") or scientific notation.
      */
+    /**
+     * Gender as printed in section 2 of the field visit verification report.
+     * Sheets write this as Male/Female, M/F, or occasionally 1/2.
+     *
+     * @return array{0: ?string, 1: string} value + warning
+     */
+    public static function gender(mixed $raw): array
+    {
+        $value = self::text($raw, 40);
+
+        if ($value === null) {
+            return [null, ''];
+        }
+
+        $normalised = strtolower($value);
+
+        return match ($normalised) {
+            'm', 'male', '1' => ['male', ''],
+            'f', 'female', '2' => ['female', ''],
+            'o', 'other', 'others', 'transgender', '3' => ['other', ''],
+            default => [null, sprintf('"%s" is not a recognised gender; left blank.', str_excerpt($value, 30))],
+        };
+    }
+
+    /**
+     * Asset classification (section 3). Accepts the many spellings of the SMA
+     * buckets: "SMA-1", "SMA 1", "sma1", and NPA sub-grades such as "D1", which
+     * are all NPA for this purpose.
+     *
+     * @return array{0: ?string, 1: string} value + warning
+     */
+    public static function assetClassification(mixed $raw): array
+    {
+        $value = self::text($raw, 60);
+
+        if ($value === null) {
+            return [null, ''];
+        }
+
+        // Strip separators so "SMA - 2", "SMA_2" and "sma2" all compare equal.
+        $compact = strtolower((string) preg_replace('/[^a-z0-9]/i', '', $value));
+
+        if (in_array($compact, ['standard', 'std', 'stdasset', 'performing'], true)) {
+            return ['standard', ''];
+        }
+
+        if (preg_match('/^sma0?$/', $compact) === 1 || $compact === 'sma00') {
+            return ['sma_0', ''];
+        }
+
+        if (preg_match('/^sma1$/', $compact) === 1) {
+            return ['sma_1', ''];
+        }
+
+        if (preg_match('/^sma2$/', $compact) === 1) {
+            return ['sma_2', ''];
+        }
+
+        // NPA and its sub-grades: substandard, doubtful (D1/D2/D3), loss.
+        if (
+            in_array($compact, ['npa', 'nonperforming', 'substandard', 'ss', 'loss', 'doubtful'], true)
+            || preg_match('/^d[123]$/', $compact) === 1
+        ) {
+            return ['npa', ''];
+        }
+
+        return [null, sprintf('"%s" is not a recognised asset classification; left blank.', str_excerpt($value, 30))];
+    }
+
+    /**
+     * PAN. Stored only when it looks like a real PAN (AAAAA9999A), because a
+     * malformed one on a compliance report is worse than a blank.
+     *
+     * @return array{0: ?string, 1: string} value + warning
+     */
+    public static function pan(mixed $raw): array
+    {
+        $value = self::text($raw, 20);
+
+        if ($value === null) {
+            return [null, ''];
+        }
+
+        $candidate = strtoupper((string) preg_replace('/\s+/', '', $value));
+
+        if (preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]$/', $candidate) === 1) {
+            return [$candidate, ''];
+        }
+
+        return [null, sprintf('PAN "%s" is not in the AAAAA9999A format; left blank.', str_excerpt($value, 20))];
+    }
+
+    /**
+     * The last four digits of an Aadhaar number.
+     *
+     * A full 12 digit number is reduced to its last four on the way in: LRMS
+     * only ever prints XXXX-XXXX-nnnn, so storing the rest would be holding
+     * identity data the system has no use for.
+     *
+     * @return array{0: ?string, 1: string} value + warning
+     */
+    public static function aadhaarLast4(mixed $raw): array
+    {
+        $value = self::text($raw, 40);
+
+        if ($value === null) {
+            return [null, ''];
+        }
+
+        $digits = (string) preg_replace('/\D/', '', $value);
+
+        if ($digits === '') {
+            return [null, sprintf('Aadhaar "%s" contains no digits; left blank.', str_excerpt($value, 20))];
+        }
+
+        if (strlen($digits) < 4) {
+            return [null, 'Aadhaar value has fewer than four digits; left blank.'];
+        }
+
+        return [substr($digits, -4), ''];
+    }
+
+    /**
+     * A whole number, used for counts such as "Days Remaining".
+     *
+     * @return array{0: ?int, 1: string} value + warning
+     */
+    public static function integer(mixed $raw): array
+    {
+        $value = self::text($raw, 40);
+
+        if ($value === null) {
+            return [null, ''];
+        }
+
+        $candidate = str_replace([',', ' '], '', $value);
+
+        if (preg_match('/^-?\d+$/', $candidate) !== 1) {
+            return [null, sprintf('"%s" is not a whole number; left blank.', str_excerpt($value, 20))];
+        }
+
+        return [(int) $candidate, ''];
+    }
+
     public static function accountNumber(mixed $raw): ?string
     {
         $value = trim((string) ($raw ?? ''));

@@ -42,7 +42,9 @@ CREATE TABLE `branches` (
   `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `code`        VARCHAR(40)  NOT NULL,
   `name`        VARCHAR(160) NOT NULL,
+  -- Regional Office and Zone as printed on the field visit verification report.
   `region`      VARCHAR(120) NULL,
+  `zone`        VARCHAR(120) NULL,
   `district`    VARCHAR(120) NULL,
   `state`       VARCHAR(120) NULL,
   `address`     VARCHAR(255) NULL,
@@ -123,11 +125,29 @@ CREATE TABLE `bc_supervisors` (
   `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id`    BIGINT UNSIGNED NOT NULL,
   `branch_id`  BIGINT UNSIGNED NOT NULL,
-  -- BC Code as printed in the bank's Excel sheets; used for auto allocation.
+  -- BC / BCBF Code as printed in the bank's Excel sheets and on the report
+  -- header; used for auto allocation. Wide enough for the 12-digit codes in use.
   `bc_code`    VARCHAR(60) NOT NULL,
+  -- The BC Agent is the BC Supervisor: one person, one role. These are the
+  -- identity fields the field visit verification report prints in section 1
+  -- and countersigns in section 12.
+  `sp_cbc_name` VARCHAR(190) NULL,
+  `ssa`         VARCHAR(160) NULL,
+  `iibf_number` VARCHAR(60)  NULL,
+  `dra_id`      VARCHAR(60)  NULL,
+  `designation` VARCHAR(120) NULL,
+  -- Only the last four digits of Aadhaar are stored: the report prints
+  -- XXXX-XXXX-nnnn and the full number is not needed for any function here.
+  `aadhaar_last4` CHAR(4)    NULL,
+  `pan_number`  VARCHAR(12)  NULL,
   `mobile`     VARCHAR(20)  NULL,
   `address`    VARCHAR(255) NULL,
   `village`    VARCHAR(120) NULL,
+  `block`      VARCHAR(120) NULL,
+  `tehsil`     VARCHAR(120) NULL,
+  `district`   VARCHAR(120) NULL,
+  `state`      VARCHAR(120) NULL,
+  `pincode`    VARCHAR(12)  NULL,
   `joined_on`  DATE NULL,
   `status`     ENUM('active','inactive','suspended') NOT NULL DEFAULT 'active',
   `notes`      VARCHAR(255) NULL,
@@ -139,6 +159,8 @@ CREATE TABLE `bc_supervisors` (
   UNIQUE KEY `uq_bc_code` (`bc_code`),
   KEY `ix_bc_branch` (`branch_id`),
   KEY `ix_bc_status` (`status`),
+  KEY `ix_bc_iibf` (`iibf_number`),
+  KEY `ix_bc_dra` (`dra_id`),
   CONSTRAINT `fk_bc_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_bc_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -231,7 +253,19 @@ CREATE TABLE `loan_accounts` (
   `borrower_name`    VARCHAR(190) NOT NULL,
   `father_name`      VARCHAR(190) NULL,
   `mobile`           VARCHAR(20)  NULL,
+  -- Section 2 of the field visit verification report. Aadhaar is held as the
+  -- last four digits only, which is all the report prints (XXXX-XXXX-nnnn).
+  `gender`           ENUM('male','female','other') NULL,
+  `date_of_birth`    DATE NULL,
+  `alternate_mobile` VARCHAR(20) NULL,
+  `aadhaar_last4`    CHAR(4)     NULL,
+  `pan_number`       VARCHAR(12) NULL,
   `village`          VARCHAR(160) NULL,
+  `gram_panchayat`   VARCHAR(160) NULL,
+  `tehsil`           VARCHAR(120) NULL,
+  `district`         VARCHAR(120) NULL,
+  `state`            VARCHAR(120) NULL,
+  `pincode`          VARCHAR(12)  NULL,
   `address`          VARCHAR(500) NULL,
   `branch_id`        BIGINT UNSIGNED NOT NULL,
   -- Raw values exactly as they appeared in the uploaded sheet, kept for audit.
@@ -240,10 +274,15 @@ CREATE TABLE `loan_accounts` (
   `loan_type`        VARCHAR(120) NULL,
   `sanction_date`    DATE NULL,
   `npa_date`         DATE NULL,
+  -- `limit_amount` is the sanction limit on the report.
   `limit_amount`     DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `drawing_power`    DECIMAL(15,2) NULL,
   `outstanding`      DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `interest_overdue` DECIMAL(15,2) NULL,
   `overdue`          DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `total_recovered`  DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  -- Asset classification as printed in section 3.
+  `asset_classification` ENUM('standard','sma_0','sma_1','sma_2','npa') NULL,
   -- Tags an account into the dedicated KRM OTS / CKCC OD-2 work streams.
   `loan_category`    ENUM('general','krm_ots','ckcc_od2') NOT NULL DEFAULT 'general',
   `status`           ENUM('active','closed','settled','written_off','excluded') NOT NULL DEFAULT 'active',
@@ -265,6 +304,7 @@ CREATE TABLE `loan_accounts` (
   KEY `ix_accounts_category` (`loan_category`),
   KEY `ix_accounts_status` (`status`),
   KEY `ix_accounts_npa` (`npa_date`),
+  KEY `ix_accounts_asset_class` (`asset_classification`),
   KEY `ix_accounts_import` (`excel_import_id`),
   CONSTRAINT `fk_accounts_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_accounts_import` FOREIGN KEY (`excel_import_id`) REFERENCES `excel_imports` (`id`) ON DELETE SET NULL,
@@ -332,7 +372,8 @@ CREATE TABLE `visit_form_fields` (
   -- Newline separated choices for dropdown/radio/checkbox.
   `options`            TEXT NULL,
   `placeholder`        VARCHAR(160) NULL,
-  `help_text`          VARCHAR(255) NULL,
+  -- Long enough for a compliance declaration, which the form must show verbatim.
+  `help_text`          VARCHAR(2000) NULL,
   `is_required`        TINYINT(1) NOT NULL DEFAULT 0,
   `min_value`          DECIMAL(15,2) NULL,
   `max_value`          DECIMAL(15,2) NULL,
@@ -341,7 +382,7 @@ CREATE TABLE `visit_form_fields` (
   `is_active`          TINYINT(1) NOT NULL DEFAULT 1,
   -- Conditional display: show this field only when the parent field matches.
   `condition_field_id` BIGINT UNSIGNED NULL,
-  `condition_operator` ENUM('equals','not_equals','in','filled','empty') NULL,
+  `condition_operator` ENUM('equals','not_equals','in','contains','filled','empty') NULL,
   `condition_value`    VARCHAR(255) NULL,
   `created_at`         DATETIME NULL,
   `updated_at`         DATETIME NULL,
@@ -378,7 +419,8 @@ CREATE TABLE `inspection_form_fields` (
                        NOT NULL DEFAULT 'text',
   `options`            TEXT NULL,
   `placeholder`        VARCHAR(160) NULL,
-  `help_text`          VARCHAR(255) NULL,
+  -- Long enough for a compliance declaration, which the form must show verbatim.
+  `help_text`          VARCHAR(2000) NULL,
   `is_required`        TINYINT(1) NOT NULL DEFAULT 0,
   `min_value`          DECIMAL(15,2) NULL,
   `max_value`          DECIMAL(15,2) NULL,
@@ -386,7 +428,7 @@ CREATE TABLE `inspection_form_fields` (
   `sort_order`         INT UNSIGNED NOT NULL DEFAULT 0,
   `is_active`          TINYINT(1) NOT NULL DEFAULT 1,
   `condition_field_id` BIGINT UNSIGNED NULL,
-  `condition_operator` ENUM('equals','not_equals','in','filled','empty') NULL,
+  `condition_operator` ENUM('equals','not_equals','in','contains','filled','empty') NULL,
   `condition_value`    VARCHAR(255) NULL,
   `created_at`         DATETIME NULL,
   `updated_at`         DATETIME NULL,
@@ -501,8 +543,16 @@ CREATE TABLE `visits` (
   `bc_supervisor_id`    BIGINT UNSIGNED NOT NULL,
   `branch_id`           BIGINT UNSIGNED NOT NULL,
   `form_id`             BIGINT UNSIGNED NULL,
-  `visit_type`          ENUM('customer','krm_ots','ckcc_od2') NOT NULL DEFAULT 'customer',
+  -- "Case Type" in section 1 of the field visit verification report. The first
+  -- three drive which form and which work stream applies; the rest are
+  -- verification visits that use the customer form.
+  `visit_type`          ENUM('customer','krm_ots','ckcc_od2','recovery_followup','pre_npa','post_npa','other')
+                        NOT NULL DEFAULT 'customer',
+  `visit_type_other`    VARCHAR(120) NULL,
   `visit_date`          DATE NOT NULL,
+  -- Printed as "Visit Time". Distinct from started_at, which is when the device
+  -- opened the visit: a queued offline visit can carry the real time of day.
+  `visit_time`          TIME NULL,
   `started_at`          DATETIME NULL,
   `submitted_at`        DATETIME NULL,
   `server_received_at`  DATETIME NULL,
@@ -515,7 +565,17 @@ CREATE TABLE `visits` (
   `house_locked`        TINYINT(1) NULL,
   `is_alive`            TINYINT(1) NULL,
   `current_address`     VARCHAR(500) NULL,
+  `address_shifted`     TINYINT(1) NULL,
   `occupation`          VARCHAR(160) NULL,
+  -- Section 6, the remaining two physical verification questions.
+  `residence_verified`  TINYINT(1) NULL,
+  `neighbour_verified`  TINYINT(1) NULL,
+  -- Sections 7 and 10: the "documents verified" and "evidence attached"
+  -- checklists, stored as a comma separated list of the ticked keys.
+  `documents_verified`  VARCHAR(500) NULL,
+  `documents_other`     VARCHAR(160) NULL,
+  `evidence_attached`   VARCHAR(500) NULL,
+  `evidence_other`      VARCHAR(160) NULL,
   `recovery_possibility` ENUM('high','medium','low','nil') NULL,
   `recommendation`      VARCHAR(500) NULL,
   `remarks`             TEXT NULL,
@@ -528,7 +588,13 @@ CREATE TABLE `visits` (
   `gps_note`            VARCHAR(255) NULL,
   `photo_count`         INT UNSIGNED NOT NULL DEFAULT 0,
   `borrower_signature`  VARCHAR(255) NULL,
+  -- Section 12: the BC Agent (= BC Supervisor) signs their own report, and an
+  -- Admin/Supervisor countersigns it when approving. The verifier's name,
+  -- designation and employee code are read from `approved_by`.
   `supervisor_signature` VARCHAR(255) NULL,
+  `declaration_accepted` TINYINT(1) NOT NULL DEFAULT 0,
+  `declared_at`         DATETIME NULL,
+  `verifier_signature`  VARCHAR(255) NULL,
   `device_id`           BIGINT UNSIGNED NULL,
   `sync_batch_id`       BIGINT UNSIGNED NULL,
   `created_at`          DATETIME NULL,
@@ -841,14 +907,30 @@ CREATE TABLE `krm_ots_cases` (
   `branch_id`         BIGINT UNSIGNED NOT NULL,
   `bc_supervisor_id`  BIGINT UNSIGNED NULL,
   `visit_id`          BIGINT UNSIGNED NULL,
+  -- Section 4 of the field visit verification report, "KRM OTS DETAILS".
+  -- Deliberately holds no CKCC renewal fields: the two streams have separate
+  -- reports and section 5 lives on `ckcc_renewals`.
+  `ots_eligible`      TINYINT(1) NULL,
+  `scheme`            ENUM('krm_ots','general_ots','other') NOT NULL DEFAULT 'krm_ots',
+  `scheme_other`      VARCHAR(120) NULL,
   `outstanding`       DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  -- "Proposed Settlement" on the report.
   `ots_amount`        DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `borrower_share`    DECIMAL(15,2) NULL,
+  `initial_deposit_required` DECIMAL(15,2) NULL,
   `sanctioned_amount` DECIMAL(15,2) NULL,
   `paid_amount`       DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `customer_response` ENUM('agreed','requested_time','financial_difficulty','refused','not_eligible') NULL,
   `ots_status`        ENUM('proposed','under_review','approved','rejected','partly_paid','paid','closed','cancelled')
                       NOT NULL DEFAULT 'proposed',
   `visit_date`        DATE NULL,
+  -- "Expected Deposit Date" on the report.
   `promise_date`      DATE NULL,
+  -- Section 9, the KRM OTS recommendation options.
+  `recommendation`    ENUM('proposal_recommended','followup_required','customer_refused','not_eligible') NULL,
+  -- Section 13, "FINAL REPORT STATUS" for the KRM OTS stream.
+  `final_status`      ENUM('customer_contacted','customer_verified','ots_accepted','ots_rejected',
+                           'initial_deposit_received','ots_closed','followup_required') NULL,
   `remarks`           VARCHAR(500) NULL,
   `created_by`        BIGINT UNSIGNED NULL,
   `created_at`        DATETIME NULL,
@@ -858,6 +940,8 @@ CREATE TABLE `krm_ots_cases` (
   KEY `ix_krm_branch` (`branch_id`),
   KEY `ix_krm_status` (`ots_status`),
   KEY `ix_krm_bc` (`bc_supervisor_id`),
+  KEY `ix_krm_final` (`final_status`),
+  KEY `ix_krm_response` (`customer_response`),
   CONSTRAINT `fk_krm_account` FOREIGN KEY (`loan_account_id`) REFERENCES `loan_accounts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_krm_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_krm_bc` FOREIGN KEY (`bc_supervisor_id`) REFERENCES `bc_supervisors` (`id`) ON DELETE SET NULL,
@@ -875,6 +959,22 @@ CREATE TABLE `ckcc_renewals` (
   `limit_amount`         DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `outstanding`          DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `overdue`              DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  -- Section 5 of the field visit verification report, "CKCC OD-2 RENEWAL
+  -- DETAILS". Holds no KRM OTS fields; section 4 lives on `krm_ots_cases`.
+  `renewal_eligible`     TINYINT(1) NULL,
+  `renewal_due_bucket`   ENUM('within_30_days','within_15_days','within_7_days','overdue') NULL,
+  `renewal_due_date`     DATE NULL,
+  `expected_npa_date`    DATE NULL,
+  -- Stored rather than derived: the report must reproduce what the supervisor
+  -- was told in the field, even if the due date is later corrected.
+  `days_remaining`       INT NULL,
+  `kyc_status`           ENUM('complete','pending') NULL,
+  `aadhaar_seeded`       TINYINT(1) NULL,
+  `mobile_linked`        TINYINT(1) NULL,
+  `aadhaar_authentication` ENUM('completed','pending') NULL,
+  `renewal_consent`      TINYINT(1) NULL,
+  `renewal_form_signed`  TINYINT(1) NULL,
+  `biometrics_completed` TINYINT(1) NULL,
   `renewal_status`       ENUM('pending','documents_awaited','submitted','renewed','rejected','not_eligible','closed')
                          NOT NULL DEFAULT 'pending',
   `visit_date`           DATE NULL,
@@ -882,6 +982,12 @@ CREATE TABLE `ckcc_renewals` (
   `documents_status`     ENUM('complete','partial','pending','not_submitted') NOT NULL DEFAULT 'pending',
   `documents_remarks`    VARCHAR(500) NULL,
   `renewed_on`           DATE NULL,
+  -- Section 9, the CKCC renewal recommendation options.
+  `recommendation`       ENUM('renew_immediately','documents_complete','documents_pending',
+                              'customer_not_interested','branch_followup_required') NULL,
+  -- Section 13, "FINAL REPORT STATUS" for the CKCC OD-2 stream.
+  `final_status`         ENUM('customer_contacted','customer_verified','documents_collected','renewal_submitted',
+                              'renewal_approved','pending_at_branch','became_npa','followup_required') NULL,
   `remarks`              VARCHAR(500) NULL,
   `created_by`           BIGINT UNSIGNED NULL,
   `created_at`           DATETIME NULL,
@@ -891,6 +997,8 @@ CREATE TABLE `ckcc_renewals` (
   KEY `ix_ckcc_branch` (`branch_id`),
   KEY `ix_ckcc_status` (`renewal_status`),
   KEY `ix_ckcc_bc` (`bc_supervisor_id`),
+  KEY `ix_ckcc_final` (`final_status`),
+  KEY `ix_ckcc_due` (`renewal_due_date`),
   CONSTRAINT `fk_ckcc_account` FOREIGN KEY (`loan_account_id`) REFERENCES `loan_accounts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_ckcc_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_ckcc_bc` FOREIGN KEY (`bc_supervisor_id`) REFERENCES `bc_supervisors` (`id`) ON DELETE SET NULL,

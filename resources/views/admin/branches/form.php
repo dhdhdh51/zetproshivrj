@@ -46,8 +46,14 @@ $value = static function (string $key, mixed $default = '') use ($branch) {
                 </div>
 
                 <div class="field">
-                    <label for="region">Region</label>
+                    <label for="region">Regional office</label>
                     <input type="text" id="region" name="region" value="<?= e($value('region')) ?>" maxlength="120">
+                    <div class="help">Printed as "Regional Office" on the field visit verification report.</div>
+                </div>
+
+                <div class="field">
+                    <label for="zone">Zone</label>
+                    <input type="text" id="zone" name="zone" value="<?= e($value('zone')) ?>" maxlength="120">
                 </div>
 
                 <div class="field">
