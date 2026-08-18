@@ -66,8 +66,13 @@ php -S localhost:8000 -t public public/index.php
 ### Deploying to a web host
 
 Do not upload the repository — it contains the Android project, the test suites
-and CI workflows, none of which belong on a web server. Build the package
-instead:
+and CI workflows, none of which belong on a web server. Use either:
+
+- the **`web-app` branch** — the PHP application only, ready to deploy. Clone it
+  on the server (`git clone -b web-app --single-branch <repo>`) or use GitHub's
+  *Download ZIP* with that branch selected. Maintainers refresh it with
+  `bash deploy/publish-web-branch.sh --push`.
+- or build the archive yourself:
 
 ```bash
 bash deploy/build-package.sh 1.0.0     # -> dist/lrms-1.0.0.zip
@@ -216,7 +221,8 @@ routes/            web.php, admin.php, manager.php, api.php
 storage/           uploads (photos, signatures, imports), generated exports, logs
 tests/             four executable suites
 bin/cron.php       deadline reminders, promise sweep, absentees, housekeeping
-deploy/            hosting package builder, preflight check, OLS rewrite rules
+deploy/            package builder, web-app branch publisher, preflight check,
+                   OpenLiteSpeed rewrite rules
 android/           the Kotlin application
 docs/              deployment, API reference, Android build, operations
 ```

@@ -12,21 +12,33 @@ nothing loads, or — worse — your database password becomes downloadable.
 
 ---
 
-## 0. Build the upload package
+## 0. Get the files
 
-Do this on your own machine, in a clone of the repository:
+**Never upload the repository itself.** It carries the Android project, four test
+suites, CI workflows and the git history — none of which belong on a web server.
+
+Two supported ways to get just the web application:
+
+**A — the `web-app` branch (easiest).** A branch containing the PHP application
+only, kept up to date by the development team. In GitHub switch to the `web-app`
+branch and use *Code ▸ Download ZIP*. Or clone it on the server, which makes
+future updates one command:
 
 ```bash
-bash deploy/build-package.sh 1.0.0
+git clone -b web-app --single-branch https://github.com/dhdhdh51/zetpro.git
 ```
 
-That writes `dist/lrms-1.0.0.zip` — the application only. The Android project,
-test suites, CI workflows, git history and any local test uploads are excluded,
-and the script refuses to build if a shipped file has a syntax error or if
-anything credential-shaped slipped in.
+**B — build the archive yourself**, on your own machine in a clone of the repo:
 
-Don't upload the repository itself. It contains files that have no business on a
-web server.
+```bash
+bash deploy/build-package.sh 1.0.0     # -> dist/lrms-1.0.0.zip
+```
+
+Either way you get the same file set. The packager lints every file it ships and
+refuses to build on a syntax error or if anything credential-shaped slipped in.
+
+> Maintainers: refresh the branch with
+> `bash deploy/publish-web-branch.sh --push`.
 
 ---
 

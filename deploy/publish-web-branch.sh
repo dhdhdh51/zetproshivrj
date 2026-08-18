@@ -185,11 +185,15 @@ extensions, permissions, SSL and the cron entry, are in
 ```bash
 cd /home/your-domain/public_html
 mysqldump -u USER -p DBNAME > ~/backup-$(date +%F).sql   # always
-git pull
+git pull --ff-only origin web-app
 php database/upgrade.php        # adds only what is missing; safe to re-run
 php database/migrate.php --seed # installs any new default forms
 php deploy/preflight.php
 ```
+
+`--ff-only` is deliberate: this checkout should only ever move forward. If it
+refuses, someone edited files on the server that are tracked by git — check with
+`git status` before going further.
 
 `config/config.local.php` and everything under `storage/` are untracked, so your
 settings, uploaded photographs and logs all survive the pull.
