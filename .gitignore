@@ -1,0 +1,17 @@
+/vendor/
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+/storage/generated/*
+!/storage/generated/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+.DS_Store
+*.log
+.idea/
+.vscode/
+
+# Keep local credentials out of git. Deployments edit config/config.php in place.
+# (A placeholder config/config.php is committed so the app boots after clone;
+#  never commit real API keys / passwords into it.)
+
+/config/config.local.php
