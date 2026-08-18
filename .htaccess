@@ -1,0 +1,27 @@
+# DocuPilot AI — root .htaccess
+# Forwards every request into /public (the only web-exposed directory).
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block direct browser access to application internals.
+    RewriteRule ^(app|config|database|resources|routes|storage|vendor|admin|api)(/|$) - [F,L]
+
+    # Send everything else to the public front controller directory.
+    RewriteRule ^$ public/ [L]
+    RewriteRule ^(?!public/)(.*)$ public/$1 [L]
+</IfModule>
+
+# Never serve dotfiles, config or dumps.
+<FilesMatch "^(\.|composer\.(json|lock)|.*\.(sql|log|md))$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+Options -Indexes
+DirectoryIndex index.php index.html
