@@ -15,3 +15,14 @@
 #  never commit real API keys / passwords into it.)
 
 /config/config.local.php
+
+# Android build output and local SDK pointers
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/keystore.properties
+/android/*.jks
+/android/*.keystore
+/dist/
+/android/.kotlin/

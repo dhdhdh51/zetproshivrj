@@ -1,0 +1,142 @@
+name: Backend CI
+
+# The PHP application: syntax check, schema install on a real MySQL, and the
+# three test suites (importer/allocation, web screens, Android API).
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'android/**'
+      - 'docs/**'
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - 'android/**'
+      - 'docs/**'
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }} · MySQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The application targets shared hosting, where 8.2 is common, and must
+        # also stay clean on the current release.
+        php: ['8.2', '8.4']
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: lrms_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          # The application has no Composer dependencies; these are the extensions
+          # it does need (GD for photo watermarking, zip for .xlsx).
+          extensions: pdo_mysql, mbstring, gd, zip, curl, intl
+          coverage: none
+          ini-values: memory_limit=512M
+
+      - name: Syntax check every PHP file
+        run: |
+          if find app config database public routes resources tests -name '*.php' -print0 \
+              | xargs -0 -n1 -P4 php -l \
+              | grep -v 'No syntax errors'; then
+            echo "::error::PHP syntax errors were found (see the lines above)."
+            exit 1
+          fi
+
+          echo "All PHP files parse cleanly."
+
+      - name: Configure the application for CI
+        run: |
+          cp config/config.example.php config/config.php
+
+          cat > config/config.local.php <<'PHP'
+          <?php
+
+          return [
+              'app' => [
+                  'debug' => true,
+                  'url' => 'http://127.0.0.1:8099',
+                  'force_https' => false,
+              ],
+              'database' => [
+                  'host' => '127.0.0.1',
+                  'port' => 3306,
+                  'database' => 'lrms_test',
+                  'username' => 'root',
+                  'password' => 'root',
+              ],
+              'session' => ['secure' => false],
+          ];
+          PHP
+
+          mkdir -p storage/logs storage/generated storage/uploads/photos storage/uploads/signatures storage/uploads/imports
+          chmod -R 0775 storage
+
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -proot --silent; then
+              echo "MySQL is up."
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "::error::MySQL did not become available."
+          exit 1
+
+      - name: Install the schema and seed data
+        run: php database/migrate.php --fresh --demo
+
+      - name: Verify the schema manifest
+        run: php database/migrate.php --status
+
+      - name: Importer, allocation and export tests
+        run: php tests/test-import.php
+
+      - name: Web application smoke tests
+        run: php tests/http-smoke.php
+
+      - name: Android API smoke tests
+        run: php tests/api-smoke.php
+
+      - name: Upload application logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lrms-logs-php${{ matrix.php }}
+          path: |
+            storage/logs/**
+            /tmp/lrms-*.log
+          retention-days: 7
+          if-no-files-found: ignore

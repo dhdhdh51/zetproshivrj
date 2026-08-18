@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stylised "L" over a rupee stroke: loan recovery. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,32h7v34h20v7H38z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M55,36h18M55,43h18M67,36c4,0 6.5,2.4 6.5,5.6C73.5,44.8 71,47 67,47h-12l11,13" />
+</vector>

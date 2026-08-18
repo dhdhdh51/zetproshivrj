@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose supplies the real theme; this only styles the splash window. -->
+    <style name="Theme.LRMS" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#0B1220</item>
+        <item name="android:navigationBarColor">#0B1220</item>
+        <item name="android:windowBackground">#F4F6FA</item>
+    </style>
+</resources>
