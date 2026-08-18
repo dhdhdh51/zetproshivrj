@@ -248,12 +248,29 @@ for ref in "refs/heads/${BRANCH}" "refs/remotes/origin/${BRANCH}"; do
 done
 
 if [ -n "${PARENT}" ]; then
-    # Nothing changed since the last publish? Then there is nothing to deploy.
+    # Nothing changed since the last publish? Then there is no new commit to
+    # make. The branch may still need pushing, though — it can be current
+    # locally and absent or behind on the remote.
     if [ "$(git rev-parse "${PARENT}^{tree}")" = "${TREE}" ]; then
         echo
-        echo "The application is identical to the current ${BRANCH} tip — nothing to publish."
+        echo "The application is identical to the current ${BRANCH} tip — no new commit needed."
+
         rm -rf "${ROOT}/dist/lrms-${VERSION}" "${ROOT}/dist/lrms-${VERSION}.zip" \
                "${ROOT}/dist/lrms-${VERSION}.zip.sha256" 2> /dev/null || true
+
+        if [ "${PUSH}" -eq 1 ]; then
+            LOCAL_TIP="$(git rev-parse "refs/heads/${BRANCH}" 2> /dev/null || echo '')"
+            REMOTE_TIP="$(git rev-parse "refs/remotes/origin/${BRANCH}" 2> /dev/null || echo '')"
+
+            if [ -n "${LOCAL_TIP}" ] && [ "${LOCAL_TIP}" != "${REMOTE_TIP}" ]; then
+                echo "Remote is not up to date — pushing the existing commit."
+                git push origin "refs/heads/${BRANCH}:refs/heads/${BRANCH}"
+                echo "Pushed."
+            else
+                echo "origin/${BRANCH} is already up to date."
+            fi
+        fi
+
         exit 0
     fi
 
