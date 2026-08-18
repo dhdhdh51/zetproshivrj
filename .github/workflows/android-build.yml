@@ -71,9 +71,13 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      # Fails fast with a clear message when a dependency cannot be resolved,
+      # rather than surfacing later as a confusing compile error. Must be
+      # :app:dependencies — the configuration belongs to the module, and the
+      # root project has no debugRuntimeClasspath.
       - name: Resolve dependencies
         working-directory: android
-        run: ./gradlew --no-daemon dependencies --configuration debugRuntimeClasspath > /dev/null
+        run: ./gradlew --no-daemon :app:dependencies --configuration debugRuntimeClasspath > /dev/null
 
       - name: Run unit tests
         working-directory: android
@@ -86,6 +90,19 @@ jobs:
       - name: Build debug APK (compile validation)
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
+
+      # A pull request never produces a signed release build — it has no access
+      # to the signing secrets — so the debug APK is published instead. That
+      # gives a reviewer something installable without merging first. It is
+      # debug signed and points at the development API, so it is for testing
+      # only.
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LRMS-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+          if-no-files-found: error
 
       - name: Upload test and lint reports
         if: always()
