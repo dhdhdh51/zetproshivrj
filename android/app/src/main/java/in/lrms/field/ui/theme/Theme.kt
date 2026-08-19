@@ -34,8 +34,9 @@ private val LightColors = lightColorScheme(
     primaryContainer = NavyLight,
     onPrimaryContainer = Navy,
     secondary = Gold,
+    // Dark ink on gold: white on #F2B21C fails contrast badly, and this accent
+    // ends up under small labels.
     onSecondary = Color(0xFF1A1206),
-    onSecondary = Color.White,
     background = Canvas,
     onBackground = Color(0xFF0F172A),
     surface = Color.White,
