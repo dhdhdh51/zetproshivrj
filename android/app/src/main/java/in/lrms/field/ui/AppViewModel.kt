@@ -47,6 +47,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val otpUserId: Long? = null,
         val otpMessage: String? = null,
         val mustChangePassword: Boolean = false,
+        /** Result of the sign-in screen's connection test, when one has been run. */
+        val diagnostic: String? = null,
+        val testing: Boolean = false,
     )
 
     private val _auth = MutableStateFlow(
@@ -57,14 +60,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     )
     val auth: StateFlow<AuthState> = _auth.asStateFlow()
 
+    /**
+     * Runs the server check from the sign-in screen, so a supervisor who cannot
+     * sign in can read out what actually failed instead of "no connection".
+     */
+    fun testConnection() {
+        if (_auth.value.testing) {
+            return
+        }
+
+        _auth.value = _auth.value.copy(testing = true, diagnostic = null)
+
+        viewModelScope.launch {
+            val result = repository.testConnection()
+
+            _auth.value = _auth.value.copy(testing = false, diagnostic = result)
+        }
+    }
+
     fun signIn(username: String, password: String) {
         if (username.isBlank() || password.isBlank()) {
-            _auth.value = _auth.value.copy(error = "Enter your username and password.")
+            _auth.value = _auth.value.copy(error = "Enter your BCBF code and password.")
 
             return
         }
 
-        _auth.value = _auth.value.copy(busy = true, error = null)
+        _auth.value = _auth.value.copy(busy = true, error = null, diagnostic = null)
 
         viewModelScope.launch {
             when (val outcome = repository.login(username, password)) {

@@ -82,8 +82,39 @@ class FieldRepository(
             }
 
             is ApiResult.Failure -> LoginOutcome.Error(result.message)
-            is ApiResult.Offline -> LoginOutcome.Error("No connection. Sign-in needs a network the first time.")
-            ApiResult.Unauthenticated -> LoginOutcome.Error("Incorrect username or password.")
+
+            is ApiResult.Offline -> LoginOutcome.Error(
+                // Pass the real reason through. Replacing it with a generic "no
+                // connection" is what sends someone looking for a signal when the
+                // actual problem is a certificate or an unresolvable host.
+                when (result.reason) {
+                    ApiResult.Reason.NO_NETWORK, ApiResult.Reason.DNS ->
+                        result.message + " Signing in needs a network the first time."
+
+                    else -> result.message
+                },
+            )
+
+            ApiResult.Unauthenticated -> LoginOutcome.Error("Incorrect BCBF code, username or password.")
+        }
+    }
+
+    /**
+     * Checks the server from the handset that is actually failing.
+     *
+     * A BC Supervisor standing in a village cannot read a log, and nobody can fix
+     * "no connection" without knowing which step broke. This calls the unauthenticated
+     * ping endpoint and reports plainly whether the phone reached the server, so the
+     * answer comes back over the phone in one sentence.
+     */
+    suspend fun testConnection(): String = withContext(Dispatchers.IO) {
+        when (val result = ApiClient.call { api.ping() }) {
+            is ApiResult.Success -> "Server reached: ${result.data.app ?: "LRMS"}. Sign-in should work."
+            is ApiResult.Offline -> result.message
+            is ApiResult.Failure ->
+                "Reached ${ApiClient.host} but it answered with an error: ${result.message}"
+            ApiResult.Unauthenticated ->
+                "Reached ${ApiClient.host}, but it refused the request. Check the server URL."
         }
     }
 

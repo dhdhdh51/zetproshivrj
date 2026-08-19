@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.lrms.field.BuildConfig
+import `in`.lrms.field.data.remote.ApiClient
 import `in`.lrms.field.ui.AppViewModel
 import `in`.lrms.field.ui.components.InlineNotice
 import `in`.lrms.field.ui.components.Tone
@@ -70,10 +71,16 @@ fun LoginScreen(viewModel: AppViewModel) {
                     Spacer(Modifier.height(12.dp))
                 }
 
+                if (auth.diagnostic != null) {
+                    InlineNotice(auth.diagnostic!!, Tone.INFO)
+                    Spacer(Modifier.height(12.dp))
+                }
+
                 OutlinedTextField(
                     value = username,
                     onValueChange = { username = it },
-                    label = { Text("Username") },
+                    // The BCBF code is what a supervisor has on their paperwork.
+                    label = { Text("BCBF code or username") },
                     singleLine = true,
                     enabled = !auth.busy,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
@@ -120,10 +127,31 @@ fun LoginScreen(viewModel: AppViewModel) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(4.dp))
+
+                // Nobody could previously tell which server an APK was built
+                // against, which made a wrong URL indistinguishable from a dead
+                // network. Now it is on the screen, and testable before sign-in.
+                TextButton(
+                    onClick = { viewModel.testConnection() },
+                    enabled = !auth.testing && !auth.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(if (auth.testing) "Checking the server…" else "Test connection")
+                }
 
                 Text(
-                    "${BuildConfig.ENVIRONMENT} · v${BuildConfig.VERSION_NAME}",
+                    ApiClient.baseUrl,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    "${BuildConfig.ENVIRONMENT} · v${BuildConfig.VERSION_NAME} · Android ${android.os.Build.VERSION.RELEASE}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
                     textAlign = TextAlign.Center,

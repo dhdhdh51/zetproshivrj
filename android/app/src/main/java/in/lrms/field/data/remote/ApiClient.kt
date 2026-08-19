@@ -11,9 +11,14 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
+import java.net.URI
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLException
+import javax.net.ssl.SSLHandshakeException
 
 /**
  * The outcome of an API call, so callers never have to think about HTTP codes.
@@ -34,7 +39,20 @@ sealed class ApiResult<out T> {
         val permanent: Boolean get() = status in 400..499 && status != 401 && status != 408 && status != 429
     }
 
-    data class Offline(val message: String = "No connection. Your work is saved on this device.") : ApiResult<Nothing>()
+    data class Offline(
+        val message: String = "No connection. Your work is saved on this device.",
+        val reason: Reason = Reason.NO_NETWORK,
+    ) : ApiResult<Nothing>()
+
+    /**
+     * Why a call could not reach the server.
+     *
+     * Every one of these arrives as an IOException, so without this the app can
+     * only say "no connection" — which sends someone hunting for a signal when
+     * the real problem is a certificate the phone will not trust, or a server
+     * name that does not resolve. Support cannot act on "no connection".
+     */
+    enum class Reason { NO_NETWORK, DNS, TLS, TIMEOUT, REFUSED, OTHER }
 
     /** The session is gone; the UI must return to the sign-in screen. */
     data object Unauthenticated : ApiResult<Nothing>()
@@ -53,6 +71,20 @@ object ApiClient {
     val moshi: Moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
+
+    /** The full URL this build talks to, shown on the sign-in screen. */
+    val baseUrl: String get() = BuildConfig.API_BASE_URL
+
+    /**
+     * Just the hostname, for error messages. Naming the host turns "no connection"
+     * into something a supervisor can check, and immediately reveals an APK built
+     * against the wrong server.
+     */
+    val host: String = try {
+        URI(BuildConfig.API_BASE_URL).host ?: BuildConfig.API_BASE_URL
+    } catch (e: Exception) {
+        BuildConfig.API_BASE_URL
+    }
 
     fun create(session: SessionStore): ApiService {
         val authInterceptor = Interceptor { chain ->
@@ -118,11 +150,43 @@ object ApiClient {
                 )
             }
         } catch (e: UnknownHostException) {
-            ApiResult.Offline()
+            // The name did not resolve: no internet at all, or DNS trouble.
+            ApiResult.Offline(
+                "Could not find $host. Either this phone has no internet, or it cannot look up that address.",
+                ApiResult.Reason.DNS,
+            )
+        } catch (e: SSLHandshakeException) {
+            // Ordered before SSLException and IOException, both of which it extends.
+            ApiResult.Offline(
+                "This phone would not accept the security certificate of $host. On Android 7 and older " +
+                    "the built-in certificate list is too old for many current certificates.",
+                ApiResult.Reason.TLS,
+            )
+        } catch (e: SSLException) {
+            ApiResult.Offline(
+                "The secure connection to $host failed (${e.javaClass.simpleName}).",
+                ApiResult.Reason.TLS,
+            )
         } catch (e: SocketTimeoutException) {
-            ApiResult.Offline("The server did not respond. Your work is saved on this device.")
+            ApiResult.Offline(
+                "$host did not answer in time. Your work is saved on this device.",
+                ApiResult.Reason.TIMEOUT,
+            )
+        } catch (e: ConnectException) {
+            ApiResult.Offline(
+                "Could not reach $host — the connection was refused.",
+                ApiResult.Reason.REFUSED,
+            )
+        } catch (e: NoRouteToHostException) {
+            ApiResult.Offline(
+                "No route to $host from this network.",
+                ApiResult.Reason.REFUSED,
+            )
         } catch (e: IOException) {
-            ApiResult.Offline()
+            ApiResult.Offline(
+                "Connection to $host failed (${e.javaClass.simpleName}). Your work is saved on this device.",
+                ApiResult.Reason.OTHER,
+            )
         } catch (e: Exception) {
             ApiResult.Failure(e.message ?: "Something went wrong.", status = 0)
         }
