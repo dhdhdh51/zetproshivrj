@@ -44,7 +44,12 @@ android {
         versionName = (project.findProperty("lrmsVersionName") as String?) ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        resourceConfigurations += listOf("en")
+
+        // The locales that survive into the APK. Anything not listed here is
+        // stripped, translations included — this said "en" alone, so values-hi
+        // was silently dropped from every build and the app could only ever
+        // display English however the language was set.
+        resourceConfigurations += listOf("en", "hi")
     }
 
     signingConfigs {
