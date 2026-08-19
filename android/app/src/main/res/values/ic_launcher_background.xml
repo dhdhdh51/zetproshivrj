@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The flat navy behind the D2 mark on the launcher icon.
+
+    Its own file because the icon background is referenced by the adaptive icon and
+    by the pre-26 layer-list, and keeping it out of colors.xml makes it obvious that
+    changing it changes the app icon rather than the UI.
+-->
+<resources>
+    <color name="ic_launcher_background">#0B2A5B</color>
+</resources>
