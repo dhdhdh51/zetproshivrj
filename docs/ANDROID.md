@@ -62,9 +62,9 @@ build type, and `-PlrmsApiUrl` overrides any of them.
 
 | Build type | applicationId | Default API URL | Cleartext HTTP |
 | --- | --- | --- | --- |
-| `debug` | `in.lrms.field.debug` | `http://10.0.2.2:8000/api/v1/` (emulator → host `php -S`) | allowed |
+| `debug` | `in.lrms.field.debug` | `https://cvbuilder.bharatseo.site/api/v1/` (the production server) | allowed |
 | `staging` | `in.lrms.field.staging` | `https://staging.example.com/api/v1/` | refused |
-| `release` | `in.lrms.field` | `https://lrms.example.com/api/v1/` | refused |
+| `release` | `in.lrms.field` | `https://cvbuilder.bharatseo.site/api/v1/` (`lrmsReleaseApiUrl`) | refused |
 
 All three can be installed side by side, so a supervisor can keep production
 while testing a staging build.
@@ -74,12 +74,23 @@ Resolution order, from
 
 | Build type | 1st | 2nd | 3rd |
 | --- | --- | --- | --- |
-| `debug` | `-PlrmsApiUrl` | `lrmsDebugApiUrl` in `gradle.properties` | `http://10.0.2.2:8000/api/v1/` |
-| `staging`, `release` | `-PlrmsApiUrl` | — | the build type's default (HTTPS placeholder) |
+| `debug` | `-PlrmsApiUrl` | `lrmsDebugApiUrl` in `gradle.properties` | `lrmsReleaseApiUrl` |
+| `staging`, `release` | `-PlrmsApiUrl` (CI's `LRMS_API_URL`) | `lrmsReleaseApiUrl` in `gradle.properties` | the build type's default |
 
-The developer convenience default is deliberately a **separate property**
-(`lrmsDebugApiUrl`) that only the debug build reads. A development URL therefore
-cannot reach a build handed to field staff even by accident.
+Every build type defaults to the **real server**, including `debug`. A debug APK
+aimed at `10.0.2.2` installs perfectly well on a handset and then times out on
+every request, which is indistinguishable from a weak mobile signal — and the
+person who installs the wrong artifact is rarely the person who can tell two
+artifacts apart. The sign-in screen additionally warns when the compiled URL is a
+loopback address, and shows the URL it is using.
+
+`lrmsDebugApiUrl` is still a separate property that only the debug build reads, so
+pointing it at your own machine cannot leak into a build handed to field staff:
+
+```properties
+# gradle.properties — emulator against a local `php -S`
+lrmsDebugApiUrl=http://10.0.2.2:8000/api/v1/
+```
 
 **Shipped builds must be HTTPS, and the build enforces it.** If the resolved URL
 for `staging` or `release` is not `https://`, Gradle fails with an explanatory
@@ -282,7 +293,7 @@ codegen for the same reason; R8 keep rules are in
 | --- | --- |
 | Gradle fails with a Java version error such as `25.0.2` | Wrong JDK. `export JAVA_HOME=…/jdk-17` |
 | `SDK location not found` | Create `android/local.properties` with `sdk.dir=…`, or set `ANDROID_HOME` |
-| App reports "server unreachable" on the emulator | Use `10.0.2.2`, not `localhost`; the host must be serving on that port |
+| App reports "server unreachable" on the emulator | Use `10.0.2.2`, not `localhost`; the host must be serving on that port. Tap **Test connection** on the sign-in screen — it names the host and the exact failure |
 | Release build installs but is rejected by the Play Console | It was signed with the debug fallback — the signing secrets are missing |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | A build signed with a different key is installed; uninstall first |
 | Cleartext HTTP fails in staging/release | By design. Serve the API over HTTPS |

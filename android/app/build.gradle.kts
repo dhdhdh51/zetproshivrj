@@ -180,14 +180,18 @@ fun releaseApiUrl(): String =
         ?: "https://lrms.example.com/api/v1/"
 
 /**
- * The debug-only API URL. Reads `lrmsDebugApiUrl` (a developer convenience in
- * gradle.properties) so that value cannot leak into a shipped build; an explicit
- * `-PlrmsApiUrl` still wins.
+ * The API URL for debug builds, from `lrmsDebugApiUrl`.
+ *
+ * Falls back to the production URL rather than an emulator loopback: a debug APK
+ * built against 10.0.2.2 installs happily on a phone and then times out on every
+ * request, which is impossible to tell apart from a bad signal. A developer who
+ * wants a local server sets `lrmsDebugApiUrl`; `-PlrmsApiUrl` still wins over
+ * both.
  */
 fun debugApiUrl(): String {
     val local = (project.findProperty("lrmsDebugApiUrl") as String?)?.takeIf { it.isNotBlank() }
 
-    return normaliseUrl(overrideUrl() ?: local ?: "http://10.0.2.2:8000/api/v1/")
+    return normaliseUrl(overrideUrl() ?: local ?: releaseApiUrl())
 }
 
 dependencies {

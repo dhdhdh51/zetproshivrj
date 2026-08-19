@@ -93,16 +93,15 @@ jobs:
 
       # Published only for pull requests, which produce no release build because
       # they have no access to the signing secrets. Everywhere else the release
-      # job publishes the real APK, and offering a debug APK beside it is a trap:
-      # it is compiled against 10.0.2.2, the address an emulator uses to reach
-      # the machine hosting it, so on a real handset every request times out and
-      # looks exactly like a bad mobile signal. The name says so, because an
-      # artifact list is the only thing someone sees before downloading.
-      - name: Upload debug APK (emulator only)
+      # job publishes the real APK, and two APKs side by side is how someone ends
+      # up installing the wrong one. This build now points at the production
+      # server too, so it does work on a handset — it is simply unminified, debug
+      # signed and logs request headers, which is why it is labelled for testing.
+      - name: Upload debug APK (testing only)
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: EMULATOR-ONLY-debug-apk-DO-NOT-INSTALL-ON-A-PHONE
+          name: LRMS-debug-apk-TESTING-ONLY-use-the-release-apk
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
           if-no-files-found: error
