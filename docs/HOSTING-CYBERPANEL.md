@@ -274,9 +274,19 @@ admin account you want. On submit it writes `config/config.local.php`, creates a
 creates your account with the password *you* chose — no default password is left
 behind.
 
-It will not touch a database that already has tables, and it refuses to run once
-the site is installed, so it cannot wipe a working system. When it finishes it
-deletes itself; if it cannot, it says so and you must delete
+What it will and will not touch:
+
+| The database you point it at | What happens |
+| --- | --- |
+| Empty | Installs. |
+| LRMS tables but no user accounts — an install that failed part way | Offers to clear them and start over, once you tick a box. Nothing recorded is lost, because nothing was recorded. |
+| A working LRMS site with accounts | Refuses. Drop the database in your hosting panel first if you really mean to reinstall. |
+| Tables that are not LRMS | Refuses, and touches nothing. |
+
+If an install fails it removes the tables it created, so you can correct the field
+it complained about and submit again — no clean-up in phpMyAdmin.
+
+When it finishes it deletes itself; if it cannot, it says so and you must delete
 `public/install.php` yourself.
 
 If connecting fails with a socket error, fill in the **socket path** field —

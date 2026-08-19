@@ -196,6 +196,9 @@ $configWritable = is_writable(LRMS_BASE . '/config')
 /* -------------------------------------------------------------------------- */
 
 $errors = [];
+$notices = [];
+$needsWipeConfirmation = false;
+$wipeTableCount = 0;
 $done = false;
 $manualConfig = null;
 $selfDeleted = false;
@@ -221,6 +224,7 @@ $input = [
     'app_url' => $guessedUrl,
     'timezone' => 'Asia/Kolkata',
     'org_name' => '',
+    'confirm_wipe' => '',
 ];
 
 if ($blocked === null && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
@@ -330,18 +334,68 @@ if ($blocked === null && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
     }
 
-    // Refuse to touch a database that already holds data.
+    // A database that is not empty is one of three things, and they need very
+    // different treatment: someone else's data, a working LRMS site, or the
+    // wreckage of an install that failed part way. Only the last may be cleared.
     if ($pdo instanceof PDO) {
-        $tables = (int) $pdo->query(
-            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()'
-        )->fetchColumn();
+        $existingTables = $pdo->query(
+            'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()'
+        )->fetchAll(PDO::FETCH_COLUMN);
 
-        if ($tables > 0) {
-            $errors[] = sprintf(
-                'That database already contains %d table(s). Use an empty database, '
-                . 'or drop the existing tables first — this installer will not overwrite data.',
-                $tables
-            );
+        $existingTables = array_map('strval', $existingTables);
+
+        if ($existingTables !== []) {
+            // Two tables every LRMS installation has. If they are absent this is
+            // somebody else's database and must not be touched.
+            $looksLikeLrms = in_array('users', $existingTables, true)
+                && in_array('system_settings', $existingTables, true);
+
+            $accounts = null;
+
+            if ($looksLikeLrms) {
+                try {
+                    $accounts = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
+                } catch (Throwable) {
+                    $accounts = null;
+                }
+            }
+
+            if (!$looksLikeLrms) {
+                $errors[] = sprintf(
+                    'That database already contains %d table(s) that are not LRMS. Use an empty '
+                    . 'database — this installer will not touch data it did not create.',
+                    count($existingTables)
+                );
+            } elseif ($accounts === null) {
+                $errors[] = 'That database has LRMS tables but they could not be read. '
+                    . 'Check them in phpMyAdmin before continuing.';
+            } elseif ($accounts > 0) {
+                $errors[] = sprintf(
+                    'That database is already a working LRMS installation with %d user account(s). '
+                    . 'Nothing has been changed. To reinstall, drop the database in your hosting '
+                    . 'panel first — this installer will not delete accounts.',
+                    $accounts
+                );
+            } elseif ($input['confirm_wipe'] !== '1') {
+                // LRMS tables with no accounts: an install that did not finish.
+                // Nothing has been recorded yet, so clearing it is safe — but say
+                // so and make them agree.
+                $needsWipeConfirmation = true;
+                $wipeTableCount = count($existingTables);
+                $errors[] = sprintf(
+                    'That database holds %d LRMS tables from an install that did not finish, and no '
+                    . 'user accounts. Tick the box below and submit again to clear them and install '
+                    . 'fresh.',
+                    $wipeTableCount
+                );
+            } else {
+                try {
+                    $wiped = lrms_rollback($pdo);
+                    $notices[] = sprintf('Cleared %d tables from the unfinished install.', $wiped);
+                } catch (Throwable $wipeError) {
+                    $errors[] = 'Could not clear the old tables: ' . $wipeError->getMessage();
+                }
+            }
         }
     }
 
@@ -607,6 +661,12 @@ $e = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
       </div>
     <?php endif; ?>
 
+    <?php if ($notices !== []): ?>
+      <div class="alert alert-warn">
+        <ul><?php foreach ($notices as $notice): ?><li><?= $e($notice) ?></li><?php endforeach; ?></ul>
+      </div>
+    <?php endif; ?>
+
     <?php if ($manualConfig !== null): ?>
       <p>Create <code>config/config.local.php</code> with exactly this, then reload:</p>
       <pre><?= $e($manualConfig) ?></pre>
@@ -712,6 +772,18 @@ $e = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
           <div class="hint">Printed on report headers.</div>
         </div>
       </div>
+
+      <?php if ($needsWipeConfirmation): ?>
+        <div class="alert alert-warn" style="margin-top:22px">
+          <label style="font-weight:600; display:flex; gap:10px; align-items:flex-start; cursor:pointer">
+            <input type="checkbox" name="confirm_wipe" value="1" style="width:auto; margin-top:3px">
+            <span>
+              Clear the <?= (int) $wipeTableCount ?> tables left by the unfinished install and start over.
+              There are no user accounts in that database, so nothing recorded is lost.
+            </span>
+          </label>
+        </div>
+      <?php endif; ?>
 
       <p style="margin-top:24px">
         <button class="btn" type="submit" <?= $requirementsOk ? '' : 'disabled' ?>>Install LRMS</button>
