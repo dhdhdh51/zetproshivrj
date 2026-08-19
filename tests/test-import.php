@@ -19,6 +19,7 @@ use App\Core\Database;
 use App\Services\Allocation;
 use App\Services\Excel\ColumnMatcher;
 use App\Services\Excel\LoanImporter;
+use App\Services\Excel\SampleSheet;
 use App\Services\Excel\SpreadsheetReader;
 use App\Services\Excel\SystemFields;
 use App\Services\Excel\ValueParser;
@@ -601,5 +602,106 @@ equals(null, $messy['interest_overdue'], 'Absent interest overdue stays NULL, no
 
 @unlink($wideFile);
 @unlink($messyFile);
+
+/* -------------------------------------------------------------------------- */
+section('The downloadable sample sheet imports as-is');
+/* -------------------------------------------------------------------------- */
+
+// The whole point of the demo file is that someone can download it, look at it,
+// and upload it back unchanged. If it does not survive that round trip it is
+// teaching the wrong format, so the real generator is run through the real
+// importer here rather than being eyeballed once by hand.
+
+$samplePath = SampleSheet::write('xlsx');
+
+ok(is_file($samplePath) && filesize($samplePath) > 0, 'Sample sheet is generated');
+
+$sampleHeaders = SampleSheet::headers();
+equals(count(SystemFields::keys()), count($sampleHeaders), 'Sample carries a column for every system field');
+
+$sampleRows = SampleSheet::rows();
+equals(SystemFields::SAMPLE_ROWS, count($sampleRows), 'Sample carries the documented number of demo rows');
+
+// Branch columns must be filled from real records, or the import dies on an
+// unknown branch — the single most likely way for this file to be useless.
+$branchCodeIndex = array_search('branch_code', SystemFields::keys(), true);
+ok(
+    $branchCodeIndex !== false && trim((string) $sampleRows[0][$branchCodeIndex]) !== '',
+    'Sample uses a real branch code from this database'
+);
+
+$sampleUpload = sys_get_temp_dir() . '/lrms-sample-upload.xlsx';
+copy($samplePath, $sampleUpload);
+
+$sampleImport = $importer->store([
+    'name' => 'LRMS-sample-loan-import.xlsx',
+    'tmp_name' => $sampleUpload,
+    'size' => filesize($samplePath),
+    'error' => UPLOAD_ERR_OK,
+]);
+
+// Because the headings are generated from SystemFields, every column should be
+// recognised without anyone touching the mapping screen.
+$sampleMapping = $importer->mapping($sampleImport);
+$unmapped = [];
+
+foreach (SystemFields::keys() as $key) {
+    if (($sampleMapping[$key] ?? '') === '') {
+        $unmapped[] = $key;
+    }
+}
+
+ok(
+    $unmapped === [],
+    $unmapped === []
+        ? 'Every sample column is detected automatically (no manual mapping needed)'
+        : 'Columns not auto-detected in the sample: ' . implode(', ', $unmapped)
+);
+
+$importer->saveMapping((int) $sampleImport['id'], $sampleMapping);
+$samplePreview = $importer->preview((int) $sampleImport['id']);
+
+equals(SystemFields::SAMPLE_ROWS, $samplePreview['total_rows'], 'Preview sees every sample row');
+equals(SystemFields::SAMPLE_ROWS, $samplePreview['summary']['ready'], 'Every sample row is importable');
+equals(0, $samplePreview['summary']['missing_required'], 'No sample row is missing a required field');
+equals(0, $samplePreview['summary']['unknown_branch'], 'No sample row has an unresolvable branch');
+equals(0, $samplePreview['summary']['invalid_data'], 'No sample value fails to parse');
+
+$sampleStats = $importer->import((int) $sampleImport['id']);
+
+equals(SystemFields::SAMPLE_ROWS, $sampleStats['created'], 'Importing the sample creates its accounts');
+equals(0, $sampleStats['errors'], 'No sample row errors on import');
+equals(0, $sampleStats['skipped'], 'No sample row is skipped');
+equals(
+    SystemFields::SAMPLE_ROWS,
+    $sampleStats['assigned'],
+    'Sample rows are allocated, because the sheet carries a real BC code'
+);
+
+$firstSample = Database::selectOne(
+    'SELECT * FROM loan_accounts WHERE account_number = :n',
+    ['n' => SampleSheet::ACCOUNT_PREFIX . '0001']
+);
+
+ok($firstSample !== null, 'The first sample account is on the loan book');
+equals('Ramesh Kumar', $firstSample['borrower_name'] ?? '', 'Sample borrower name is stored');
+equals('male', $firstSample['gender'] ?? '', 'Sample gender parsed to the stored value');
+equals('npa', $firstSample['asset_classification'] ?? '', 'Sample asset classification parsed');
+equals('2019-06-14', $firstSample['sanction_date'] ?? '', 'Sample sanction date parsed');
+equals('145000.00', $firstSample['outstanding'] ?? '', 'Sample outstanding parsed');
+equals(
+    'pending',
+    $firstSample['recovery_status'] ?? '',
+    'A sample account starts as pending recovery like any other'
+);
+
+// The prefix is what makes the demo rows findable afterwards.
+ok(
+    str_starts_with((string) $firstSample['account_number'], SampleSheet::ACCOUNT_PREFIX),
+    'Sample accounts are prefixed so they can be found and deleted'
+);
+
+@unlink($samplePath);
+@unlink($sampleUpload);
 
 exit(TestRunner::summary());

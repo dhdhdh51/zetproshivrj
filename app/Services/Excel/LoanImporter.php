@@ -9,6 +9,7 @@ use App\Core\Database;
 use App\Core\HttpException;
 use App\Services\Allocation;
 use App\Services\Audit;
+use App\Services\LoanAccounts;
 use RuntimeException;
 
 /**
@@ -566,23 +567,23 @@ final class LoanImporter
         }
 
         /* Borrower ------------------------------------------------------ */
-        $data['borrower_name'] = ValueParser::text($get('borrower_name'), 190);
+        $data['borrower_name'] = ValueParser::text($get('borrower_name'), SystemFields::textLength('borrower_name'));
 
         if ($data['borrower_name'] === null) {
             $errors[] = ['type' => 'missing_required', 'message' => 'Borrower Name is empty.', 'column' => 'borrower_name'];
             $flags[] = 'missing_required';
         }
 
-        $data['cif'] = ValueParser::text($get('cif'), 60);
-        $data['father_name'] = ValueParser::text($get('father_name'), 190);
-        $data['village'] = ValueParser::text($get('village'), 160);
-        $data['gram_panchayat'] = ValueParser::text($get('gram_panchayat'), 160);
-        $data['tehsil'] = ValueParser::text($get('tehsil'), 120);
-        $data['district'] = ValueParser::text($get('district'), 120);
-        $data['state'] = ValueParser::text($get('state'), 120);
-        $data['pincode'] = ValueParser::text($get('pincode'), 12);
-        $data['address'] = ValueParser::text($get('address'), 500);
-        $data['loan_type'] = ValueParser::text($get('loan_type'), 120);
+        $data['cif'] = ValueParser::text($get('cif'), SystemFields::textLength('cif'));
+        $data['father_name'] = ValueParser::text($get('father_name'), SystemFields::textLength('father_name'));
+        $data['village'] = ValueParser::text($get('village'), SystemFields::textLength('village'));
+        $data['gram_panchayat'] = ValueParser::text($get('gram_panchayat'), SystemFields::textLength('gram_panchayat'));
+        $data['tehsil'] = ValueParser::text($get('tehsil'), SystemFields::textLength('tehsil'));
+        $data['district'] = ValueParser::text($get('district'), SystemFields::textLength('district'));
+        $data['state'] = ValueParser::text($get('state'), SystemFields::textLength('state'));
+        $data['pincode'] = ValueParser::text($get('pincode'), SystemFields::textLength('pincode'));
+        $data['address'] = ValueParser::text($get('address'), SystemFields::textLength('address'));
+        $data['loan_type'] = ValueParser::text($get('loan_type'), SystemFields::textLength('loan_type'));
 
         /* Mobiles ------------------------------------------------------- */
         foreach (['mobile' => 'mobile', 'alternate_mobile' => 'alternate_mobile'] as $field => $column) {
@@ -661,8 +662,8 @@ final class LoanImporter
         }
 
         /* Branch -------------------------------------------------------- */
-        $branchCode = ValueParser::text($get('branch_code'), 60);
-        $branchName = ValueParser::text($get('branch_name'), 160);
+        $branchCode = ValueParser::text($get('branch_code'), SystemFields::textLength('branch_code'));
+        $branchName = ValueParser::text($get('branch_name'), SystemFields::textLength('branch_name'));
         $data['branch_code_raw'] = $branchCode;
         $branchId = 0;
 
@@ -687,7 +688,7 @@ final class LoanImporter
         }
 
         /* BC Code ------------------------------------------------------- */
-        $bcCode = ValueParser::text($get('bc_code'), 60);
+        $bcCode = ValueParser::text($get('bc_code'), SystemFields::textLength('bc_code'));
         $data['bc_code_raw'] = $bcCode;
         $bcTarget = null;
 
@@ -747,65 +748,21 @@ final class LoanImporter
      * Insert or update the account. Existing accounts keep their id (and so keep
      * their visits and allocation history) and only have their figures refreshed.
      */
+    /**
+     * Delegates to the shared service so a sheet and the manual entry form
+     * produce the same row, with the same defaults.
+     */
     private function upsertAccount(array $data, int $branchId, int $importId, array &$stats): int
     {
-        $existing = Database::selectOne(
-            'SELECT * FROM loan_accounts WHERE account_number = :n LIMIT 1',
-            ['n' => $data['account_number']]
-        );
+        $result = LoanAccounts::upsert($data, $branchId, $importId);
 
-        $payload = [
-            'cif' => $data['cif'] ?? null,
-            'borrower_name' => $data['borrower_name'],
-            'father_name' => $data['father_name'] ?? null,
-            'mobile' => $data['mobile'] ?? null,
-            'alternate_mobile' => $data['alternate_mobile'] ?? null,
-            'gender' => $data['gender'] ?? null,
-            'date_of_birth' => $data['date_of_birth'] ?? null,
-            'aadhaar_last4' => $data['aadhaar_last4'] ?? null,
-            'pan_number' => $data['pan_number'] ?? null,
-            'village' => $data['village'] ?? null,
-            'gram_panchayat' => $data['gram_panchayat'] ?? null,
-            'tehsil' => $data['tehsil'] ?? null,
-            'district' => $data['district'] ?? null,
-            'state' => $data['state'] ?? null,
-            'pincode' => $data['pincode'] ?? null,
-            'address' => $data['address'] ?? null,
-            'branch_id' => $branchId,
-            'branch_code_raw' => $data['branch_code_raw'] ?? null,
-            'bc_code_raw' => $data['bc_code_raw'] ?? null,
-            'loan_type' => $data['loan_type'] ?? null,
-            'sanction_date' => $data['sanction_date'] ?? null,
-            'npa_date' => $data['npa_date'] ?? null,
-            'limit_amount' => $data['limit_amount'] ?? 0.0,
-            'drawing_power' => $data['drawing_power'] ?? null,
-            'outstanding' => $data['outstanding'] ?? 0.0,
-            'interest_overdue' => $data['interest_overdue'] ?? null,
-            'overdue' => $data['overdue'] ?? 0.0,
-            'asset_classification' => $data['asset_classification'] ?? null,
-            'excel_import_id' => $importId,
-            'updated_at' => now(),
-        ];
-
-        if ($existing !== null) {
-            Database::update('loan_accounts', $payload, 'id = :id', ['id' => (int) $existing['id']]);
+        if ($result['created']) {
+            $stats['created']++;
+        } else {
             $stats['updated']++;
-
-            return (int) $existing['id'];
         }
 
-        $id = Database::insert('loan_accounts', array_merge($payload, [
-            'account_number' => $data['account_number'],
-            'status' => 'active',
-            'recovery_status' => 'pending',
-            'loan_category' => 'general',
-            'created_by' => Auth::id(),
-            'created_at' => now(),
-        ]));
-
-        $stats['created']++;
-
-        return $id;
+        return $result['id'];
     }
 
     /**

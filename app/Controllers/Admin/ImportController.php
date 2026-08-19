@@ -7,9 +7,11 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Core\Database;
 use App\Core\Request;
+use App\Core\Response;
 use App\Services\Audit;
 use App\Services\Excel\ColumnMatcher;
 use App\Services\Excel\LoanImporter;
+use App\Services\Excel\SampleSheet;
 use App\Services\Excel\SystemFields;
 
 /**
@@ -40,6 +42,30 @@ final class ImportController extends BaseController
                   ORDER BY t.usage_count DESC, t.name ASC'
             ),
         ]);
+    }
+
+    /**
+     * Downloads a demo sheet in the shape the importer expects.
+     *
+     * Generated rather than shipped as a static file, for two reasons. The header
+     * row comes from SystemFields, so it can never fall behind the columns the
+     * importer actually reads. And the branch and BC columns are filled from this
+     * installation's own records, so the file imports cleanly instead of failing
+     * on "Branch X is not set up in LRMS" — a sample that cannot be imported
+     * teaches the wrong thing about the format.
+     *
+     * The account numbers are prefixed SAMPLE- so demo rows are obvious in the
+     * loan book, and easy to find and remove afterwards.
+     */
+    public function sample(Request $request): void
+    {
+        $format = strtolower((string) $request->input('format', 'xlsx')) === 'csv' ? 'csv' : 'xlsx';
+        $path = SampleSheet::write($format);
+
+        Response::download($path, 'LRMS-sample-loan-import.' . $format, SampleSheet::contentType($format));
+
+        // A generated demo file has no reason to accumulate on disk.
+        @unlink($path);
     }
 
     public function create(Request $request): void

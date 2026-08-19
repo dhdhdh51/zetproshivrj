@@ -61,6 +61,9 @@ $router->group(['prefix' => 'admin', 'middleware' => ['admin', 'password']], sta
 
     /* --------------------------------------------------------------- Accounts */
     $router->get('/accounts', [AccountController::class, 'index']);
+    // Before the {id} route: a literal path must not be read as an account id.
+    $router->get('/accounts/create', [AccountController::class, 'create']);
+    $router->post('/accounts', [AccountController::class, 'store']);
     $router->get('/accounts/{id:\d+}', [AccountController::class, 'show']);
     $router->post('/accounts/{id:\d+}', [AccountController::class, 'update']);
     $router->post('/accounts/{id:\d+}/reassign', [AccountController::class, 'reassign']);
@@ -75,6 +78,8 @@ $router->group(['prefix' => 'admin', 'middleware' => ['admin', 'password']], sta
     /* ---------------------------------------------------------- Excel imports */
     $router->get('/imports', [ImportController::class, 'index']);
     $router->get('/imports/create', [ImportController::class, 'create']);
+    // The demo sheet, so nobody has to guess the column names.
+    $router->get('/imports/sample', [ImportController::class, 'sample']);
     $router->post('/imports', [ImportController::class, 'store']);
     $router->get('/imports/{id:\d+}', [ImportController::class, 'show']);
     $router->get('/imports/{id:\d+}/mapping', [ImportController::class, 'mapping']);

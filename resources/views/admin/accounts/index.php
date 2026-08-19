@@ -22,6 +22,7 @@ $basePath = $isAdmin ? '/admin' : '/manager';
     <div class="page-actions">
         <?php if ($isAdmin): ?>
             <a class="btn btn-secondary" href="<?= e(url('/admin/allocation')) ?>"><?= icon('layers', '', 15) ?> Allocation</a>
+            <a class="btn btn-secondary" href="<?= e(url('/admin/accounts/create')) ?>"><?= icon('user', '', 15) ?> Add account</a>
             <a class="btn" href="<?= e(url('/admin/imports/create')) ?>"><?= icon('upload', '', 15) ?> Upload Excel</a>
         <?php endif; ?>
     </div>

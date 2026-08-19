@@ -231,10 +231,118 @@ final class SystemFields
         ];
     }
 
+    /**
+     * Storage shape and demo values per field.
+     *
+     * `maxlength` mirrors the column width in database/schema.sql. It lives here
+     * rather than being repeated at each call site so the importer's truncation,
+     * the manual entry form's `maxlength` attribute, the validation rules and the
+     * downloadable template cannot drift apart — a form that accepts 200
+     * characters for a column holding 190 is a silent data-loss bug.
+     *
+     * `options` are the ENUM values the column accepts, stored value => label.
+     *
+     * `samples` are three demo rows for the downloadable template, so the file
+     * shows the expected *shape* of each column — a date that reads 2019-06-14
+     * rather than an empty cell someone has to guess at.
+     *
+     * @var array<string, array{maxlength?: int, options?: array<string, string>, samples: array<int, string>}>
+     */
+    private const SHAPE = [
+        'account_number' => ['maxlength' => 60, 'samples' => ['SAMPLE-0001', 'SAMPLE-0002', 'SAMPLE-0003']],
+        'cif' => ['maxlength' => 60, 'samples' => ['900112233', '900112244', '900112255']],
+        'borrower_name' => ['maxlength' => 190, 'samples' => ['Ramesh Kumar', 'Sunita Devi', 'Mohan Lal']],
+        'father_name' => ['maxlength' => 190, 'samples' => ['Shyam Lal', 'Ram Prasad', 'Kishan Lal']],
+        'mobile' => ['maxlength' => 20, 'samples' => ['9876543210', '9812345678', '9765432109']],
+        'alternate_mobile' => ['maxlength' => 20, 'samples' => ['9123456780', '', '9012345678']],
+        'gender' => [
+            'options' => ['male' => 'Male', 'female' => 'Female', 'other' => 'Other'],
+            'samples' => ['Male', 'Female', 'Male'],
+        ],
+        'date_of_birth' => ['samples' => ['1978-04-12', '1985-11-30', '1969-01-05']],
+        'aadhaar_last4' => ['maxlength' => 4, 'samples' => ['4321', '8765', '1290']],
+        'pan_number' => ['maxlength' => 12, 'samples' => ['ABCDE1234F', '', 'PQRSX6789L']],
+        'village' => ['maxlength' => 160, 'samples' => ['Rampur', 'Bhojpura', 'Kanhaiyapur']],
+        'gram_panchayat' => ['maxlength' => 160, 'samples' => ['Rampur GP', 'Bhojpura GP', 'Kanhaiyapur GP']],
+        'tehsil' => ['maxlength' => 120, 'samples' => ['Sadar', 'Sadar', 'Kotwali']],
+        'district' => ['maxlength' => 120, 'samples' => ['Jaipur', 'Jaipur', 'Ajmer']],
+        'state' => ['maxlength' => 120, 'samples' => ['Rajasthan', 'Rajasthan', 'Rajasthan']],
+        'pincode' => ['maxlength' => 12, 'samples' => ['302001', '302002', '305001']],
+        'address' => [
+            'maxlength' => 500,
+            'samples' => ['House 12, Rampur, Jaipur', 'Near school, Bhojpura', 'Ward 4, Kanhaiyapur'],
+        ],
+        // Branch and BC columns are filled from the live database when the
+        // template is generated, so the sample file imports without first
+        // having to create anything.
+        'branch_name' => ['maxlength' => 160, 'samples' => ['', '', '']],
+        'branch_code' => ['maxlength' => 60, 'samples' => ['', '', '']],
+        'loan_type' => ['maxlength' => 120, 'samples' => ['KCC', 'Crop Loan', 'KCC']],
+        'sanction_date' => ['samples' => ['2019-06-14', '2020-02-20', '2018-09-01']],
+        'outstanding' => ['samples' => ['145000.00', '98000.50', '210000.00']],
+        'interest_overdue' => ['samples' => ['12500.00', '7300.00', '']],
+        'overdue' => ['samples' => ['45000.00', '30000.00', '65000.00']],
+        'npa_date' => ['samples' => ['2023-03-31', '2023-09-30', '2022-12-31']],
+        'limit_amount' => ['samples' => ['150000.00', '100000.00', '250000.00']],
+        'drawing_power' => ['samples' => ['140000.00', '', '240000.00']],
+        'asset_classification' => [
+            'options' => [
+                'standard' => 'Standard',
+                'sma_0' => 'SMA-0',
+                'sma_1' => 'SMA-1',
+                'sma_2' => 'SMA-2',
+                'npa' => 'NPA',
+            ],
+            'samples' => ['NPA', 'SMA-2', 'NPA'],
+        ],
+        'bc_code' => ['maxlength' => 60, 'samples' => ['', '', '']],
+    ];
+
+    /** How many demo rows the downloadable template carries. */
+    public const SAMPLE_ROWS = 3;
+
     /** @return array<int, string> */
     public static function keys(): array
     {
         return array_keys(self::all());
+    }
+
+    /**
+     * The column width for a field, or null where the value is not stored as
+     * text (dates, amounts).
+     */
+    public static function maxlength(string $key): ?int
+    {
+        return self::SHAPE[$key]['maxlength'] ?? null;
+    }
+
+    /**
+     * The truncation length for a text field, never null.
+     *
+     * Separate from maxlength() because the importer must always have a number to
+     * cut at: a missing entry there would be a TypeError mid-import, halfway
+     * through somebody's loan book.
+     */
+    public static function textLength(string $key, int $default = 255): int
+    {
+        return self::SHAPE[$key]['maxlength'] ?? $default;
+    }
+
+    /**
+     * Accepted values for an ENUM-backed field, stored value => label. Empty for
+     * everything else.
+     *
+     * @return array<string, string>
+     */
+    public static function options(string $key): array
+    {
+        return self::SHAPE[$key]['options'] ?? [];
+    }
+
+    /** The demo value for a field on a given template row. */
+    public static function sample(string $key, int $row): string
+    {
+        return self::SHAPE[$key]['samples'][$row] ?? '';
     }
 
     /** @return array<int, string> */

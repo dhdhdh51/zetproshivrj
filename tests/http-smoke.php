@@ -397,6 +397,143 @@ if ($supervisorId > 0) {
 }
 
 /* -------------------------------------------------------------------------- */
+section('Adding a loan account by hand');
+/* -------------------------------------------------------------------------- */
+
+// Not every account arrives in the monthly extract. This posts the real form, so
+// a field the controller forgets to save fails here rather than turning up as a
+// blank on a printed verification report.
+$accountForm = page('/admin/accounts/create', 'Add loan account form');
+
+foreach (['account_number', 'borrower_name', 'branch_id', 'father_name', 'mobile', 'village',
+    'outstanding', 'overdue', 'npa_date', 'asset_classification', 'loan_category'] as $field) {
+    ok(
+        str_contains($accountForm, 'name="' . $field . '"'),
+        'Manual account form offers the ' . $field . ' field'
+    );
+}
+
+$formBranchId = (int) Database::scalar("SELECT id FROM branches WHERE status = 'active' ORDER BY id LIMIT 1");
+$manualNumber = 'MANUAL-' . substr((string) time(), -6);
+
+$created = request($base . '/admin/accounts', [
+    'post' => [
+        '_token' => csrfToken($accountForm),
+        'account_number' => $manualNumber,
+        'borrower_name' => 'Hand Entered Borrower',
+        'branch_id' => (string) $formBranchId,
+        'loan_category' => 'general',
+        'father_name' => 'Test Father',
+        'mobile' => '9876500001',
+        'gender' => 'male',
+        'village' => 'Testpur',
+        'district' => 'Jaipur',
+        'state' => 'Rajasthan',
+        'loan_type' => 'KCC',
+        'sanction_date' => '2020-05-01',
+        'npa_date' => '2023-03-31',
+        'outstanding' => '123456.78',
+        'overdue' => '23456.78',
+        'limit_amount' => '130000',
+        'asset_classification' => 'npa',
+        'allocation_mode' => 'auto',
+    ],
+]);
+
+equals(200, $created['status'], 'Posting the manual account form succeeds');
+
+$manualAccount = Database::selectOne(
+    'SELECT * FROM loan_accounts WHERE account_number = :n',
+    ['n' => $manualNumber]
+);
+
+ok($manualAccount !== null, 'The hand-entered account is on the loan book');
+
+if ($manualAccount !== null) {
+    equals('Hand Entered Borrower', (string) $manualAccount['borrower_name'], 'Borrower name saved');
+    equals('Test Father', (string) $manualAccount['father_name'], 'Father name saved');
+    equals('male', (string) $manualAccount['gender'], 'Gender saved');
+    equals('2023-03-31', (string) $manualAccount['npa_date'], 'NPA date saved');
+    equals('123456.78', (string) $manualAccount['outstanding'], 'Outstanding saved');
+    equals('npa', (string) $manualAccount['asset_classification'], 'Asset classification saved');
+
+    // Same defaults an imported row gets — the two routes must not diverge.
+    equals('active', (string) $manualAccount['status'], 'A hand-entered account starts active');
+    equals('pending', (string) $manualAccount['recovery_status'], 'A hand-entered account starts pending');
+    equals(null, $manualAccount['excel_import_id'], 'No import id, which marks it as hand-entered');
+
+    ok(
+        (int) Database::scalar(
+            'SELECT COUNT(*) FROM account_assignments WHERE loan_account_id = :id AND is_active = 1',
+            ['id' => (int) $manualAccount['id']]
+        ) === 1,
+        'Auto-allocation put the new account with a supervisor'
+    );
+}
+
+// The same number twice must be refused rather than creating a second row that
+// splits one borrower's visits across two accounts.
+$accountForm = page('/admin/accounts/create', 'Add account form reload');
+$duplicate = request($base . '/admin/accounts', [
+    'post' => [
+        '_token' => csrfToken($accountForm),
+        'account_number' => $manualNumber,
+        'borrower_name' => 'Someone Else',
+        'branch_id' => (string) $formBranchId,
+        'loan_category' => 'general',
+        'allocation_mode' => 'none',
+    ],
+]);
+
+ok(
+    str_contains($duplicate['body'], 'already on the loan book'),
+    'A duplicate account number is refused with an explanation'
+);
+
+equals(
+    1,
+    (int) Database::scalar('SELECT COUNT(*) FROM loan_accounts WHERE account_number = :n', ['n' => $manualNumber]),
+    'The duplicate did not create a second row'
+);
+
+$accountForm = page('/admin/accounts/create', 'Add account form reload 2');
+$missing = request($base . '/admin/accounts', [
+    'post' => [
+        '_token' => csrfToken($accountForm),
+        'account_number' => 'MANUAL-NO-NAME',
+        'borrower_name' => '',
+        'branch_id' => (string) $formBranchId,
+        'loan_category' => 'general',
+    ],
+]);
+
+equals(
+    0,
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM loan_accounts WHERE account_number = :n',
+        ['n' => 'MANUAL-NO-NAME']
+    ),
+    'An account with no borrower name is not created'
+);
+
+/* -------------------------------------------------------------------------- */
+section('The sample import sheet downloads');
+/* -------------------------------------------------------------------------- */
+
+$sampleXlsx = request($base . '/admin/imports/sample');
+equals(200, $sampleXlsx['status'], 'Sample .xlsx downloads');
+ok(str_starts_with($sampleXlsx['body'], "PK"), 'Sample .xlsx really is a zip-based workbook');
+ok(strlen($sampleXlsx['body']) > 1000, 'Sample .xlsx has content');
+
+$sampleCsv = request($base . '/admin/imports/sample?format=csv');
+equals(200, $sampleCsv['status'], 'Sample .csv downloads');
+ok(str_contains($sampleCsv['body'], 'Account Number'), 'Sample .csv carries the column headings');
+ok(str_contains($sampleCsv['body'], 'SAMPLE-0001'), 'Sample .csv carries the demo rows');
+
+$importPage = page('/admin/imports/create', 'Upload screen offers the sample');
+ok(str_contains($importPage, '/admin/imports/sample'), 'The upload screen links to the sample sheet');
+
+/* -------------------------------------------------------------------------- */
 section('BC creation form saves the full profile');
 /* -------------------------------------------------------------------------- */
 
