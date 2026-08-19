@@ -820,6 +820,7 @@ if ($manager === null) {
         '/manager/pending' => 'Pending accounts',
         '/manager/recovery' => 'Recovery and PTP',
         '/manager/monitoring' => 'Branch monitoring',
+        '/manager/performance' => 'Branch performance',
         '/manager/reports' => 'Branch reports',
         '/manager/reports/customer_visit' => 'Branch visit report',
         '/manager/notifications' => 'Branch notifications',

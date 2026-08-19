@@ -659,5 +659,13 @@ private fun DynamicField(field: FormFieldEntity, value: String, onChange: (Strin
     }
 }
 
-private fun label(field: FormFieldEntity): String =
-    if (field.required) "${field.label} *" else field.label
+/**
+ * The field's label, with no required marker.
+ *
+ * Nothing on this form is mandatory, so an asterisk would be a promise the app does
+ * not keep — and worse, it would keep appearing on installations whose form fields
+ * were created while is_required still meant something: seeding new defaults does
+ * not rewrite rows that already exist. Ignoring the flag here means no live database
+ * has to be edited for the screen to tell the truth.
+ */
+private fun label(field: FormFieldEntity): String = field.label
