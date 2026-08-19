@@ -9,6 +9,7 @@ use App\Core\ApiAuth;
 use App\Core\Auth;
 use App\Core\Config;
 use App\Core\Database;
+use App\Core\RateLimiter;
 use App\Core\Request;
 use App\Services\Audit;
 use App\Services\Notify;
@@ -511,6 +512,29 @@ final class StaffController extends BaseController
             'locked_until' => null,
             'updated_at' => now(),
         ], 'id = :id', ['id' => $userId]);
+
+        // Clearing the database lock alone was not enough: the sign-in throttle
+        // lives in its own counter, so the panel reported "Account unlocked" while
+        // the supervisor's app kept getting 429 for the rest of the window. Every
+        // identifier they might type is cleared, for the app and the web form.
+        $identifiers = Database::selectOne(
+            'SELECT u.email, u.username, u.employee_code, s.bc_code
+               FROM users u
+          LEFT JOIN bc_supervisors s ON s.user_id = u.id
+              WHERE u.id = :id',
+            ['id' => $userId]
+        ) ?? [];
+
+        foreach ($identifiers as $identifier) {
+            $identifier = strtolower(trim((string) $identifier));
+
+            if ($identifier === '') {
+                continue;
+            }
+
+            RateLimiter::clear('api-login:user:' . $identifier);
+            RateLimiter::clear('login:user:' . $identifier);
+        }
 
         Audit::log(Audit::USER_STATUS_CHANGED, [
             'entity_type' => 'user',

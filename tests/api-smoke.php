@@ -20,6 +20,7 @@ require __DIR__ . '/../app/bootstrap.php';
 require __DIR__ . '/lib.php';
 
 use App\Core\Auth;
+use App\Core\Config;
 use App\Core\Database;
 
 $base = $argv[1] ?? null;
@@ -117,6 +118,18 @@ function samplePhoto(int $width = 640, int $height = 480): string
 function uuid(): string
 {
     return uuid4();
+}
+
+// The sign-in throttle keeps its counters in files with a fifteen-minute decay, so
+// they outlive a --fresh database. Left alone, running this suite twice inside that
+// window makes the second run fail on 429s that have nothing to do with the code
+// under test. Cleared here so the suite is repeatable.
+$throttleDir = base_path('storage/logs/throttle');
+
+if (is_dir($throttleDir)) {
+    foreach (glob($throttleDir . '/*.json') ?: [] as $counter) {
+        @unlink($counter);
+    }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -413,6 +426,68 @@ $start = api('POST', '/api/v1/visits', [
 equals(201, $start['status'], 'Starting a visit with a valid fix succeeds');
 equals($visitUuid, $start['json']['data']['visit']['uuid'] ?? '', 'The visit keeps the client uuid');
 equals('draft', $start['json']['data']['visit']['status'] ?? '', 'A started visit is a draft until submitted');
+
+/* -------------------------------------------------------------------------- */
+section('The sign-in throttle does not lock out a whole team');
+/* -------------------------------------------------------------------------- */
+
+// A supervisor reported 429 on sign-in. The throttle counted five failures per IP
+// address, and Indian mobile carriers put many subscribers behind one public
+// address while a branch shares one office connection — so one person mistyping a
+// password locked out everyone who appeared to come from the same place. The
+// per-username limit is what guards an account; the IP ceiling only exists to stop
+// a flood.
+$ipLimit = (int) Config::get('security.login_ip_max_attempts', 50);
+$userLimit = (int) Config::get('security.login_max_attempts', 5);
+
+ok($userLimit <= 10, sprintf('The per-username limit stays strict (%d)', $userLimit));
+ok($ipLimit >= 25, sprintf('The per-IP ceiling is not a team-wide lockout (%d)', $ipLimit));
+ok($ipLimit > $userLimit * 3, 'The IP ceiling is far above the username limit');
+
+// Different accounts from the same address must not consume each other's budget.
+// Six distinct usernames fail here; with the old shared limit of five the sixth
+// would already be throttled instead of simply refused.
+$sameAddressCodes = [];
+
+for ($i = 1; $i <= 6; $i++) {
+    $attempt = api('POST', '/api/v1/auth/login', [
+        'username' => sprintf('no-such-user-%d-%s', $i, bin2hex(random_bytes(3))),
+        'password' => 'definitely-wrong',
+        'device' => ['uuid' => 'throttle-probe-' . $i],
+    ], ['auth' => false]);
+
+    $sameAddressCodes[] = $attempt['status'];
+}
+
+equals(
+    [],
+    array_values(array_filter($sameAddressCodes, static fn (int $code): bool => $code === 429)),
+    'Six failed sign-ins for six different accounts from one address are not throttled'
+);
+
+ok(
+    array_values(array_unique($sameAddressCodes)) === [401],
+    'Each is simply refused as wrong credentials (got ' . implode(',', array_unique($sameAddressCodes)) . ')'
+);
+
+// One account hammered is still stopped — that is the case the limit is for.
+$victim = 'brute-target-' . bin2hex(random_bytes(3));
+$victimCodes = [];
+
+for ($i = 0; $i <= $userLimit; $i++) {
+    $attempt = api('POST', '/api/v1/auth/login', [
+        'username' => $victim,
+        'password' => 'guess-' . $i,
+        'device' => ['uuid' => 'brute-probe'],
+    ], ['auth' => false]);
+
+    $victimCodes[] = $attempt['status'];
+}
+
+ok(
+    in_array(429, $victimCodes, true),
+    'Repeated attempts against one username are throttled (' . implode(',', $victimCodes) . ')'
+);
 
 /* -------------------------------------------------------------------------- */
 section('Case type travels from the handset to the printed report');

@@ -106,9 +106,41 @@ final class Request
         return ($this->server['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
     }
 
+    /**
+     * The client's address, as far as it can be trusted.
+     *
+     * REMOTE_ADDR is the only value the web server vouches for. A forwarded header
+     * is used **only** when REMOTE_ADDR is a proxy this installation has been told
+     * to trust, because anyone can send `X-Forwarded-For: 1.2.3.4` and would
+     * otherwise get a fresh rate-limit bucket per request — turning the sign-in
+     * limiter off for exactly the person it exists to stop.
+     *
+     * It matters the other way too: behind Cloudflare or a load balancer every
+     * request arrives from the same REMOTE_ADDR, so without this the whole field
+     * team shares one bucket and five wrong passwords lock everybody out.
+     */
     public function ip(): string
     {
-        return (string) ($this->server['REMOTE_ADDR'] ?? '0.0.0.0');
+        $remote = (string) ($this->server['REMOTE_ADDR'] ?? '0.0.0.0');
+        $trusted = Config::get('security.trusted_proxies', []);
+
+        if (!is_array($trusted) || $trusted === [] || !in_array($remote, $trusted, true)) {
+            return $remote;
+        }
+
+        // Left-most entry is the original client; the rest are proxies it passed
+        // through. Take the first syntactically valid address.
+        $forwarded = (string) ($this->server['HTTP_X_FORWARDED_FOR'] ?? $this->server['HTTP_X_REAL_IP'] ?? '');
+
+        foreach (explode(',', $forwarded) as $candidate) {
+            $candidate = trim($candidate);
+
+            if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_IP) !== false) {
+                return $candidate;
+            }
+        }
+
+        return $remote;
     }
 
     public function userAgent(): string

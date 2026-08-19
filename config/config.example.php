@@ -45,8 +45,23 @@ return [
     ],
 
     'security' => [
+        // Per username. This is the brute-force defence that matters: an attacker
+        // guessing one account's password is stopped here, and by
+        // account_lock_attempts below.
         'login_max_attempts' => 5,
         'login_decay_minutes' => 15,
+        // Per IP address, deliberately far higher. Indian mobile carriers put many
+        // subscribers behind one public address, and a branch shares one office
+        // connection, so several BC Supervisors legitimately arrive as the same IP.
+        // At 5 one person mistyping their password locked out the whole team for
+        // fifteen minutes. This ceiling only exists to stop a flood from a single
+        // address, not to police individual mistakes.
+        'login_ip_max_attempts' => 50,
+        // Addresses of proxies in front of this application (Cloudflare, a load
+        // balancer, an OpenLiteSpeed reverse proxy). X-Forwarded-For is honoured
+        // only when the request actually arrives from one of these, because the
+        // header is trivially forged and would otherwise defeat the limiter.
+        'trusted_proxies' => [],
         // Consecutive failures before the account itself is locked.
         'account_lock_attempts' => 8,
         'account_lock_minutes' => 30,
