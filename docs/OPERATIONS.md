@@ -50,6 +50,11 @@ already present and exits non-zero if anything failed.
 
 Loan data arrives as a spreadsheet from the bank. **Imports ▸ New import**:
 
+0. **Not sure what the sheet should look like?** *Sample Excel* on the upload
+   screen downloads a demo file with every heading LRMS recognises and three
+   filled-in rows, using **your** branch codes so it imports unchanged. The demo
+   accounts are numbered `SAMPLE-0001`… so they are easy to find and delete
+   afterwards.
 1. **Upload** `.xlsx` or `.csv`. (Legacy `.xls` is not supported — re-save it as
    `.xlsx`.)
 2. **Mapping.** Columns are matched automatically with confidence scoring —
@@ -62,6 +67,12 @@ Loan data arrives as a spreadsheet from the bank. **Imports ▸ New import**:
    duplicates inside the file, unknown branch codes, invalid BC codes.
 4. **Import.** Accounts that already exist are **updated, not duplicated**.
    Rejected rows are kept against the import so they can be fixed and re-uploaded.
+
+**One account, not a sheet?** **Accounts ▸ Add account** takes the same fields by
+hand — for an account opened after the monthly extract, or one a branch reports
+over the phone. It applies the same defaults as an import and can allocate the
+account immediately. Hand-entered accounts are the ones with no import reference
+on the account screen.
 
 Then **Accounts ▸ Allocation**:
 
@@ -288,9 +299,9 @@ when someone asks "who changed this account's supervisor, and why".
 After changing anything on the server:
 
 ```bash
-php tests/test-import.php    # import, allocation, exports          (138 checks)
-php tests/http-smoke.php     # every screen, all reports            (117 checks)
-php tests/api-smoke.php      # the Android API end to end           (101 checks)
+php tests/test-import.php    # import, allocation, exports          (160 checks)
+php tests/http-smoke.php     # every screen, all reports            (182 checks)
+php tests/api-smoke.php      # the Android API end to end           (105 checks)
 php tests/test-reports.php   # the Field Visit Verification Reports (236 checks)
 ```
 

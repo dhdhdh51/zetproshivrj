@@ -92,7 +92,11 @@ final class SampleSheet
     public static function write(string $format = 'xlsx'): string
     {
         $format = strtolower($format) === 'csv' ? 'csv' : 'xlsx';
-        $directory = storage_path('exports');
+
+        // storage/generated is where every other generated export goes, and it is
+        // already gitignored and already created by the installer. A new directory
+        // here would be one more thing to create and one more thing to exclude.
+        $directory = storage_path('generated');
 
         if (!is_dir($directory)) {
             mkdir($directory, 0775, true);
