@@ -130,6 +130,9 @@ data class SyncPullData(
     @Json(name = "synced_at") val syncedAt: String?,
     val accounts: List<AccountDto> = emptyList(),
     @Json(name = "removed_account_ids") val removedAccountIds: List<Long> = emptyList(),
+    /** Every visit form: customer, KRM OTS and CKCC OD-2. */
+    @Json(name = "visit_forms") val visitForms: List<VisitFormDto> = emptyList(),
+    /** The customer form alone, from a server older than visit_forms. */
     @Json(name = "visit_form") val visitForm: VisitFormDto?,
     val rules: RulesDto?,
     val deadline: DeadlineDto?,

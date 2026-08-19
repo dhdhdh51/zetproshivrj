@@ -267,6 +267,62 @@ $accounts = $pull['json']['data']['accounts'] ?? [];
 ok(count($accounts) > 0, sprintf('Sync pull returned allocated accounts (%d)', count($accounts)));
 ok(isset($pull['json']['data']['visit_form']['fields']), 'Sync pull includes the visit form definition');
 ok(count($pull['json']['data']['visit_form']['fields'] ?? []) > 5, 'Visit form definition has fields');
+
+// The app has to receive every form, not just the generic one: a KRM OTS or CKCC
+// OD-2 account is verified on its own 13-section form, and sending only the
+// customer form left the supervisor answering 21 questions while the printed
+// report expected 42 or 46 — those sections came out blank with nothing on the
+// phone that could have filled them.
+$forms = $pull['json']['data']['visit_forms'] ?? [];
+$byType = [];
+
+foreach ($forms as $form) {
+    $byType[(string) ($form['visit_type'] ?? '')] = $form;
+}
+
+equals(3, count($forms), 'Sync pull sends all three visit forms');
+
+foreach (['customer', 'krm_ots', 'ckcc_od2'] as $visitType) {
+    ok(isset($byType[$visitType]), 'Sync pull includes the ' . $visitType . ' form');
+    ok(
+        count($byType[$visitType]['fields'] ?? []) > 5,
+        sprintf('The %s form carries its fields (%d)', $visitType, count($byType[$visitType]['fields'] ?? []))
+    );
+}
+
+// The verification forms are the long ones; if they ever collapse to the size of
+// the customer form, the report sections behind them are empty again.
+ok(
+    count($byType['krm_ots']['fields'] ?? []) > count($byType['customer']['fields'] ?? []),
+    'The KRM OTS form is larger than the customer form'
+);
+ok(
+    count($byType['ckcc_od2']['fields'] ?? []) > count($byType['customer']['fields'] ?? []),
+    'The CKCC OD-2 form is larger than the customer form'
+);
+
+// Field keys must be unique within a form, because the handset stores them keyed
+// by (visit type, field key).
+foreach (['customer', 'krm_ots', 'ckcc_od2'] as $visitType) {
+    $keys = array_map(
+        static fn (array $field): string => (string) ($field['key'] ?? ''),
+        $byType[$visitType]['fields'] ?? []
+    );
+
+    equals(count($keys), count(array_unique($keys)), 'The ' . $visitType . ' form has no duplicate field keys');
+}
+
+// Every form the app is told about must be one the server will accept a visit
+// against, so the per-type endpoint has to agree.
+foreach (['customer', 'krm_ots', 'ckcc_od2'] as $visitType) {
+    $single = api('GET', '/api/v1/visit-form?visit_type=' . $visitType);
+    equals(200, $single['status'], 'GET /visit-form?visit_type=' . $visitType . ' succeeds');
+    equals(
+        $visitType,
+        $single['json']['data']['form']['visit_type'] ?? '',
+        'The per-type endpoint returns the ' . $visitType . ' form'
+    );
+}
 ok(isset($pull['json']['data']['rules']['min_visit_photos']), 'Sync pull includes the rules the app enforces');
 
 // Every account returned must belong to this supervisor.

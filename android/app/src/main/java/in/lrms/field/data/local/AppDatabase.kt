@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -15,9 +17,40 @@ import androidx.room.RoomDatabase
         FormFieldEntity::class,
         AttendanceEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
+/**
+ * form_fields gains visitType and a composite key, so the customer, KRM OTS and
+ * CKCC OD-2 forms can live side by side.
+ *
+ * The table is recreated rather than altered: it is a pure cache, refilled on the
+ * next sync. Everything else — visits, photographs, the outbox — is left alone,
+ * which is the whole point of migrating instead of letting Room wipe the file.
+ */
+private val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP TABLE IF EXISTS `form_fields`")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `form_fields` (" +
+                "`visitType` TEXT NOT NULL, " +
+                "`fieldKey` TEXT NOT NULL, " +
+                "`label` TEXT NOT NULL, " +
+                "`type` TEXT NOT NULL, " +
+                "`required` INTEGER NOT NULL, " +
+                "`options` TEXT, " +
+                "`placeholder` TEXT, " +
+                "`help` TEXT, " +
+                "`sortOrder` INTEGER NOT NULL, " +
+                "`conditionField` TEXT, " +
+                "`conditionOperator` TEXT, " +
+                "`conditionValue` TEXT, " +
+                "PRIMARY KEY(`visitType`, `fieldKey`))",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_form_fields_visitType_sortOrder` ON `form_fields` (`visitType`, `sortOrder`)")
+    }
+}
+
 abstract class AppDatabase : RoomDatabase() {
     abstract fun accounts(): AccountDao
     abstract fun visits(): VisitDao
@@ -38,11 +71,12 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lrms-field.db",
                 )
-                    // Schema changes ship with the app; on-device data is a cache
-                    // plus an outbox, and the outbox is drained before an update
-                    // is installed in practice. A destructive migration is
-                    // therefore acceptable and avoids a half-migrated database in
-                    // the field.
+                    .addMigrations(MIGRATION_1_2)
+                    // Only for a database from an unknown build. Real schema
+                    // changes get a migration above, because this database is not
+                    // only a cache: it holds the outbox, and a supervisor who
+                    // updates the app before a signal returns would otherwise lose
+                    // a day of visits.
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

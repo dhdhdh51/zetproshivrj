@@ -127,10 +127,22 @@ data class NotificationEntity(
     val createdAt: String,
 )
 
-/** The visit form definition, cached so the form works with no connection. */
-@Entity(tableName = "form_fields", indices = [Index("sortOrder")])
+/** The visit form definitions, cached so the forms work with no connection. */
+@Entity(
+    tableName = "form_fields",
+    primaryKeys = ["visitType", "fieldKey"],
+    indices = [Index("visitType", "sortOrder")],
+)
 data class FormFieldEntity(
-    @PrimaryKey val fieldKey: String,
+    /**
+     * Which form this field belongs to: customer, krm_ots or ckcc_od2.
+     *
+     * Part of the key because the three forms share field keys — a KRM OTS visit
+     * and a CKCC renewal both ask whether the borrower was met — and with the key
+     * on fieldKey alone one form silently overwrote the other's question.
+     */
+    val visitType: String,
+    val fieldKey: String,
     val label: String,
     val type: String,
     val required: Boolean,

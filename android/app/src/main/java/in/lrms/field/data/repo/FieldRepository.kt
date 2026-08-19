@@ -209,6 +209,25 @@ class FieldRepository(
 
     fun observeFormFields(): Flow<List<FormFieldEntity>> = db.forms().observe()
 
+    /**
+     * Which form a visit must be recorded on.
+     *
+     * A KRM OTS or CKCC OD-2 account is verified on its own 13-section form; the
+     * generic customer form is for everything else. Falls back to the customer
+     * form when the stream's form has not reached the handset yet, because an
+     * empty form would leave a supervisor standing in front of a borrower with
+     * nothing to fill in.
+     */
+    suspend fun formTypeForVisit(visitUuid: String): String = withContext(Dispatchers.IO) {
+        val category = db.visits().loanCategoryForVisit(visitUuid)
+        val type = if (category == "krm_ots" || category == "ckcc_od2") category else "customer"
+
+        if (db.forms().countForType(type) > 0) type else "customer"
+    }
+
+    fun observeFormFieldsFor(visitType: String): Flow<List<FormFieldEntity>> =
+        db.forms().observeForType(visitType)
+
     fun observeAttendance(date: String): Flow<AttendanceEntity?> = db.attendance().observe(date)
 
     suspend fun formFields(): List<FormFieldEntity> = withContext(Dispatchers.IO) { db.forms().all() }
@@ -686,12 +705,19 @@ class FieldRepository(
                     db.accounts().deleteByIds(data.removedAccountIds)
                 }
 
-                data.visitForm?.let { form ->
-                    if (form.fields.isNotEmpty()) {
-                        db.forms().clear()
+                // Newer servers send every form; an older one sends only the
+                // customer form, and that is still better than none.
+                val forms = data.visitForms.ifEmpty { listOfNotNull(data.visitForm) }
+                    .filter { it.fields.isNotEmpty() }
+
+                if (forms.isNotEmpty()) {
+                    db.forms().clear()
+
+                    forms.forEach { form ->
                         db.forms().upsertAll(
                             form.fields.map { field ->
                                 FormFieldEntity(
+                                    visitType = form.visitType,
                                     fieldKey = field.key,
                                     label = field.label,
                                     type = field.type,

@@ -91,7 +91,7 @@ fun VisitScreen(
     val context = LocalContext.current
     val visit by viewModel.observeVisit(visitUuid).collectAsState(initial = null)
     val photos by viewModel.observePhotos(visitUuid).collectAsState(initial = emptyList())
-    val fields by viewModel.observeFormFields().collectAsState(initial = emptyList())
+    val fields by viewModel.formFieldsFor(visitUuid).collectAsState(initial = emptyList())
     val locationState by viewModel.location.collectAsStateWithLifecycle()
 
     val answers = remember { mutableStateMapOf<String, String>() }

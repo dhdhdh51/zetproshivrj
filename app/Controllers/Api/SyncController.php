@@ -85,6 +85,29 @@ final class SyncController extends ApiController
             );
         }
 
+        // Every visit type the app might need, not just the customer form. A KRM
+        // OTS or CKCC OD-2 account is verified on its own 13-section form, and
+        // sending only the generic one left the supervisor filling 21 questions
+        // while the printed report expected 42 or 46 — the extra sections came out
+        // blank with nothing on the phone to fill them.
+        $visitForms = [];
+
+        foreach (['customer', 'krm_ots', 'ckcc_od2'] as $visitType) {
+            $form = Forms::defaultForm(Forms::KIND_VISIT, $visitType);
+
+            if ($form === null || (string) $form['visit_type'] !== $visitType) {
+                continue;
+            }
+
+            $visitForms[] = [
+                'id' => (int) $form['id'],
+                'name' => $form['name'],
+                'version' => (int) $form['version'],
+                'visit_type' => $visitType,
+                'fields' => Forms::definitionForApp(Forms::KIND_VISIT, (int) $form['id']),
+            ];
+        }
+
         $visitForm = Forms::defaultForm(Forms::KIND_VISIT, 'customer');
 
         $this->ok([
@@ -116,6 +139,10 @@ final class SyncController extends ApiController
                 ];
             }, $accounts),
             'removed_account_ids' => $removed,
+            'visit_forms' => $visitForms,
+            // Kept for handsets running an APK built before visit_forms existed:
+            // dropping it would leave them with no form at all after a server
+            // update, which is worse than the generic form they have today.
             'visit_form' => $visitForm === null ? null : [
                 'id' => (int) $visitForm['id'],
                 'name' => $visitForm['name'],

@@ -14,10 +14,13 @@ import `in`.lrms.field.location.FieldLocation
 import `in`.lrms.field.location.LocationCapture
 import `in`.lrms.field.sync.SyncWorker
 import `in`.lrms.field.util.Times
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
@@ -326,6 +329,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun observePhotos(uuid: String) = repository.observePhotos(uuid)
 
     fun observeFormFields() = repository.observeFormFields()
+
+    /**
+     * The form for this visit, chosen from the account's work stream so a KRM OTS
+     * or CKCC OD-2 case asks the questions its printed report expects.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun formFieldsFor(visitUuid: String) =
+        flow { emit(repository.formTypeForVisit(visitUuid)) }
+            .flatMapLatest { repository.observeFormFieldsFor(it) }
 
     fun startVisit(account: AccountEntity, fix: FieldLocation, onStarted: (String) -> Unit) {
         viewModelScope.launch {

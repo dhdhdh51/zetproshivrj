@@ -61,6 +61,13 @@ interface VisitDao {
     @Query("SELECT * FROM visits WHERE uuid = :uuid")
     suspend fun find(uuid: String): VisitEntity?
 
+    /** The work stream of the account this visit belongs to. */
+    @Query(
+        "SELECT a.loanCategory FROM visits v JOIN accounts a ON a.id = v.accountId " +
+            "WHERE v.uuid = :uuid LIMIT 1",
+    )
+    suspend fun loanCategoryForVisit(uuid: String): String?
+
     @Query("SELECT * FROM visits WHERE uuid = :uuid")
     fun observe(uuid: String): Flow<VisitEntity?>
 
@@ -162,6 +169,15 @@ interface FormDao {
 
     @Query("SELECT * FROM form_fields ORDER BY sortOrder ASC")
     suspend fun all(): List<FormFieldEntity>
+
+    @Query("SELECT * FROM form_fields WHERE visitType = :visitType ORDER BY sortOrder ASC")
+    suspend fun forType(visitType: String): List<FormFieldEntity>
+
+    @Query("SELECT * FROM form_fields WHERE visitType = :visitType ORDER BY sortOrder ASC")
+    fun observeForType(visitType: String): Flow<List<FormFieldEntity>>
+
+    @Query("SELECT COUNT(*) FROM form_fields WHERE visitType = :visitType")
+    suspend fun countForType(visitType: String): Int
 
     @Query("SELECT * FROM form_fields ORDER BY sortOrder ASC")
     fun observe(): Flow<List<FormFieldEntity>>
