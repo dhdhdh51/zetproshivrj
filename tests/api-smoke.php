@@ -172,6 +172,36 @@ $noDevice = api('POST', '/api/v1/auth/login', [
 ], ['auth' => false]);
 equals(422, $noDevice['status'], 'Sign-in without a device id is refused');
 
+// A BC Supervisor knows their BCBF code — it is on their paperwork and in the
+// bank's spreadsheets — better than a username the office invented for them, so
+// the same credentials must work with either. These use the same device uuid as
+// the sign-in below because only one handset may be bound at a time.
+$byBcCode = api('POST', '/api/v1/auth/login', [
+    'username' => $supervisor['bc_code'],
+    'password' => 'AppTest@123',
+    'device' => ['uuid' => $deviceUuid],
+], ['auth' => false]);
+equals(200, $byBcCode['status'], 'Sign-in with the BCBF code succeeds');
+equals(
+    $supervisor['bc_code'],
+    $byBcCode['json']['data']['supervisor']['bc_code'] ?? '',
+    'BCBF-code sign-in resolves the same supervisor'
+);
+
+$byLowerBcCode = api('POST', '/api/v1/auth/login', [
+    'username' => strtolower((string) $supervisor['bc_code']),
+    'password' => 'AppTest@123',
+    'device' => ['uuid' => $deviceUuid],
+], ['auth' => false]);
+equals(200, $byLowerBcCode['status'], 'BCBF code is matched case-insensitively');
+
+$unknownBcCode = api('POST', '/api/v1/auth/login', [
+    'username' => 'BC-no-such-code',
+    'password' => 'AppTest@123',
+    'device' => ['uuid' => $deviceUuid],
+], ['auth' => false]);
+equals(401, $unknownBcCode['status'], 'An unknown BCBF code is refused');
+
 $login = api('POST', '/api/v1/auth/login', [
     'username' => $username,
     'password' => 'AppTest@123',

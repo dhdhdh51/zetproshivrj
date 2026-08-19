@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Core\Auth;
 use App\Core\Config;
 use App\Core\Csrf;
+use App\Core\Lang;
 use App\Core\Session;
 use App\Core\Settings;
 use App\Core\View;
@@ -669,5 +670,56 @@ if (!function_exists('audit_value')) {
         }
 
         return (string) $value;
+    }
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Translation                                                                */
+/* -------------------------------------------------------------------------- */
+
+if (!function_exists('__')) {
+    /**
+     * Translate a key into the current language.
+     *
+     * Returns the raw string — views still escape it with e(), exactly as they do
+     * for any other text, so a translation containing an apostrophe or an
+     * ampersand cannot break the markup.
+     */
+    function __(string $key, array $replace = []): string
+    {
+        return Lang::get($key, $replace);
+    }
+}
+
+if (!function_exists('et')) {
+    /**
+     * Translate and escape in one step, for the common case in a view:
+     * `<?= et('nav.dashboard') ?>`.
+     */
+    function et(string $key, array $replace = []): string
+    {
+        return e(Lang::get($key, $replace));
+    }
+}
+
+if (!function_exists('current_locale')) {
+    function current_locale(): string
+    {
+        Lang::boot();
+
+        return Lang::locale();
+    }
+}
+
+if (!function_exists('locale_names')) {
+    /**
+     * Locale code => the language's own name, for rendering the switcher.
+     *
+     * @return array<string, string>
+     */
+    function locale_names(): array
+    {
+        return Lang::SUPPORTED;
     }
 }

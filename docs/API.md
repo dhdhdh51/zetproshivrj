@@ -150,9 +150,11 @@ step.
 }
 ```
 
-`username` accepts the username, email or mobile. `device.uuid` is mandatory (it
-may also be supplied as the `X-Device-Id` header) and is what the token is bound
-to.
+`username` accepts the username, email, employee code, or — for a BC Supervisor —
+their **BCBF code** (`bc_supervisors.bc_code`), which is the identifier field staff
+actually know. Matching is case-insensitive, so `BC001` and `bc001` both work.
+`device.uuid` is mandatory (it may also be supplied as the `X-Device-Id` header)
+and is what the token is bound to.
 
 Success:
 

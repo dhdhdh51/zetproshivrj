@@ -1,6 +1,6 @@
 <!doctype html>
-<html lang="en">
-<head><?= view_partial('partials.head', ['title' => $title ?? 'Sign in']) ?></head>
+<html lang="<?= e(current_locale()) ?>">
+<head><?= view_partial('partials.head', ['title' => $title ?? __('auth.sign_in')]) ?></head>
 <body>
 <div class="auth-shell">
     <div style="width:100%;max-width:410px">
@@ -17,7 +17,8 @@
             <?= $content ?>
         </div>
         <div class="auth-foot">
-            Authorised users only. All activity is logged.
+            <?= view_partial('partials.locale-switcher') ?>
+            <div><?= et('auth.footer_notice') ?></div>
         </div>
     </div>
 </div>

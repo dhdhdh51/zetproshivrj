@@ -88,8 +88,9 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Never a development URL in a release build: the value comes from
-            // -PlrmsApiUrl, and apiUrl() fails the build if it is not HTTPS.
-            buildConfigField("String", "API_BASE_URL", "\"${apiUrl("https://lrms.example.com/api/v1/", "release")}\"")
+            // -PlrmsApiUrl or the committed lrmsReleaseApiUrl, and apiUrl() fails
+            // the build if it is not HTTPS.
+            buildConfigField("String", "API_BASE_URL", "\"${apiUrl(releaseApiUrl(), "release")}\"")
             buildConfigField("String", "ENVIRONMENT", "\"production\"")
             buildConfigField("boolean", "ALLOW_CLEARTEXT", "false")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
@@ -168,6 +169,15 @@ fun apiUrl(default: String, buildType: String): String {
 
     return url
 }
+
+/**
+ * The production API URL baked into release builds, from `lrmsReleaseApiUrl` in
+ * gradle.properties. The literal fallback only survives if someone deletes that
+ * property, and `-PlrmsApiUrl` still overrides both.
+ */
+fun releaseApiUrl(): String =
+    (project.findProperty("lrmsReleaseApiUrl") as String?)?.takeIf { it.isNotBlank() }
+        ?: "https://lrms.example.com/api/v1/"
 
 /**
  * The debug-only API URL. Reads `lrmsDebugApiUrl` (a developer convenience in

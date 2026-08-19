@@ -243,6 +243,8 @@ docs/              deployment, API reference, Android build, operations
 - [`docs/API.md`](docs/API.md) — every endpoint the app uses, with payloads.
 - [`docs/ANDROID.md`](docs/ANDROID.md) — build, signing secrets, environments,
   releases.
+- [`docs/LANGUAGES.md`](docs/LANGUAGES.md) — English/Hindi, how to add strings,
+  and exactly which areas are still English only.
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — the day-to-day runbook.
 
 ## Known limitations
@@ -263,3 +265,8 @@ Stated plainly so nobody is surprised in production:
 - **Android instrumentation tests are not included.** The unit tests cover the
   offline form rules and formatting; the API contract is covered by
   `tests/api-smoke.php` against the real server.
+- **Hindi covers the web panel's shared UI, not yet every screen.** Sign-in,
+  navigation, top bar and the shared buttons are translated; individual admin
+  screen bodies, the admin-authored form labels and the Android app are still
+  English, and fall back to English rather than breaking.
+  See [`docs/LANGUAGES.md`](docs/LANGUAGES.md).

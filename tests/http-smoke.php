@@ -16,6 +16,7 @@ require __DIR__ . '/lib.php';
 
 use App\Core\Auth;
 use App\Core\Database;
+use App\Core\Lang;
 
 $base = $argv[1] ?? null;
 $serverProcess = null;
@@ -156,6 +157,128 @@ $badLogin = request($base . '/login', [
     'post' => ['_token' => csrfToken($loginPage), 'login' => $adminEmail, 'password' => 'wrong-password'],
 ]);
 ok(str_contains($badLogin['body'], 'do not match'), 'Wrong password is rejected');
+
+/* -------------------------------------------------------------------------- */
+section('Language switching');
+/* -------------------------------------------------------------------------- */
+
+// Every English key must exist in Hindi. Without this the panel silently falls
+// back to English on the labels someone forgot, which looks like a bug to the
+// clerk using it and is invisible to whoever added the key.
+$englishKeys = Lang::keys('en');
+$hindiKeys = Lang::keys('hi');
+$untranslated = array_diff($englishKeys, $hindiKeys);
+
+ok(count($englishKeys) > 80, sprintf('The English catalogue is populated (%d keys)', count($englishKeys)));
+ok(
+    $untranslated === [],
+    $untranslated === []
+        ? sprintf('Every English key has a Hindi translation (%d keys)', count($englishKeys))
+        : sprintf('Keys missing from hi.php: %s', implode(', ', array_slice($untranslated, 0, 6)))
+);
+
+$orphans = array_diff($hindiKeys, $englishKeys);
+ok($orphans === [], $orphans === [] ? 'hi.php has no keys that English has dropped' : 'Stale Hindi keys: ' . implode(', ', $orphans));
+
+// A :placeholder that survives in one language but not the other renders a
+// literal ':time' on the page.
+$placeholderMismatch = [];
+
+foreach ($englishKeys as $key) {
+    preg_match_all('/:([a-z_]+)/', Lang::get($key, [], 'en'), $enTokens);
+    preg_match_all('/:([a-z_]+)/', Lang::get($key, [], 'hi'), $hiTokens);
+
+    if (array_diff($enTokens[1], $hiTokens[1]) !== [] || array_diff($hiTokens[1], $enTokens[1]) !== []) {
+        $placeholderMismatch[] = $key;
+    }
+}
+
+ok(
+    $placeholderMismatch === [],
+    $placeholderMismatch === []
+        ? 'Placeholders match across both languages'
+        : 'Placeholder mismatch in: ' . implode(', ', $placeholderMismatch)
+);
+
+$blank = array_values(array_filter($hindiKeys, static fn (string $k): bool => trim(Lang::get($k, [], 'hi')) === ''));
+ok($blank === [], $blank === [] ? 'No blank Hindi strings' : 'Blank Hindi strings: ' . implode(', ', $blank));
+
+// And the switch has to actually work over HTTP, for a visitor who has not
+// signed in yet — that is exactly who needs to change the language.
+$toHindi = request($base . '/locale', [
+    'post' => ['_token' => csrfToken($loginPage), 'locale' => 'hi'],
+]);
+equals(200, $toHindi['status'], 'Switching to Hindi succeeds while signed out');
+
+$hindiLogin = page('/login', 'Login page in Hindi');
+ok(str_contains($hindiLogin, 'साइन इन'), 'The login page renders in Hindi after switching');
+ok(str_contains($hindiLogin, 'BCBF'), 'The Hindi login page still names the BCBF code');
+ok(str_contains($hindiLogin, 'lang="hi"'), 'The document declares lang="hi" for screen readers');
+
+$badLocale = request($base . '/locale', [
+    'post' => ['_token' => csrfToken($hindiLogin), 'locale' => 'fr'],
+]);
+equals(200, $badLocale['status'], 'An unsupported language code is ignored, not fatal');
+ok(str_contains(page('/login', 'Login page still Hindi'), 'साइन इन'), 'An unsupported code leaves the language unchanged');
+
+// Back to English: the assertions that follow read English labels.
+$backToEnglish = request($base . '/locale', [
+    'post' => ['_token' => csrfToken($hindiLogin), 'locale' => 'en'],
+]);
+equals(200, $backToEnglish['status'], 'Switching back to English succeeds');
+$loginPage = page('/login', 'Login page back in English');
+ok(str_contains($loginPage, 'Sign in'), 'The login page renders in English again');
+
+/* -------------------------------------------------------------------------- */
+section('BCBF code sign-in');
+/* -------------------------------------------------------------------------- */
+
+// A BC Supervisor knows the BCBF code from their paperwork, not a username the
+// office invented, so it has to sign them in. The panel then shows them the
+// app-only notice, because recovery visits are recorded in the Android app.
+$bcLogin = Database::selectOne(
+    'SELECT u.id, s.bc_code
+       FROM bc_supervisors s
+       JOIN users u ON u.id = s.user_id
+      WHERE u.status = \'active\'
+      ORDER BY s.id
+      LIMIT 1'
+);
+
+if ($bcLogin === null) {
+    ok(false, 'No BC Supervisor seeded — cannot test BCBF-code sign-in');
+} else {
+    Database::update('users', [
+        'password' => Auth::hashPassword('SmokeTest@123'),
+        'must_change_password' => 0,
+    ], 'id = :id', ['id' => (int) $bcLogin['id']]);
+
+    ok(
+        str_contains($loginPage, 'BCBF code'),
+        'The login form tells BC Supervisors they can use their BCBF code'
+    );
+
+    $bcSignIn = request($base . '/login', [
+        'post' => [
+            '_token' => csrfToken($loginPage),
+            'login' => (string) $bcLogin['bc_code'],
+            'password' => 'SmokeTest@123',
+        ],
+    ]);
+    equals(200, $bcSignIn['status'], 'Sign-in with the BCBF code succeeds');
+    ok(!str_contains($bcSignIn['body'], 'do not match'), 'The BCBF code is accepted as a login identifier');
+    ok(str_contains($bcSignIn['body'], 'Use the LRMS Android app'), 'A BC Supervisor is sent to the app-only notice');
+
+    $loginPage = page('/login', 'Login page after BCBF sign-in');
+    $bcLower = request($base . '/login', [
+        'post' => [
+            '_token' => csrfToken($loginPage),
+            'login' => strtolower((string) $bcLogin['bc_code']),
+            'password' => 'SmokeTest@123',
+        ],
+    ]);
+    ok(!str_contains($bcLower['body'], 'do not match'), 'The BCBF code is matched case-insensitively');
+}
 
 $loginPage = page('/login', 'Login page reload');
 $signIn = request($base . '/login', [

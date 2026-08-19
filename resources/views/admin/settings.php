@@ -30,6 +30,20 @@
                     <div class="help">Printed on every exported report.</div>
                 </div>
                 <div class="field" style="max-width:220px">
+                    <label for="default_locale">Default language</label>
+                    <select id="default_locale" name="default_locale">
+                        <?php foreach (locale_names() as $code => $name): ?>
+                            <option value="<?= e($code) ?>" <?= setting('default_locale', 'en') === $code ? 'selected' : '' ?>>
+                                <?= e($name) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="help">
+                        The language the panel opens in. Anyone can still switch it themselves from the
+                        top bar, and that choice is remembered on their browser.
+                    </div>
+                </div>
+                <div class="field" style="max-width:220px">
                     <label for="supervisor_offline_minutes">Offline after (minutes)</label>
                     <input type="number" id="supervisor_offline_minutes" name="supervisor_offline_minutes" min="1" max="720"
                            value="<?= (int) setting('supervisor_offline_minutes', 15) ?>">

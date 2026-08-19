@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 use App\Controllers\AuthController;
 use App\Controllers\FileController;
+use App\Controllers\LocaleController;
 use App\Core\Auth;
 use App\Core\Response;
 
@@ -30,6 +31,12 @@ $router->post('/login/verify', [AuthController::class, 'verify'], ['guest']);
 $router->post('/login/resend', [AuthController::class, 'resend'], ['guest']);
 $router->get('/app-only', [AuthController::class, 'appOnly']);
 $router->post('/logout', [AuthController::class, 'logout']);
+
+/* -------------------------------------------------------------- Language -- */
+
+// No auth middleware on purpose: someone has to be able to read the login page
+// in Hindi before they can sign in. POST + CSRF because it writes a cookie.
+$router->post('/locale', [LocaleController::class, 'update']);
 
 $router->get('/password/change', [AuthController::class, 'showChangePassword'], ['auth']);
 $router->post('/password/change', [AuthController::class, 'changePassword'], ['auth']);
