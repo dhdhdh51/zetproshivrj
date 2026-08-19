@@ -173,7 +173,6 @@ final class SyncController extends ApiController
     {
         return [
             'min_visit_photos' => Settings::int('min_visit_photos', 1),
-            'require_borrower_signature' => Settings::bool('require_borrower_signature', false),
             'gps_max_accuracy_metres' => Settings::float('gps_max_accuracy_metres', 200.0),
             'gps_mock_location_allowed' => Settings::bool('gps_mock_location_allowed', false),
             'payment_modes' => payment_modes(),

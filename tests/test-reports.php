@@ -185,7 +185,7 @@ foreach (['renewal_eligible', 'renewal_due_bucket', 'kyc_status', 'renewal_conse
 }
 
 foreach (['customer_available', 'residence_verified', 'neighbour_verified', 'documents_verified',
-    'evidence_attached', 'declaration_accepted', 'borrower_signature'] as $key) {
+    'evidence_attached', 'declaration_accepted'] as $key) {
     ok(in_array($key, $krmKeys, true) && in_array($key, $ckccKeys, true), 'Both forms share ' . $key);
 }
 

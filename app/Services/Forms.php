@@ -24,6 +24,15 @@ final class Forms
     public const KIND_INSPECTION = 'inspection';
 
     /** @return array<string, string> field type => label */
+    /**
+     * The field types a form builder may offer.
+     *
+     * 'signature' is deliberately absent. The report is signed on paper — the PDF
+     * prints ruled boxes for it — so the app has nothing to capture and silently
+     * skips such a field. Offering it let an admin add a question that reached
+     * nobody and could never be answered. The database ENUM still accepts the
+     * value so any existing field keeps loading rather than breaking a live form.
+     */
     public static function fieldTypes(): array
     {
         return [
@@ -39,7 +48,6 @@ final class Forms
             'checkbox' => 'Checkboxes (multiple)',
             'yes_no' => 'Yes / No',
             'photo' => 'Photograph',
-            'signature' => 'Signature',
             'gps' => 'GPS location',
             'remarks' => 'Remarks',
         ];
