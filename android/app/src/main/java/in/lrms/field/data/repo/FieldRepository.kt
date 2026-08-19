@@ -22,6 +22,7 @@ import `in`.lrms.field.data.remote.LoginRequest
 import `in`.lrms.field.data.remote.OtpRequest
 import `in`.lrms.field.data.remote.SyncItem
 import `in`.lrms.field.data.remote.SyncPushRequest
+import `in`.lrms.field.location.FieldLocation
 import `in`.lrms.field.util.Json
 import `in`.lrms.field.util.Network
 import `in`.lrms.field.util.Times
@@ -364,6 +365,7 @@ class FieldRepository(
         answers: Map<String, String>,
         extras: Map<String, Map<String, Any?>>,
         borrowerSignature: String?,
+        submitFix: FieldLocation?,
     ): Unit = withContext(Dispatchers.IO) {
         val visit = db.visits().find(uuid) ?: return@withContext
 
@@ -376,6 +378,11 @@ class FieldRepository(
                 formJson = Json.encodeStringMap(answers),
                 extrasJson = if (extras.isEmpty()) null else Json.encodeAny(extras),
                 borrowerSignature = borrowerSignature,
+                submitLatitude = submitFix?.latitude,
+                submitLongitude = submitFix?.longitude,
+                submitAccuracy = submitFix?.accuracy,
+                submitIsMock = submitFix?.isMock ?: false,
+                submitCapturedAt = submitFix?.let { Times.serverFormat(it.capturedAtMillis) },
                 syncState = SyncState.PENDING,
                 syncMessage = null,
                 submittedLocally = true,
@@ -921,6 +928,20 @@ class FieldRepository(
                     "captured_at" to visit.startedAt,
                 ),
             )
+            if (visit.submitLatitude != null && visit.submitLongitude != null) {
+                put(
+                    "submit_gps",
+                    mapOf(
+                        "latitude" to visit.submitLatitude,
+                        "longitude" to visit.submitLongitude,
+                        "accuracy" to visit.submitAccuracy,
+                        "address" to visit.submitAddress,
+                        "is_mock" to visit.submitIsMock,
+                        "captured_at" to (visit.submitCapturedAt ?: visit.startedAt),
+                    ),
+                )
+            }
+
             visit.borrowerSignature?.let { put("borrower_signature", it) }
             extras["recovery"]?.let { put("recovery", it) }
             extras["promise"]?.let { put("promise", it) }

@@ -660,7 +660,7 @@ DROP TABLE IF EXISTS `visit_photos`;
 CREATE TABLE `visit_photos` (
   `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `visit_id`    BIGINT UNSIGNED NOT NULL,
-  `photo_type`  ENUM('customer','house','shop','land','document','selfie','other') NOT NULL DEFAULT 'other',
+  `photo_type`  ENUM('customer','house','shop','land','document','selfie','other','aadhaar') NOT NULL DEFAULT 'other',
   `file_path`   VARCHAR(255) NOT NULL,
   `file_name`   VARCHAR(190) NOT NULL,
   `mime_type`   VARCHAR(60)  NOT NULL DEFAULT 'image/jpeg',

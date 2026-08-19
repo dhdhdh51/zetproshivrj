@@ -428,6 +428,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 followup?.let { put("followup", it) }
             }
 
+            // Read the location again, here, at the moment the report is filed. The
+            // fix taken when the visit was started can be an hour and a village old
+            // by now. A short window because the agent is waiting on this tap, and
+            // awaitFix returns a good cached fix immediately when it has one; if
+            // nothing comes back the visit is still filed, with the last fix this
+            // screen saw, or with none. Location has never been a condition of
+            // filing a report and is not becoming one here.
+            val submitFix = locationCapture.awaitFix(timeoutMillis = 8_000)
+                ?: _location.value.fix
+
             repository.queueVisit(
                 uuid = uuid,
                 visitStatus = visitStatus,
@@ -437,6 +447,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 answers = answers,
                 extras = extras,
                 borrowerSignature = null,
+                submitFix = submitFix,
             )
 
             requestBackgroundSync()

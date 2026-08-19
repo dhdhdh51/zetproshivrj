@@ -75,25 +75,51 @@ private val caseTypes = listOf(
 )
 
 private val visitStatuses = listOf(
-    "customer_met" to "Customer met",
-    "family_met" to "Family met",
-    "phone_contact" to "Phone only",
-    "house_locked" to "House locked",
-    "not_available" to "Not available",
-    "address_not_found" to "Address not found",
-    "shifted" to "Shifted",
-    "deceased" to "Deceased",
-    "refused" to "Refused",
-    "other" to "Other",
+    "customer_met" to R.string.status_customer_met,
+    "family_met" to R.string.status_family_met,
+    "phone_contact" to R.string.status_phone_contact,
+    "house_locked" to R.string.status_house_locked,
+    "not_available" to R.string.status_not_available,
+    "address_not_found" to R.string.status_address_not_found,
+    "shifted" to R.string.status_shifted,
+    "deceased" to R.string.status_deceased,
+    "refused" to R.string.status_refused,
+    "other" to R.string.status_other,
 )
 
+/**
+ * The evidence slots, in the reference app's order: the borrower, the house, the
+ * Aadhaar copy, then the agent's own photograph. Shop, land and document follow
+ * because a CKCC crop case needs them and visits already filed use them.
+ *
+ * "selfie" is the agent's own photograph. Every photograph in this app comes from
+ * the camera — there is no gallery import anywhere — so the reference's rule that
+ * the agent's photograph cannot be picked from storage holds here by construction.
+ */
 private val photoTypes = listOf(
-    "customer" to "Customer",
-    "house" to "House",
-    "shop" to "Shop",
-    "land" to "Land",
-    "document" to "Document",
-    "other" to "Other",
+    "customer" to R.string.photo_type_customer,
+    "house" to R.string.photo_type_house,
+    "aadhaar" to R.string.photo_type_aadhaar,
+    "selfie" to R.string.photo_type_selfie,
+    "shop" to R.string.photo_type_shop,
+    "land" to R.string.photo_type_land,
+    "document" to R.string.photo_type_document,
+    "other" to R.string.photo_type_other,
+)
+
+/** Payment modes. The key is stored and reported; the label is translated. */
+private val paymentModes = listOf(
+    "Cash" to R.string.payment_cash,
+    "UPI" to R.string.payment_upi,
+    "Bank Transfer" to R.string.payment_bank,
+)
+
+/** Recovery possibility, same split of stored key and shown label. */
+private val possibilities = listOf(
+    "high" to R.string.possibility_high,
+    "medium" to R.string.possibility_medium,
+    "low" to R.string.possibility_low,
+    "nil" to R.string.possibility_nil,
 )
 
 /**
@@ -157,17 +183,17 @@ fun VisitScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Customer visit") },
+                title = { Text(stringResource(R.string.visit_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
             )
         },
     ) { padding ->
         if (current == null) {
-            LoadingBlock("Loading visit…", Modifier.padding(padding))
+            LoadingBlock(stringResource(R.string.visit_loading), Modifier.padding(padding))
 
             return@Scaffold
         }
@@ -191,9 +217,9 @@ fun VisitScreen(
 
                     Spacer(Modifier.height(8.dp))
 
-                    DetailRow("Started", Times.humanDateTime(current.startedAt))
+                    DetailRow(stringResource(R.string.visit_started), Times.humanDateTime(current.startedAt))
                     DetailRow(
-                        "GPS",
+                        stringResource(R.string.visit_gps),
                         current.latitude?.let { latitude ->
                             "%.6f, %.6f (±%.0f m)".format(
                                 latitude,
@@ -206,7 +232,7 @@ fun VisitScreen(
                     if (current.isMock) {
                         Spacer(Modifier.height(6.dp))
                         InlineNotice(
-                            "This fix reports itself as a mock location and the server will reject it.",
+                            stringResource(R.string.visit_mock_location),
                             Tone.DANGER,
                         )
                     }
@@ -219,46 +245,47 @@ fun VisitScreen(
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
                     Row {
-                        Text("Photographs", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        Text(
+                            stringResource(R.string.visit_photographs),
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f),
+                        )
                         StatusChip(
-                            text = "${photos.size} taken",
+                            text = stringResource(R.string.visit_photo_count, photos.size),
                             tone = if (photos.isEmpty()) Tone.WARNING else Tone.SUCCESS,
                         )
                     }
 
                     Text(
-                        "Photographs are watermarked with your name, " +
-                            "the time and the coordinates.",
+                        stringResource(R.string.visit_photo_watermark),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
                     Spacer(Modifier.height(8.dp))
 
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        photoTypes.take(3).forEach { (key, label) ->
-                            FilterChip(
-                                selected = photoType == key,
-                                onClick = { photoType = key },
-                                label = { Text(label) },
-                            )
+                    photoTypes.chunked(3).forEach { row ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            row.forEach { (key, labelRes) ->
+                                FilterChip(
+                                    selected = photoType == key,
+                                    onClick = { photoType = key },
+                                    label = { Text(stringResource(labelRes)) },
+                                )
+                            }
                         }
                     }
 
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        photoTypes.drop(3).forEach { (key, label) ->
-                            FilterChip(
-                                selected = photoType == key,
-                                onClick = { photoType = key },
-                                label = { Text(label) },
-                            )
-                        }
+                    // Says why this slot is a photograph of the agent, not of the case.
+                    if (photoType == "selfie") {
+                        Text(
+                            stringResource(R.string.photo_selfie_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -273,14 +300,16 @@ fun VisitScreen(
                     ) {
                         Icon(Icons.Filled.CameraAlt, contentDescription = null)
                         Spacer(Modifier.height(4.dp))
-                        Text("  Take photograph")
+                        Text("  " + stringResource(R.string.photo_take))
                     }
 
                     photos.forEach { photo ->
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    photoTypes.firstOrNull { it.first == photo.photoType }?.second ?: photo.photoType,
+                                    photoTypes.firstOrNull { it.first == photo.photoType }
+                                        ?.let { stringResource(it.second) }
+                                        ?: photo.photoType,
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Text(
@@ -290,7 +319,7 @@ fun VisitScreen(
                                 )
                             }
 
-                            StatusChip("queued", Tone.NEUTRAL)
+                            StatusChip(stringResource(R.string.status_queued), Tone.NEUTRAL)
                         }
                     }
                 }
@@ -355,7 +384,7 @@ fun VisitScreen(
             // Outcome
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
-                    Text("Visit outcome", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.visit_outcome), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(8.dp))
 
                     visitStatuses.chunked(2).forEach { row ->
@@ -363,11 +392,11 @@ fun VisitScreen(
                             Modifier.fillMaxWidth().padding(bottom = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            row.forEach { (key, label) ->
+                            row.forEach { (key, labelRes) ->
                                 FilterChip(
                                     selected = visitStatus == key,
                                     onClick = { visitStatus = key },
-                                    label = { Text(label) },
+                                    label = { Text(stringResource(labelRes)) },
                                     modifier = Modifier.weight(1f),
                                 )
                             }
@@ -379,17 +408,17 @@ fun VisitScreen(
                     }
 
                     Spacer(Modifier.height(6.dp))
-                    Text("Recovery possibility", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.visit_possibility), style = MaterialTheme.typography.bodySmall)
 
                     Row(
                         Modifier.fillMaxWidth().padding(top = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        listOf("high", "medium", "low", "nil").forEach { option ->
+                        possibilities.forEach { (key, labelRes) ->
                             FilterChip(
-                                selected = possibility == option,
-                                onClick = { possibility = option },
-                                label = { Text(option.replaceFirstChar { it.uppercase() }) },
+                                selected = possibility == key,
+                                onClick = { possibility = key },
+                                label = { Text(stringResource(labelRes)) },
                             )
                         }
                     }
@@ -399,7 +428,7 @@ fun VisitScreen(
                     OutlinedTextField(
                         value = remarks,
                         onValueChange = { remarks = it },
-                        label = { Text("Remarks") },
+                        label = { Text(stringResource(R.string.label_remarks)) },
                         minLines = 2,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -409,7 +438,7 @@ fun VisitScreen(
                     OutlinedTextField(
                         value = recommendation,
                         onValueChange = { recommendation = it },
-                        label = { Text("Your recommendation") },
+                        label = { Text(stringResource(R.string.visit_recommendation)) },
                         minLines = 2,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -419,9 +448,9 @@ fun VisitScreen(
             // Money
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
-                    Text("Recovery and promise", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.visit_recovery_promise), style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "Leave blank when nothing was collected or promised.",
+                        stringResource(R.string.visit_recovery_blank),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -431,7 +460,7 @@ fun VisitScreen(
                     OutlinedTextField(
                         value = recoveryAmount,
                         onValueChange = { recoveryAmount = it.filter { char -> char.isDigit() || char == '.' } },
-                        label = { Text("Amount collected") },
+                        label = { Text(stringResource(R.string.recovery_amount)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -441,11 +470,11 @@ fun VisitScreen(
                             Modifier.fillMaxWidth().padding(top = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            listOf("Cash", "UPI", "Bank Transfer").forEach { option ->
+                            paymentModes.forEach { (key, labelRes) ->
                                 FilterChip(
-                                    selected = recoveryMode == option,
-                                    onClick = { recoveryMode = option },
-                                    label = { Text(option) },
+                                    selected = recoveryMode == key,
+                                    onClick = { recoveryMode = key },
+                                    label = { Text(stringResource(labelRes)) },
                                 )
                             }
                         }
@@ -453,7 +482,7 @@ fun VisitScreen(
                         OutlinedTextField(
                             value = recoveryReceipt,
                             onValueChange = { recoveryReceipt = it },
-                            label = { Text("Receipt number") },
+                            label = { Text(stringResource(R.string.recovery_receipt)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                         )
@@ -464,7 +493,7 @@ fun VisitScreen(
                     OutlinedTextField(
                         value = promiseAmount,
                         onValueChange = { promiseAmount = it.filter { char -> char.isDigit() || char == '.' } },
-                        label = { Text("Promised amount") },
+                        label = { Text(stringResource(R.string.ptp_amount)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -473,7 +502,7 @@ fun VisitScreen(
                         OutlinedTextField(
                             value = promiseDate,
                             onValueChange = { promiseDate = it },
-                            label = { Text("Promise date (YYYY-MM-DD)") },
+                            label = { Text(stringResource(R.string.ptp_date)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                         )
@@ -485,9 +514,9 @@ fun VisitScreen(
             if (fields.isNotEmpty()) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
-                        Text("Visit form", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.visit_form_title), style = MaterialTheme.typography.titleSmall)
                         Text(
-                            "Configured by your Admin/Supervisor.",
+                            stringResource(R.string.visit_form_note),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -557,16 +586,15 @@ fun VisitScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Submit visit")
+                Text(stringResource(R.string.visit_submit))
             }
 
             OutlinedButton(onClick = { confirmDiscard = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Discard this visit")
+                Text(stringResource(R.string.visit_discard))
             }
 
             Text(
-                "Submitting saves the visit on this device and queues it. It reaches LRMS at the " +
-                    "next sync, even if you are offline now.",
+                stringResource(R.string.visit_queue_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -578,17 +606,17 @@ fun VisitScreen(
     if (confirmDiscard) {
         AlertDialog(
             onDismissRequest = { confirmDiscard = false },
-            title = { Text("Discard visit?") },
-            text = { Text("The photographs and answers captured for this visit will be deleted.") },
+            title = { Text(stringResource(R.string.visit_discard_title)) },
+            text = { Text(stringResource(R.string.visit_discard_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDiscard = false
                     viewModel.discardVisit(visitUuid, onDone)
                 }) {
-                    Text("Discard")
+                    Text(stringResource(R.string.action_discard))
                 }
             },
-            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Keep") } },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(stringResource(R.string.action_keep)) } },
         )
     }
 }
@@ -619,11 +647,11 @@ private fun DynamicField(field: FormFieldEntity, value: String, onChange: (Strin
                     Modifier.padding(top = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    listOf("Yes", "No").forEach { option ->
+                    listOf("Yes" to R.string.common_yes, "No" to R.string.common_no).forEach { (option, labelRes) ->
                         FilterChip(
                             selected = value == option,
                             onClick = { onChange(option) },
-                            label = { Text(option) },
+                            label = { Text(stringResource(labelRes)) },
                         )
                     }
                 }

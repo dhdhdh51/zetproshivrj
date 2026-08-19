@@ -169,14 +169,34 @@ final class Visits
             ['id' => $visitId]
         );
 
+        /* Location at submit ----------------------------------------------- */
+        // Read again here, not only when the visit was started. A form left open on
+        // the doorstep for an hour, or filled in at the next stop, would otherwise
+        // file the coordinates of wherever the agent happened to be when they began.
+        // Both points are kept, so the panel can show where the visit started and
+        // where it was filed from.
+        // Its own key, not 'gps'. A batched visit arrives as a single payload that
+        // start() and submit() both read, so reusing 'gps' here would file the
+        // opening fix a second time and call it the closing one.
+        $submitGps = is_array($payload['submit_gps'] ?? null) ? $payload['submit_gps'] : [];
+        $submitCheck = $submitGps === []
+            ? null
+            : Gps::recordVisitPoint($visitId, 'submit', $submitGps, (int) $visit['branch_id']);
+
+        // Counted after the submit point is in: a visit that began indoors with no
+        // fix and got one by the time it was filed is verified on that strength.
         $validGpsPoints = (int) Database::scalar(
             'SELECT COUNT(*) FROM visit_gps WHERE visit_id = :id AND is_valid = 1',
             ['id' => $visitId]
         );
 
-        if ($validGpsPoints === 0) {
-            throw new HttpException(422, 'This visit has no validated GPS point and cannot be submitted.');
-        }
+        // No refusal here. This was the last place a visit could still be thrown
+        // away for its location: a supervisor in a village with no fix, or inside a
+        // thick-walled house, had the whole report rejected at the final step and
+        // the finding was never recorded. The location is now recorded for what it
+        // is — gps_verified and gps_note below carry the verdict onto the report —
+        // and the reviewer decides what it is worth.
+        $gpsNote = $this->gpsNote($visitId, $validGpsPoints, $submitCheck);
 
         /* Configurable form ------------------------------------------------ */
         $formId = $visit['form_id'] === null ? null : (int) $visit['form_id'];
@@ -234,6 +254,8 @@ final class Visits
         $updates = [
             'submitted_at' => now(),
             'status' => 'submitted',
+            'gps_verified' => $validGpsPoints > 0 ? 1 : 0,
+            'gps_note' => $gpsNote,
             'is_late' => $isLate ? 1 : 0,
             'visit_status' => $this->visitStatus($payload, $values),
             'customer_available' => $this->tristate($values['customer_available'] ?? ($payload['customer_available'] ?? null)),
@@ -584,6 +606,59 @@ final class Visits
         }
 
         return null;
+    }
+
+    /**
+     * The plain-language verdict on this visit's location, stored on the visit so it
+     * travels onto the printed report.
+     *
+     * A visit is never refused for its location, which only works honestly if the
+     * report says what the location was worth. Three things are worth saying: that
+     * there was no usable fix at all, why the fix taken at submit was rejected, and
+     * how far the phone had moved between starting the visit and filing it.
+     *
+     * @param array{valid: bool, note: string, latitude: float, longitude: float}|null $submitCheck
+     */
+    private function gpsNote(int $visitId, int $validPoints, ?array $submitCheck): ?string
+    {
+        $notes = [];
+
+        if ($validPoints === 0) {
+            $notes[] = 'No usable location was recorded for this visit.';
+        }
+
+        if ($submitCheck !== null && !$submitCheck['valid'] && $submitCheck['note'] !== '') {
+            $notes[] = 'At submit: ' . $submitCheck['note'];
+        }
+
+        // Distance between the doorstep and wherever the report was filed from. Only
+        // worth printing once it is past the point of being GPS noise.
+        if ($submitCheck !== null) {
+            $start = Database::selectOne(
+                "SELECT latitude, longitude FROM visit_gps
+                 WHERE visit_id = :id AND event = 'start' ORDER BY id ASC LIMIT 1",
+                ['id' => $visitId]
+            );
+
+            if ($start !== null && $start['latitude'] !== null && $start['longitude'] !== null) {
+                $drift = Gps::distance(
+                    (float) $start['latitude'],
+                    (float) $start['longitude'],
+                    $submitCheck['latitude'],
+                    $submitCheck['longitude']
+                );
+
+                if ($drift >= 250.0) {
+                    $notes[] = sprintf('Filed %.0f m from where the visit was started.', $drift);
+                }
+            }
+        }
+
+        if ($notes === []) {
+            return null;
+        }
+
+        return mb_substr(implode(' ', $notes), 0, 255);
     }
 
     private function recoveryPossibility(mixed $value): ?string

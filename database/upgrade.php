@@ -184,6 +184,15 @@ $modifications = [
         "ENUM('equals','not_equals','in','contains','filled','empty') NULL",
         'contains',
     ],
+    // The Aadhaar slot the reference app has. Appended to the end of the ENUM on
+    // purpose: MySQL stores an ENUM as an integer index, so inserting a member
+    // mid-list would rebuild visit_photos and re-map values already stored.
+    [
+        'visit_photos',
+        'photo_type',
+        "ENUM('customer','house','shop','land','document','selfie','other','aadhaar') NOT NULL DEFAULT 'other'",
+        'aadhaar',
+    ],
     // The section 11 declaration is ~1,100 characters and must be shown verbatim.
     ['visit_form_fields', 'help_text', 'VARCHAR(2000) NULL', 'varchar(2000)'],
     ['inspection_form_fields', 'help_text', 'VARCHAR(2000) NULL', 'varchar(2000)'],

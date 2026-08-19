@@ -77,6 +77,18 @@ data class VisitEntity(
     val accuracy: Double?,
     val locationAddress: String?,
     val isMock: Boolean,
+    /**
+     * Where the phone was when the report was filed, which is not always where it
+     * was when the visit was started. A form left open on the doorstep, or finished
+     * at the next stop, used to be filed with the opening coordinates and nothing
+     * recorded the difference. Null when no fix was available at that moment.
+     */
+    val submitLatitude: Double? = null,
+    val submitLongitude: Double? = null,
+    val submitAccuracy: Double? = null,
+    val submitAddress: String? = null,
+    val submitIsMock: Boolean = false,
+    val submitCapturedAt: String? = null,
     val borrowerSignature: String?,
     val supervisorSignature: String?,
     /** JSON array of recovery / promise / followup payloads captured with the visit. */

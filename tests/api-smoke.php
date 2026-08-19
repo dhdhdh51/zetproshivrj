@@ -615,6 +615,95 @@ equals(
     'It carries no photographs, and says so'
 );
 
+// A visit with no usable location anywhere in it submits too. This was the last
+// place a report could still be thrown away for its location: the submit step
+// counted the validated points and refused when there were none, so a supervisor in
+// a village with no signal filled in the whole report and lost it at the final tap.
+// It is accepted now, and the report says what the location was worth.
+$noFixUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $noFixUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+]);
+
+$noFixSubmit = api('POST', '/api/v1/visits/' . $noFixUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => ['visit_status' => 'Customer met'],
+]);
+
+equals(200, $noFixSubmit['status'], 'A visit with no usable location still submits');
+
+$noFixRow = Database::selectOne(
+    'SELECT status, gps_verified, gps_note FROM visits WHERE uuid = :u',
+    ['u' => $noFixUuid]
+) ?? [];
+
+equals('submitted', (string) ($noFixRow['status'] ?? ''), 'It is recorded as submitted, not lost');
+equals(0, (int) ($noFixRow['gps_verified'] ?? -1), 'It is not marked GPS-verified');
+ok(
+    trim((string) ($noFixRow['gps_note'] ?? '')) !== '',
+    'The report carries the reason its location is worth nothing'
+);
+
+// The fix taken when the report is filed is kept alongside the one from when the
+// visit was started. Both are real events and the panel shows both.
+$twoFixUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $twoFixUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'gps' => $gps,
+]);
+
+api('POST', '/api/v1/visits/' . $twoFixUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => ['visit_status' => 'Customer met'],
+    'submit_gps' => [
+        'latitude' => 25.5391500,
+        'longitude' => 87.5721500,
+        'accuracy' => 9.0,
+        'captured_at' => date('Y-m-d H:i:s'),
+    ],
+]);
+
+$eventsOf = static fn (string $uuid): array => array_map(
+    static fn (array $row): string => (string) $row['event'],
+    Database::select(
+        'SELECT g.event FROM visit_gps g JOIN visits v ON v.id = g.visit_id
+          WHERE v.uuid = :u ORDER BY g.id',
+        ['u' => $uuid]
+    )
+);
+
+equals(['start', 'submit'], $eventsOf($twoFixUuid), 'The visit keeps both its opening and closing fix');
+
+// Filing the report a long way from the doorstep is recorded. The visit is still
+// accepted — an agent may legitimately reach signal down the road — but a reviewer
+// can see that the report was not filed where the visit happened.
+$driftUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $driftUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'gps' => $gps,
+]);
+
+api('POST', '/api/v1/visits/' . $driftUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => ['visit_status' => 'Customer met'],
+    // Roughly 2 km north of where the visit started.
+    'submit_gps' => [
+        'latitude' => 25.5571234,
+        'longitude' => 87.5721234,
+        'accuracy' => 9.0,
+        'captured_at' => date('Y-m-d H:i:s'),
+    ],
+]);
+
+$driftNote = (string) Database::scalar('SELECT gps_note FROM visits WHERE uuid = :u', ['u' => $driftUuid]);
+ok($driftNote !== '' && str_contains($driftNote, 'from where the visit was started'), 'A report filed far from the doorstep says so (' . $driftNote . ')');
+
 $photo = api('POST', '/api/v1/visits/' . $visitUuid . '/photos', [
     'data' => samplePhoto(),
     'photo_type' => 'customer',
@@ -822,9 +911,13 @@ if ($secondAccountId === 0) {
                 'type' => 'visit',
                 'uuid' => uuid(),
                 'payload' => [
-                    // Deliberately invalid: no GPS, so it must fail without
-                    // affecting the rest of the batch.
-                    'loan_account_id' => $secondAccountId,
+                    // Deliberately invalid, to prove one bad item cannot poison the
+                    // rest of the batch. The reason is an account this supervisor
+                    // does not hold, which can never become valid however many times
+                    // the phone retries. It used to be a missing GPS fix; that is no
+                    // longer a failure, because a village with no signal is not a
+                    // reason to throw a real visit away.
+                    'loan_account_id' => 999999999,
                     'visit_date' => today(),
                 ],
             ],

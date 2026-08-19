@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FormFieldEntity::class,
         AttendanceEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,7 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lrms-field.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     // Only for a database from an unknown build. Real schema
                     // changes get a migration above, because this database is not
                     // only a cache: it holds the outbox, and a supervisor who
@@ -103,5 +103,22 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
 private val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE `visits` ADD COLUMN `visitType` TEXT NOT NULL DEFAULT 'customer'")
+    }
+}
+
+/**
+ * The fix taken when the report is filed, alongside the one taken when the visit was
+ * started. Added as nullable columns so an outbox holding a day of unsynced visits
+ * survives the update — those rows keep their opening fix and simply have no closing
+ * one, which is the truth about them.
+ */
+private val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `visits` ADD COLUMN `submitLatitude` REAL")
+        db.execSQL("ALTER TABLE `visits` ADD COLUMN `submitLongitude` REAL")
+        db.execSQL("ALTER TABLE `visits` ADD COLUMN `submitAccuracy` REAL")
+        db.execSQL("ALTER TABLE `visits` ADD COLUMN `submitAddress` TEXT")
+        db.execSQL("ALTER TABLE `visits` ADD COLUMN `submitIsMock` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `visits` ADD COLUMN `submitCapturedAt` TEXT")
     }
 }

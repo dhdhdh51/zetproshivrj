@@ -461,6 +461,10 @@ if (!function_exists('photo_types')) {
         return [
             'customer' => 'Customer',
             'house' => 'House',
+            'aadhaar' => 'Aadhaar',
+            // The agent's own photograph. Its only job is to record that the agent
+            // stood where the visit says they stood, so it is camera-only in the app.
+            'selfie' => 'Agent photograph',
             'shop' => 'Shop',
             'land' => 'Land',
             'document' => 'Document',

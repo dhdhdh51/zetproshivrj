@@ -86,6 +86,10 @@ object Times {
 
     fun nowServerFormat(): String = SimpleDateFormat(SERVER_DATE_TIME, Locale.US).format(Date())
 
+    /** A captured instant in the server's format, for a fix taken earlier. */
+    fun serverFormat(millis: Long): String =
+        SimpleDateFormat(SERVER_DATE_TIME, Locale.US).format(Date(millis))
+
     fun date(offsetDays: Int): String {
         val calendar = java.util.Calendar.getInstance()
         calendar.add(java.util.Calendar.DAY_OF_YEAR, offsetDays)

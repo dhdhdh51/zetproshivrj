@@ -138,4 +138,60 @@
     <string name="case_type_post_npa">Post-NPA Verification</string>
     <string name="case_type_other">Other</string>
     <string name="stream_general">Recovery</string>
+
+    <!-- Visit screen. The screen a field agent spends most of the day on, so every
+         word of it is translated. -->
+    <string name="visit_title">Customer visit</string>
+    <string name="action_back">Back</string>
+    <string name="visit_loading">Loading visit…</string>
+    <string name="visit_started">Started</string>
+    <string name="visit_gps" translatable="false">GPS</string>
+    <string name="visit_mock_location">This fix reports itself as a mock location and the server will reject it.</string>
+    <string name="visit_photographs">Photographs</string>
+    <string name="visit_photo_count">%1$d taken</string>
+    <string name="visit_photo_watermark">Photographs are watermarked with your name, the time and the coordinates.</string>
+    <string name="photo_type_customer">Customer</string>
+    <string name="photo_type_house">House</string>
+    <string name="photo_type_aadhaar">Aadhaar</string>
+    <string name="photo_type_selfie">Your photograph</string>
+    <string name="photo_type_shop">Shop</string>
+    <string name="photo_type_land">Land</string>
+    <string name="photo_type_document">Document</string>
+    <string name="photo_type_other">Other</string>
+    <string name="photo_take">Take photograph</string>
+    <string name="photo_selfie_note">Your own photograph records that you were here, so it can only come from the camera.</string>
+    <string name="visit_outcome">Visit outcome</string>
+    <string name="status_customer_met">Customer met</string>
+    <string name="status_family_met">Family met</string>
+    <string name="status_phone_contact">Phone only</string>
+    <string name="status_house_locked">House locked</string>
+    <string name="status_not_available">Not available</string>
+    <string name="status_address_not_found">Address not found</string>
+    <string name="status_shifted">Shifted</string>
+    <string name="status_deceased">Deceased</string>
+    <string name="status_refused">Refused</string>
+    <string name="status_other">Other</string>
+    <string name="status_queued">queued</string>
+    <string name="visit_possibility">Recovery possibility</string>
+    <string name="possibility_high">High</string>
+    <string name="possibility_medium">Medium</string>
+    <string name="possibility_low">Low</string>
+    <string name="possibility_nil">Nil</string>
+    <string name="visit_recommendation">Your recommendation</string>
+    <string name="visit_recovery_promise">Recovery and promise</string>
+    <string name="visit_recovery_blank">Leave blank when nothing was collected or promised.</string>
+    <string name="payment_cash">Cash</string>
+    <string name="payment_upi" translatable="false">UPI</string>
+    <string name="payment_bank">Bank transfer</string>
+    <string name="visit_form_title">Visit form</string>
+    <string name="visit_form_note">Configured by your Admin/Supervisor.</string>
+    <string name="visit_submit">Submit visit</string>
+    <string name="visit_discard">Discard this visit</string>
+    <string name="visit_queue_note">Submitting saves the visit on this device and queues it. It reaches LRMS at the next sync, even if you are offline now.</string>
+    <string name="visit_discard_title">Discard visit?</string>
+    <string name="visit_discard_body">The photographs and answers captured for this visit will be deleted.</string>
+    <string name="action_discard">Discard</string>
+    <string name="action_keep">Keep</string>
+    <string name="common_yes">Yes</string>
+    <string name="common_no">No</string>
 </resources>
