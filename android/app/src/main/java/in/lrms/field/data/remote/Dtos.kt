@@ -195,7 +195,6 @@ data class RulesDto(
     @Json(name = "require_borrower_signature") val requireBorrowerSignature: Boolean = false,
     @Json(name = "gps_max_accuracy_metres") val gpsMaxAccuracyMetres: Double = 200.0,
     @Json(name = "gps_mock_location_allowed") val gpsMockLocationAllowed: Boolean = false,
-    @Json(name = "payment_modes") val paymentModes: List<String> = emptyList(),
     @Json(name = "visit_statuses") val visitStatuses: Map<String, String> = emptyMap(),
     @Json(name = "photo_types") val photoTypes: Map<String, String> = emptyMap(),
     @Json(name = "recovery_possibility") val recoveryPossibility: Map<String, String> = emptyMap(),

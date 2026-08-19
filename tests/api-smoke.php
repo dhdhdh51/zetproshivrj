@@ -462,11 +462,17 @@ equals($visitUuid, $start['json']['data']['visit']['uuid'] ?? '', 'The visit kee
 equals('draft', $start['json']['data']['visit']['status'] ?? '', 'A started visit is a draft until submitted');
 
 /* -------------------------------------------------------------------------- */
-section('This system does not collect cash');
+section('This system takes no payments');
 /* -------------------------------------------------------------------------- */
 
-// Recovery follow-up is the work; taking money is not. The borrower pays the bank and
-// the agent records the bank's reference, so no payment mode may mean "handed to me".
+// The field work is the visit. The app no longer records a payment at all — the
+// borrower pays the bank directly — so what is tested here is the legacy path: an app
+// older than that policy flushing a payment it had queued offline. It must land, and it
+// must land as reported, because refusing it would lose the record of money somebody
+// already paid rather than prevent it.
+//
+// No offered payment mode may mean "handed to me", for the older builds still reading
+// this list to draw their chips.
 $offeredModes = payment_modes();
 
 equals(
@@ -493,7 +499,7 @@ $legacy = api('POST', '/api/v1/recoveries', [
     'receipt_number' => 'LEGACY-' . random_int(100000, 999999),
 ]);
 
-ok(in_array($legacy['status'], [200, 201], true), 'A repayment from an older app is still accepted');
+ok(in_array($legacy['status'], [200, 201], true), 'A payment queued by an older app still lands');
 equals(
     'Cash',
     (string) Database::scalar('SELECT payment_mode FROM recoveries WHERE uuid = :u', ['u' => $legacyUuid]),

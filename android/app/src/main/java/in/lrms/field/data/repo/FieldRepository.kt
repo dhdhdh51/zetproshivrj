@@ -354,7 +354,7 @@ class FieldRepository(
      * Marks the visit ready to send. Everything captured is stored, so the queue
      * survives the app being killed.
      *
-     * @param extras recovery / promise / followup payloads to submit with the visit
+     * @param extras promise / followup payloads to submit with the visit
      */
     suspend fun queueVisit(
         uuid: String,
@@ -419,31 +419,6 @@ class FieldRepository(
         )
 
         return uuid
-    }
-
-    suspend fun queueRecovery(
-        account: AccountEntity,
-        amount: Double,
-        date: String,
-        mode: String,
-        receipt: String?,
-        remarks: String?,
-        visitUuid: String? = null,
-    ): String = withContext(Dispatchers.IO) {
-        queue(
-            OutboxType.RECOVERY,
-            account.id,
-            "Recovery ${Times.money(amount)} — ${account.borrowerName}",
-            mapOf(
-                "loan_account_id" to account.id,
-                "amount" to amount,
-                "recovery_date" to date,
-                "payment_mode" to mode,
-                "receipt_number" to receipt,
-                "remarks" to remarks,
-                "visit_uuid" to visitUuid,
-            ),
-        )
     }
 
     suspend fun queuePromise(
@@ -943,7 +918,6 @@ class FieldRepository(
             }
 
             visit.borrowerSignature?.let { put("borrower_signature", it) }
-            extras["recovery"]?.let { put("recovery", it) }
             extras["promise"]?.let { put("promise", it) }
             extras["followup"]?.let { put("followup", it) }
         }

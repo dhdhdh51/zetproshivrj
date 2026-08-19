@@ -104,10 +104,6 @@
     <string name="label_account">खाता</string>
 
     <!-- Recovery and promise to pay -->
-    <string name="recovery_record">वसूली दर्ज करें</string>
-    <string name="recovery_add">वसूली जोड़ें</string>
-    <string name="recovery_amount">बैंक में जमा की गई राशि</string>
-    <string name="recovery_receipt">बैंक रसीद / ट्रांज़ैक्शन नंबर</string>
     <string name="ptp_title">भुगतान का वादा</string>
     <string name="ptp_add">PTP जोड़ें</string>
     <string name="ptp_amount">वादा राशि</string>
@@ -168,11 +164,6 @@
     <string name="possibility_low">कम</string>
     <string name="possibility_nil">शून्य</string>
     <string name="visit_recommendation">आपकी सिफ़ारिश</string>
-    <string name="visit_recovery_promise">वसूली और वादा</string>
-    <string name="visit_recovery_blank">कुछ जमा या वादा न हुआ हो तो खाली छोड़ें।</string>
-    <string name="recovery_no_cash">पैसा कभी खुद न लें। केवल वही दर्ज करें जो ग्राहक ने बैंक में जमा किया, साथ में रसीद या ट्रांज़ैक्शन नंबर।</string>
-    <string name="payment_bank">बैंक ट्रांसफ़र</string>
-    <string name="payment_cheque">चेक</string>
     <string name="visit_form_title">विज़िट फ़ॉर्म</string>
     <string name="visit_form_note">आपके एडमिन/सुपरवाइज़र द्वारा तय किया गया।</string>
     <string name="visit_submit">विज़िट जमा करें</string>
@@ -185,4 +176,7 @@
     <string name="common_yes">हाँ</string>
     <string name="common_no">नहीं</string>
     <string name="visit_promise_incomplete">वादे के लिए राशि और तारीख़ दोनों ज़रूरी हैं, वरना यह वादा दर्ज नहीं होगा।</string>
+    <string name="visit_promise_section">भुगतान का वादा</string>
+    <string name="visit_promise_blank">ग्राहक ने कोई वादा न किया हो तो खाली छोड़ें।</string>
+    <string name="sync_queued_entries">सिंक होने के लिए क़तार में</string>
 </resources>

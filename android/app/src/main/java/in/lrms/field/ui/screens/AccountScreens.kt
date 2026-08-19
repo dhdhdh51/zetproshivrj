@@ -360,13 +360,8 @@ fun AccountDetailScreen(
                 Text(stringResource(R.string.account_start_visit))
             }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { sheet = "recovery" }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.recovery_add))
-                }
-                OutlinedButton(onClick = { sheet = "promise" }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.ptp_add))
-                }
+            OutlinedButton(onClick = { sheet = "promise" }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.ptp_add))
             }
 
             OutlinedButton(onClick = { sheet = "followup" }, modifier = Modifier.fillMaxWidth()) {
@@ -384,19 +379,6 @@ fun AccountDetailScreen(
     }
 
     when (sheet) {
-        "recovery" -> RecoveryDialog(
-            account = current,
-            onDismiss = { sheet = null },
-            onSave = { amount, mode, receipt, remarks ->
-                current?.let {
-                    viewModel.recordRecovery(it, amount, mode, receipt, remarks) { note ->
-                        message = note
-                        sheet = null
-                    }
-                }
-            },
-        )
-
         "promise" -> PromiseDialog(
             onDismiss = { sheet = null },
             onSave = { amount, date, remarks ->
@@ -421,87 +403,6 @@ fun AccountDetailScreen(
             },
         )
     }
-}
-
-@Composable
-private fun RecoveryDialog(
-    account: AccountEntity?,
-    onDismiss: () -> Unit,
-    onSave: (Double, String, String?, String?) -> Unit,
-) {
-    var amount by remember { mutableStateOf("") }
-    var mode by remember { mutableStateOf("UPI") }
-    var receipt by remember { mutableStateOf("") }
-    var remarks by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.recovery_record)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                account?.let {
-                    Text(
-                        "${it.borrowerName} · overdue ${Times.money(it.overdue)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it.filter { char -> char.isDigit() || char == '.' } },
-                    label = { Text(stringResource(R.string.recovery_amount)) },
-                    singleLine = true,
-                )
-
-                // Shared with the visit screen, so the two cannot offer different
-                // modes — and neither of them offers cash.
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    paymentModes.forEach { (key, labelRes) ->
-                        FilterChip(
-                            selected = mode == key,
-                            onClick = { mode = key },
-                            label = { Text(stringResource(labelRes)) },
-                        )
-                    }
-                }
-
-                Text(
-                    stringResource(R.string.recovery_no_cash),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-
-                OutlinedTextField(
-                    value = receipt,
-                    onValueChange = { receipt = it },
-                    label = { Text(stringResource(R.string.recovery_receipt)) },
-                    singleLine = true,
-                )
-
-                OutlinedTextField(
-                    value = remarks,
-                    onValueChange = { remarks = it },
-                    label = { Text(stringResource(R.string.label_remarks)) },
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val value = amount.toDoubleOrNull() ?: 0.0
-
-                    if (value > 0) {
-                        onSave(value, mode, receipt.ifBlank { null }, remarks.ifBlank { null })
-                    }
-                },
-                enabled = (amount.toDoubleOrNull() ?: 0.0) > 0,
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-    )
 }
 
 @Composable

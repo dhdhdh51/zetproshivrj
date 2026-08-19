@@ -12,11 +12,15 @@ use App\Core\HttpException;
  * Repayments the borrower made to the bank, recorded by the BC Supervisor who
  * followed them up.
  *
- * Not money the agent took. This company's work is recovery follow-up, not cash
- * collection: the borrower pays the bank and the agent records the bank's receipt or
- * transaction number as the proof it happened. That is why 'Cash' is not among the
- * offered payment modes — a mode meaning "handed to me" describes something nobody
- * here is authorised to do.
+ * Not money the agent took, and no longer something the app records at all. The field
+ * work is the visit: the borrower pays the bank directly and this system's job is to
+ * report on the follow-up, not to handle a rupee of it.
+ *
+ * What still writes here is a build of the app older than that policy, flushing a
+ * payment it had already queued offline. Those are accepted and stored as reported —
+ * see FieldController::recovery for why refusing them would lose the record rather
+ * than prevent the payment. Rows already in this table stay: they are history, and the
+ * panel reports read them.
  *
  * Every row is idempotent on its client uuid and keeps its full history: recoveries
  * are never edited in place, they are verified or rejected by an Admin/Supervisor.

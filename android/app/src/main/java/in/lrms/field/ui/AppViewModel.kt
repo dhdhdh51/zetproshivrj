@@ -416,14 +416,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         remarks: String,
         recommendation: String?,
         answers: Map<String, String>,
-        recovery: Map<String, Any?>?,
         promise: Map<String, Any?>?,
         followup: Map<String, Any?>?,
         onDone: () -> Unit,
     ) {
         viewModelScope.launch {
             val extras = buildMap<String, Map<String, Any?>> {
-                recovery?.let { put("recovery", it) }
                 promise?.let { put("promise", it) }
                 followup?.let { put("followup", it) }
             }
@@ -465,21 +463,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /* ------------------------------------------------------------------ */
     /* Standalone entries                                                  */
     /* ------------------------------------------------------------------ */
-
-    fun recordRecovery(
-        account: AccountEntity,
-        amount: Double,
-        mode: String,
-        receipt: String?,
-        remarks: String?,
-        onDone: (String) -> Unit,
-    ) {
-        viewModelScope.launch {
-            repository.queueRecovery(account, amount, Times.today(), mode, receipt, remarks)
-            requestBackgroundSync()
-            onDone("Recovery of ${Times.money(amount)} saved and queued.")
-        }
-    }
 
     fun recordPromise(
         account: AccountEntity,

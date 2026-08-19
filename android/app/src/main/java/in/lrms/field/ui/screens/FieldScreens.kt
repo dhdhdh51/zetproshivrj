@@ -421,7 +421,7 @@ fun OutboxScreen(viewModel: AppViewModel) {
             if (outbox.isNotEmpty()) {
                 item {
                     Text(
-                        "Recovery, PTP, attendance and reports",
+                        stringResource(R.string.sync_queued_entries),
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.padding(top = 8.dp),
                     )

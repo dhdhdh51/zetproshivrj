@@ -103,10 +103,6 @@
     <string name="label_account">Account</string>
 
     <!-- Recovery and promise to pay -->
-    <string name="recovery_record">Record recovery</string>
-    <string name="recovery_add">Add recovery</string>
-    <string name="recovery_amount">Amount paid to the bank</string>
-    <string name="recovery_receipt">Bank receipt / transaction number</string>
     <string name="ptp_title">Promise to pay</string>
     <string name="ptp_add">Add PTP</string>
     <string name="ptp_amount">Promised amount</string>
@@ -178,12 +174,6 @@
     <string name="possibility_low">Low</string>
     <string name="possibility_nil">Nil</string>
     <string name="visit_recommendation">Your recommendation</string>
-    <string name="visit_recovery_promise">Recovery and promise</string>
-    <string name="visit_recovery_blank">Leave blank when nothing was paid or promised.</string>
-    <string name="recovery_no_cash">Never take money yourself. Record only what the borrower paid the bank, and its receipt or transaction number.</string>
-    <string name="payment_upi" translatable="false">UPI</string>
-    <string name="payment_bank">Bank transfer</string>
-    <string name="payment_cheque">Cheque</string>
     <string name="visit_form_title">Visit form</string>
     <string name="visit_form_note">Configured by your Admin/Supervisor.</string>
     <string name="visit_submit">Submit visit</string>
@@ -196,4 +186,7 @@
     <string name="common_yes">Yes</string>
     <string name="common_no">No</string>
     <string name="visit_promise_incomplete">A promise needs both an amount and a date, or it is not recorded as a promise.</string>
+    <string name="visit_promise_section">Promise to pay</string>
+    <string name="visit_promise_blank">Leave blank when the borrower promised nothing.</string>
+    <string name="sync_queued_entries">Entries waiting to sync</string>
 </resources>

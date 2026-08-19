@@ -102,7 +102,7 @@ than `gps_max_accuracy_metres` is rejected, and mock locations are rejected unle
 | POST | `/visits/{uuid}/photos` | token | step 2 — one photograph per call |
 | POST | `/visits/{uuid}/submit` | token | step 3 — validate and finalise |
 | GET | `/visits` | token | own visits |
-| POST | `/recoveries` | token | record money collected |
+| POST | `/recoveries` | token | **legacy** — a payment queued by an app older than v1.5.2; no current build sends one |
 | POST | `/promises` | token | record a promise to pay |
 | GET | `/followups` | token | own follow-ups by status |
 | POST | `/followups` | token | schedule a follow-up |
@@ -398,7 +398,7 @@ second copy. Response also carries the running `photo_count`.
   "recovery_possibility": "medium",
   "borrower_signature": "<base64 png>",
   "supervisor_signature": "<base64 png>",
-  "recovery": { "uuid": "…", "amount": 5000, "recovery_date": "2026-08-18", "payment_mode": "Cash", "receipt_number": "R-101", "remarks": "…" },
+  "recovery": { "…": "legacy, only from an app older than v1.5.2 — see /recoveries below" },
   "promise":  { "uuid": "…", "promise_amount": 10000, "promise_date": "2026-09-01", "remarks": "…" },
   "followup": { "uuid": "…", "followup_date": "2026-08-25", "action": "revisit", "notes": "…" },
   "krm_ots":  { },
@@ -431,7 +431,7 @@ runs either way.
 
 | Endpoint | Required payload | Notes |
 | --- | --- | --- |
-| `POST /recoveries` | `loan_account_id`, `amount`, `recovery_date`, `payment_mode` | `receipt_number` must be unique when supplied; settles any pending promise; optional `visit_uuid` links it to a visit |
+| `POST /recoveries` | `loan_account_id`, `amount`, `recovery_date`, `payment_mode` | **Legacy.** The app no longer takes or records a payment — the work is the visit and the borrower pays the bank. Still accepted so an older install can flush what it queued offline; an unrecognised `payment_mode` is stored verbatim rather than relabelled. `receipt_number` must be unique when supplied; settles any pending promise; optional `visit_uuid` links it to a visit |
 | `POST /promises` | `loan_account_id`, `promise_amount`, `promise_date` | amount must be > 0; optional `followup_date` schedules the reminder; a later recovery settles it automatically, and `bin/cron.php` marks overdue promises broken |
 | `POST /followups` | `loan_account_id`, `followup_date`, `action` | `action` ∈ `call`, `visit`, `notice`, `legal`, `other` (defaults to `visit`) |
 | `POST /krm-ots` | `loan_account_id` + `sanctioned_amount`, `ots_amount`, `paid_amount`, `ots_status`, `promise_date`, `remarks` | separate from the visit report and from CKCC |

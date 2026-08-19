@@ -107,20 +107,6 @@ private val photoTypes = listOf(
     "other" to R.string.photo_type_other,
 )
 
-/**
- * How the borrower paid the bank. The key is stored and reported; the label is
- * translated.
- *
- * There is no cash entry. This company does no cash collection — the borrower pays
- * the bank and the agent records the bank's receipt — so offering a mode that means
- * "handed to me" would invite something nobody here is authorised to do.
- */
-internal val paymentModes = listOf(
-    "UPI" to R.string.payment_upi,
-    "Bank Transfer" to R.string.payment_bank,
-    "Cheque" to R.string.payment_cheque,
-)
-
 /** Recovery possibility, same split of stored key and shown label. */
 private val possibilities = listOf(
     "high" to R.string.possibility_high,
@@ -160,10 +146,8 @@ fun VisitScreen(
     var pendingPhoto by remember { mutableStateOf<File?>(null) }
     var photoType by remember { mutableStateOf("customer") }
 
-    // Money captured with the visit.
-    var recoveryAmount by remember { mutableStateOf("") }
-    var recoveryMode by remember { mutableStateOf("UPI") }
-    var recoveryReceipt by remember { mutableStateOf("") }
+    // What the borrower committed to. No payment is taken or recorded here: this
+    // company's work is the visit, and a promise is a finding of the visit.
     var promiseAmount by remember { mutableStateOf("") }
     var promiseDate by remember { mutableStateOf(Times.date(7)) }
 
@@ -452,58 +436,18 @@ fun VisitScreen(
                 }
             }
 
-            // Money
+            // Promise to pay. What the borrower said they would do, which is a finding
+            // of the visit — not a payment, because no payment passes through here.
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
-                    Text(stringResource(R.string.visit_recovery_promise), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.visit_promise_section), style = MaterialTheme.typography.titleSmall)
                     Text(
-                        stringResource(R.string.visit_recovery_blank),
+                        stringResource(R.string.visit_promise_blank),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    // The rule, on the screen rather than only in a policy document.
-                    Text(
-                        stringResource(R.string.recovery_no_cash),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-
                     Spacer(Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = recoveryAmount,
-                        onValueChange = { recoveryAmount = it.filter { char -> char.isDigit() || char == '.' } },
-                        label = { Text(stringResource(R.string.recovery_amount)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-
-                    if (recoveryAmount.isNotBlank()) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            paymentModes.forEach { (key, labelRes) ->
-                                FilterChip(
-                                    selected = recoveryMode == key,
-                                    onClick = { recoveryMode = key },
-                                    label = { Text(stringResource(labelRes)) },
-                                )
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = recoveryReceipt,
-                            onValueChange = { recoveryReceipt = it },
-                            label = { Text(stringResource(R.string.recovery_receipt)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                        )
-                    }
-
-                    Spacer(Modifier.height(10.dp))
 
                     OutlinedTextField(
                         value = promiseAmount,
@@ -584,15 +528,6 @@ fun VisitScreen(
 
                     error = null
 
-                    val recovery = recoveryAmount.toDoubleOrNull()?.takeIf { it > 0 }?.let { amount ->
-                        mapOf(
-                            "amount" to amount,
-                            "recovery_date" to Times.today(),
-                            "payment_mode" to recoveryMode,
-                            "receipt_number" to recoveryReceipt.ifBlank { null },
-                        )
-                    }
-
                     val promise = promiseAmount.toDoubleOrNull()?.takeIf { it > 0 }?.let { amount ->
                         mapOf(
                             "promise_amount" to amount,
@@ -608,7 +543,6 @@ fun VisitScreen(
                         remarks = remarks,
                         recommendation = recommendation.ifBlank { null },
                         answers = answers.toMap(),
-                        recovery = recovery,
                         promise = promise,
                         followup = null,
                         onDone = onDone,

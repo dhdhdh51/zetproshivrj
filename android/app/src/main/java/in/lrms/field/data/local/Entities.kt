@@ -202,6 +202,15 @@ object SyncState {
 }
 
 object OutboxType {
+    /**
+     * Legacy. Nothing in this app queues a payment any more — the work is the visit,
+     * and money never passes through a field agent.
+     *
+     * The type string stays because an outbox is not a cache: a phone updating from an
+     * earlier build can be holding an unsynced payment entry, and outbox rows are
+     * pushed by the type they were written with. Removing the constant would not
+     * remove those rows, it would only remove the name of what they are.
+     */
     const val RECOVERY = "recovery"
     const val PROMISE = "promise"
     const val FOLLOWUP = "followup"
