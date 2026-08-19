@@ -414,6 +414,52 @@ equals(201, $start['status'], 'Starting a visit with a valid fix succeeds');
 equals($visitUuid, $start['json']['data']['visit']['uuid'] ?? '', 'The visit keeps the client uuid');
 equals('draft', $start['json']['data']['visit']['status'] ?? '', 'A started visit is a draft until submitted');
 
+/* -------------------------------------------------------------------------- */
+section('Case type travels from the handset to the printed report');
+/* -------------------------------------------------------------------------- */
+
+// Section 1 of the paper form ticks one of six case types, and the server has
+// always accepted all six. The app never sent one, so Recovery Follow-up, Pre-NPA
+// Verification and Post-NPA Verification could not be filed at all: whatever the
+// account's work stream happened to be is what got printed. These lock down the
+// wire contract the handset now uses.
+$caseTypes = ['krm_ots', 'ckcc_od2', 'recovery_followup', 'pre_npa', 'post_npa', 'other', 'customer'];
+
+foreach ($caseTypes as $caseType) {
+    $caseUuid = uuid();
+    $started = api('POST', '/api/v1/visits', [
+        'uuid' => $caseUuid,
+        'loan_account_id' => $accountId,
+        'visit_type' => $caseType,
+        'visit_date' => today(),
+        'gps' => $gps,
+    ]);
+
+    equals(201, $started['status'], 'A ' . $caseType . ' visit can be started');
+    equals(
+        $caseType,
+        (string) Database::scalar('SELECT visit_type FROM visits WHERE uuid = :u', ['u' => $caseUuid]),
+        'The server stores the requested case type: ' . $caseType
+    );
+}
+
+// An unknown type must not be stored as given; it falls back to the account's
+// stream rather than putting a value on the form that has no box to tick.
+$junkUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $junkUuid,
+    'loan_account_id' => $accountId,
+    'visit_type' => 'not-a-case-type',
+    'visit_date' => today(),
+    'gps' => $gps,
+]);
+
+$fellBackTo = (string) Database::scalar('SELECT visit_type FROM visits WHERE uuid = :u', ['u' => $junkUuid]);
+ok(
+    in_array($fellBackTo, $caseTypes, true),
+    'An unrecognised case type falls back to a real one (got "' . $fellBackTo . '")'
+);
+
 // Replaying the start must return the same visit, not create a second one.
 $restart = api('POST', '/api/v1/visits', [
     'uuid' => $visitUuid,

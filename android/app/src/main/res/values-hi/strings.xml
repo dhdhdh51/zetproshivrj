@@ -122,4 +122,11 @@
     <string name="action_save">सेव करें</string>
     <string name="action_retry">दोबारा कोशिश करें</string>
     <string name="filter_all">सभी</string>
+    <string name="visit_case_type">केस का प्रकार</string>
+    <string name="visit_case_type_helper">यह विज़िट किस रिपोर्ट के लिए है, चुनें</string>
+    <string name="case_type_customer">वसूली विज़िट</string>
+    <string name="case_type_recovery_followup">वसूली फ़ॉलो-अप</string>
+    <string name="case_type_pre_npa">NPA से पहले सत्यापन</string>
+    <string name="case_type_post_npa">NPA के बाद सत्यापन</string>
+    <string name="case_type_other">अन्य</string>
 </resources>

@@ -219,10 +219,36 @@ class FieldRepository(
      * nothing to fill in.
      */
     suspend fun formTypeForVisit(visitUuid: String): String = withContext(Dispatchers.IO) {
-        val category = db.visits().loanCategoryForVisit(visitUuid)
-        val type = if (category == "krm_ots" || category == "ckcc_od2") category else "customer"
+        formTypeFor(db.visits().visitTypeOf(visitUuid))
+    }
+
+    /**
+     * The form a case type is recorded on.
+     *
+     * Only KRM OTS and CKCC OD-2 have forms of their own. Recovery Follow-up,
+     * Pre-NPA and Post-NPA are verification calls that use the customer form —
+     * they differ in what the report is *for*, not in what is asked at the door.
+     * Falls back to the customer form when a stream's form has not synced yet,
+     * because an empty form would leave a supervisor standing in front of a
+     * borrower with nothing to fill in.
+     */
+    suspend fun formTypeFor(caseType: String?): String = withContext(Dispatchers.IO) {
+        val type = if (caseType == "krm_ots" || caseType == "ckcc_od2") caseType else "customer"
 
         if (db.forms().countForType(type) > 0) type else "customer"
+    }
+
+    /** The case type default for a new visit, from the account's work stream. */
+    fun defaultCaseTypeFor(account: AccountEntity): String = when (account.loanCategory) {
+        "krm_ots" -> "krm_ots"
+        "ckcc_od2" -> "ckcc_od2"
+        else -> "customer"
+    }
+
+    fun observeVisitType(visitUuid: String): Flow<String?> = db.visits().observeVisitType(visitUuid)
+
+    suspend fun setVisitType(visitUuid: String, caseType: String) = withContext(Dispatchers.IO) {
+        db.visits().setVisitType(visitUuid, caseType, System.currentTimeMillis())
     }
 
     fun observeFormFieldsFor(visitType: String): Flow<List<FormFieldEntity>> =
@@ -249,6 +275,7 @@ class FieldRepository(
         accuracy: Double?,
         address: String?,
         isMock: Boolean,
+        visitType: String = "customer",
     ): String = withContext(Dispatchers.IO) {
         val uuid = newUuid()
         val now = System.currentTimeMillis()
@@ -261,6 +288,7 @@ class FieldRepository(
                 borrowerName = account.borrowerName,
                 visitDate = Times.today(),
                 startedAt = Times.nowServerFormat(),
+                visitType = visitType,
                 visitStatus = null,
                 recoveryPossibility = null,
                 remarks = null,
@@ -870,6 +898,10 @@ class FieldRepository(
             put("loan_account_id", visit.accountId)
             put("visit_date", visit.visitDate)
             put("started_at", visit.startedAt)
+            // Tells the server which Case Type to tick on the printed report. Was
+            // never sent, so Recovery Follow-up, Pre-NPA and Post-NPA could not be
+            // filed at all even though the form has boxes for them.
+            put("visit_type", visit.visitType)
             put("visit_status", visit.visitStatus)
             put("recovery_possibility", visit.recoveryPossibility)
             put("remarks", visit.remarks)

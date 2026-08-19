@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FormFieldEntity::class,
         AttendanceEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,7 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lrms-field.db",
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     // Only for a database from an unknown build. Real schema
                     // changes get a migration above, because this database is not
                     // only a cache: it holds the outbox, and a supervisor who
@@ -90,5 +90,18 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 "PRIMARY KEY(`visitType`, `fieldKey`))",
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_form_fields_visitType_sortOrder` ON `form_fields` (`visitType`, `sortOrder`)")
+    }
+}
+
+/**
+ * visits gains visitType.
+ *
+ * ALTER TABLE with a default, not a rebuild: this table holds visits a supervisor
+ * has recorded and not yet synced, and recreating it would throw away field work
+ * that exists nowhere else yet.
+ */
+private val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `visits` ADD COLUMN `visitType` TEXT NOT NULL DEFAULT 'customer'")
     }
 }

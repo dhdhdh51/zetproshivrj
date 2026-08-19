@@ -334,10 +334,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * The form for this visit, chosen from the account's work stream so a KRM OTS
      * or CKCC OD-2 case asks the questions its printed report expects.
      */
+    /**
+     * The form for this visit, following the case type chosen on the visit screen.
+     *
+     * Keyed off observeVisitType so changing the case type mid-form swaps the
+     * questions immediately, rather than after leaving and reopening the screen.
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun formFieldsFor(visitUuid: String) =
-        flow { emit(repository.formTypeForVisit(visitUuid)) }
-            .flatMapLatest { repository.observeFormFieldsFor(it) }
+        repository.observeVisitType(visitUuid)
+            .flatMapLatest { caseType ->
+                flow { emit(repository.formTypeFor(caseType)) }
+                    .flatMapLatest { repository.observeFormFieldsFor(it) }
+            }
+
+    fun observeVisitType(visitUuid: String) = repository.observeVisitType(visitUuid)
+
+    fun setVisitType(visitUuid: String, caseType: String) {
+        viewModelScope.launch { repository.setVisitType(visitUuid, caseType) }
+    }
 
     fun startVisit(account: AccountEntity, fix: FieldLocation, onStarted: (String) -> Unit) {
         viewModelScope.launch {
@@ -348,6 +363,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 accuracy = fix.accuracy,
                 address = null,
                 isMock = fix.isMock,
+                // Starts on the account's own work stream; the supervisor can
+                // change it on the visit screen if this doorstep is something
+                // else — a pre-NPA check on a KRM OTS account, say.
+                visitType = repository.defaultCaseTypeFor(account),
             )
 
             onStarted(uuid)

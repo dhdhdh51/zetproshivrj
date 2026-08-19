@@ -61,12 +61,14 @@ interface VisitDao {
     @Query("SELECT * FROM visits WHERE uuid = :uuid")
     suspend fun find(uuid: String): VisitEntity?
 
-    /** The work stream of the account this visit belongs to. */
-    @Query(
-        "SELECT a.loanCategory FROM visits v JOIN accounts a ON a.id = v.accountId " +
-            "WHERE v.uuid = :uuid LIMIT 1",
-    )
-    suspend fun loanCategoryForVisit(uuid: String): String?
+    @Query("SELECT visitType FROM visits WHERE uuid = :uuid LIMIT 1")
+    suspend fun visitTypeOf(uuid: String): String?
+
+    @Query("SELECT visitType FROM visits WHERE uuid = :uuid LIMIT 1")
+    fun observeVisitType(uuid: String): Flow<String?>
+
+    @Query("UPDATE visits SET visitType = :visitType, updatedAt = :updatedAt WHERE uuid = :uuid")
+    suspend fun setVisitType(uuid: String, visitType: String, updatedAt: Long)
 
     @Query("SELECT * FROM visits WHERE uuid = :uuid")
     fun observe(uuid: String): Flow<VisitEntity?>

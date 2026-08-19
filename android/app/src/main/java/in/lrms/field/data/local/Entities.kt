@@ -56,6 +56,16 @@ data class VisitEntity(
     val borrowerName: String,
     val visitDate: String,
     val startedAt: String,
+    /**
+     * The case type on the printed form: krm_ots, ckcc_od2, recovery_followup,
+     * pre_npa, post_npa, other, or customer.
+     *
+     * Chosen on the visit screen rather than inferred, because only the person
+     * standing there knows whether this doorstep is a renewal call or a pre-NPA
+     * check. It decides which form is asked and which Case Type box is ticked on
+     * the report.
+     */
+    val visitType: String = "customer",
     val visitStatus: String?,
     val recoveryPossibility: String?,
     val remarks: String?,

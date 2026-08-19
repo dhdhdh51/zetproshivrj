@@ -38,8 +38,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.lrms.field.R
 import `in`.lrms.field.camera.PhotoFiles
 import `in`.lrms.field.data.local.FormFieldEntity
 import `in`.lrms.field.ui.AppViewModel
@@ -51,6 +53,22 @@ import `in`.lrms.field.ui.components.Tone
 import `in`.lrms.field.util.FormLogic
 import `in`.lrms.field.util.Times
 import java.io.File
+
+/**
+ * The case types the printed form offers, in the server's order (Visits::CASE_TYPES).
+ *
+ * Resource ids rather than strings: this list is built once at class load, before
+ * the chosen language is known.
+ */
+private val caseTypes = listOf(
+    "krm_ots" to R.string.case_type_krm_ots,
+    "ckcc_od2" to R.string.case_type_ckcc_od2,
+    "recovery_followup" to R.string.case_type_recovery_followup,
+    "pre_npa" to R.string.case_type_pre_npa,
+    "post_npa" to R.string.case_type_post_npa,
+    "customer" to R.string.case_type_customer,
+    "other" to R.string.case_type_other,
+)
 
 private val visitStatuses = listOf(
     "customer_met" to "Customer met",
@@ -92,6 +110,7 @@ fun VisitScreen(
     val visit by viewModel.observeVisit(visitUuid).collectAsState(initial = null)
     val photos by viewModel.observePhotos(visitUuid).collectAsState(initial = emptyList())
     val fields by viewModel.formFieldsFor(visitUuid).collectAsState(initial = emptyList())
+    val caseType by viewModel.observeVisitType(visitUuid).collectAsState(initial = null)
     val locationState by viewModel.location.collectAsStateWithLifecycle()
 
     val answers = remember { mutableStateMapOf<String, String>() }
@@ -268,6 +287,42 @@ fun VisitScreen(
                             }
 
                             StatusChip("queued", Tone.NEUTRAL)
+                        }
+                    }
+                }
+            }
+
+            // Case type first: it decides which questions follow and which box is
+            // ticked on the printed report. Only the person at the door knows
+            // whether this call is a renewal visit or a pre-NPA check.
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(stringResource(R.string.visit_case_type), style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        stringResource(R.string.visit_case_type_helper),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    caseTypes.chunked(2).forEach { row ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            row.forEach { (key, labelRes) ->
+                                FilterChip(
+                                    selected = caseType == key,
+                                    onClick = { viewModel.setVisitType(visitUuid, key) },
+                                    label = { Text(stringResource(labelRes)) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+
+                            if (row.size == 1) {
+                                Spacer(Modifier.weight(1f))
+                            }
                         }
                     }
                 }

@@ -126,4 +126,15 @@
     <string name="action_retry">Retry</string>
     <string name="filter_all">All</string>
     <string name="filter_ptp">PTP</string>
+    <!-- Case type on the visit form: the first thing chosen, because it decides
+         which questions are asked and which box is ticked on the printed report. -->
+    <string name="visit_case_type">Case type</string>
+    <string name="visit_case_type_helper">Choose the report this visit is for</string>
+    <string name="case_type_customer">Recovery visit</string>
+    <string name="case_type_krm_ots">KRM OTS</string>
+    <string name="case_type_ckcc_od2">CKCC OD-2 Renewal</string>
+    <string name="case_type_recovery_followup">Recovery Follow-up</string>
+    <string name="case_type_pre_npa">Pre-NPA Verification</string>
+    <string name="case_type_post_npa">Post-NPA Verification</string>
+    <string name="case_type_other">Other</string>
 </resources>
