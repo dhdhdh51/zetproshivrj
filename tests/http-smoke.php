@@ -398,6 +398,56 @@ $branchCreate = page('/admin/branches/create', 'Add branch');
 ok(str_contains($branchCreate, 'name="zone"'), 'Branch form offers the zone field');
 
 /* -------------------------------------------------------------------------- */
+section('The browser installer refuses to run on an installed site');
+/* -------------------------------------------------------------------------- */
+
+// public/install.php can write the configuration and build the database, so on a
+// live site it must be inert. This database is seeded, so it has to refuse.
+$installer = request($base . '/install.php');
+
+if ($installer['status'] === 200) {
+    ok(
+        str_contains($installer['body'], 'Already installed'),
+        'Installer reports the site is already installed'
+    );
+    ok(
+        !str_contains($installer['body'], '<form method="post"'),
+        'Installer hides its form on an installed site'
+    );
+
+    // A POST straight at it must not get past the guard either.
+    $attack = request($base . '/install.php', [
+        'post' => [
+            'db_host' => 'localhost',
+            'db_name' => 'attacker_db',
+            'db_user' => 'attacker',
+            'admin_email' => 'attacker@example.com',
+            'admin_username' => 'attacker',
+            'admin_password' => 'Attacker123',
+            'timezone' => 'Asia/Kolkata',
+        ],
+    ]);
+
+    ok(
+        str_contains($attack['body'], 'Already installed'),
+        'Installer refuses a POST on an installed site'
+    );
+
+    // The real configuration must be untouched by that attempt.
+    equals(
+        'lrms',
+        (string) App\Core\Config::get('database.database'),
+        'The configured database was not repointed by the installer'
+    );
+    ok(
+        (int) Database::scalar("SELECT COUNT(*) FROM users WHERE username = 'attacker'") === 0,
+        'No account was created by the installer POST'
+    );
+} else {
+    ok(true, 'install.php is not present (already removed) — nothing to guard');
+}
+
+/* -------------------------------------------------------------------------- */
 section('Branch Manager portal and branch isolation');
 /* -------------------------------------------------------------------------- */
 

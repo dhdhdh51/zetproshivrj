@@ -80,8 +80,14 @@ bash deploy/build-package.sh 1.0.0     # -> dist/lrms-1.0.0.zip
 
 Then follow [`docs/HOSTING-CYBERPANEL.md`](docs/HOSTING-CYBERPANEL.md) for
 CyberPanel / OpenLiteSpeed, or [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for
-cPanel, Apache or nginx. After uploading, `php deploy/preflight.php` checks the
-server can actually run it.
+cPanel, Apache or nginx.
+
+On hosting without a command line, open `https://your-domain/install.php` — a
+one-page installer that checks the server, writes the configuration, builds the
+schema and baseline data, creates your admin account with a password you choose,
+and then deletes itself. It refuses to run against a database that already has
+tables or a site that is already installed. With shell access,
+`php deploy/preflight.php` checks the server can run it.
 
 Upgrading an existing install instead of a fresh one? `migrate.php --fresh` is
 destructive, so use the in-place upgrade, which only adds what is missing and is

@@ -5,6 +5,9 @@
 !/storage/generated/.gitkeep
 /storage/logs/*
 !/storage/logs/.gitkeep
+
+# Written by public/install.php once the site is installed.
+/storage/installed.lock
 .DS_Store
 *.log
 .idea/
