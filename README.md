@@ -76,7 +76,15 @@ Then check that `https://your-domain/config/config.php` returns 404 or 403. If i
 downloads a file, the document root is still wrong and your database password is
 public. Fix that before entering any real data.
 
-## Install the database and verify
+## Install it
+
+**No terminal?** Open `https://your-domain/install.php` in a browser. It checks
+the server, asks for your database details and the admin account you want, then
+builds everything and deletes itself. No default password is left behind. It
+refuses to run against a database that already has tables, or a site that is
+already installed.
+
+**With a terminal:**
 
 ```bash
 cd /home/your-domain/public_html

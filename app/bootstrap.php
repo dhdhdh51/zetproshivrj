@@ -71,6 +71,14 @@ if (is_string($urlOverride) && $urlOverride !== '') {
     Config::set('app.url', rtrim($urlOverride, '/'));
 }
 
+// Same idea for the database name, so a build or test can target a scratch
+// database without editing — or risking — the real configuration.
+$databaseOverride = getenv('LRMS_DB_NAME');
+
+if (is_string($databaseOverride) && $databaseOverride !== '') {
+    Config::set('database.database', $databaseOverride);
+}
+
 date_default_timezone_set((string) Config::get('app.timezone', 'Asia/Kolkata'));
 
 $debug = (bool) Config::get('app.debug', false);

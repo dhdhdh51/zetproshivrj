@@ -260,7 +260,32 @@ Three things people get wrong here:
 
 ---
 
-## 7. Install the schema
+## 7. Install — the easy way, in a browser
+
+**No terminal needed.** Open:
+
+```
+https://your-domain/install.php
+```
+
+It checks the server can run LRMS, then asks for your database details and the
+admin account you want. On submit it writes `config/config.local.php`, creates all
+40 tables, loads the roles, report types, settings and the four field forms, and
+creates your account with the password *you* chose — no default password is left
+behind.
+
+It will not touch a database that already has tables, and it refuses to run once
+the site is installed, so it cannot wipe a working system. When it finishes it
+deletes itself; if it cannot, it says so and you must delete
+`public/install.php` yourself.
+
+If connecting fails with a socket error, fill in the **socket path** field —
+some hosts do not accept TCP connections on `localhost`.
+
+Skip to section 8 once it succeeds. The rest of this section is the command-line
+route.
+
+## 7b. Install the schema from a terminal
 
 **Websites ▸ List Websites ▸ Manage ▸ Terminal** (or SSH):
 

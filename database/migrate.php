@@ -18,6 +18,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require __DIR__ . '/../app/bootstrap.php';
+require __DIR__ . '/sql.php';
 
 use App\Core\Database;
 
@@ -143,73 +144,3 @@ if ($seed) {
 }
 
 echo "Done.\n";
-
-/**
- * Split a .sql file into individual statements.
- *
- * The schema contains no stored routines, so a semicolon at the end of a line
- * (outside a quoted string) reliably terminates a statement.
- *
- * @return array<int, string>
- */
-function lrms_split_sql(string $sql): array
-{
-    $statements = [];
-    $current = '';
-    $inString = false;
-    $stringChar = '';
-    $length = strlen($sql);
-
-    for ($i = 0; $i < $length; $i++) {
-        $char = $sql[$i];
-        $next = $sql[$i + 1] ?? '';
-
-        // Skip -- line comments when not inside a string.
-        if (!$inString && $char === '-' && $next === '-') {
-            while ($i < $length && $sql[$i] !== "\n") {
-                $i++;
-            }
-            continue;
-        }
-
-        if ($inString) {
-            if ($char === '\\') {
-                $current .= $char . $next;
-                $i++;
-                continue;
-            }
-
-            if ($char === $stringChar) {
-                $inString = false;
-            }
-
-            $current .= $char;
-            continue;
-        }
-
-        if ($char === "'" || $char === '"' || $char === '`') {
-            $inString = true;
-            $stringChar = $char;
-            $current .= $char;
-            continue;
-        }
-
-        if ($char === ';') {
-            $trimmed = trim($current);
-            if ($trimmed !== '') {
-                $statements[] = $trimmed;
-            }
-            $current = '';
-            continue;
-        }
-
-        $current .= $char;
-    }
-
-    $trimmed = trim($current);
-    if ($trimmed !== '') {
-        $statements[] = $trimmed;
-    }
-
-    return $statements;
-}
