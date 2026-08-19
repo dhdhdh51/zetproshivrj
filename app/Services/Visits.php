@@ -62,22 +62,20 @@ final class Visits
             in_array($visitType, self::STREAM_TYPES, true) ? $visitType : 'customer'
         );
 
-        // GPS is mandatory to start a visit: without a validated point the visit
-        // has no evidentiary value.
+        // Location is recorded but no longer blocks a visit, at the client's
+        // instruction that nothing on this form be mandatory.
+        //
+        // The verdict is still worked out and stored in gps_verified below, and the
+        // point itself is written to visit_gps with its is_valid flag, so a reviewer
+        // can see exactly how trustworthy it was. What changed is the consequence: a
+        // supervisor inside a thick-walled house or in a village with no fix now
+        // files the report and the weak location is visible on it, instead of the
+        // visit going unrecorded because the phone could not see the sky.
         $gpsPayload = is_array($payload['gps'] ?? null) ? $payload['gps'] : [];
 
-        if ($gpsPayload === []) {
-            throw new HttpException(422, 'Location is required to start a visit. Enable GPS and try again.');
-        }
-
-        $gpsCheck = Gps::validate($gpsPayload, (int) $account['branch_id']);
-
-        if (!$gpsCheck['valid']) {
-            throw new HttpException(
-                422,
-                'The captured location was rejected: ' . ($gpsCheck['note'] !== '' ? $gpsCheck['note'] : 'invalid coordinates.')
-            );
-        }
+        $gpsCheck = $gpsPayload === []
+            ? ['valid' => false, 'note' => 'No location was supplied by the device.']
+            : Gps::validate($gpsPayload, (int) $account['branch_id']);
 
         $startedAt = Gps::normaliseTimestamp($payload['started_at'] ?? null) ?? now();
 
@@ -97,7 +95,12 @@ final class Visits
             'server_received_at' => now(),
             'client_created_at' => Gps::normaliseTimestamp($payload['client_created_at'] ?? null),
             'status' => 'draft',
-            'gps_verified' => 1,
+            // The verdict, not a constant. It was hardcoded to 1, which was true
+            // only because a bad fix could not get this far — now that a visit is
+            // never refused for its location, hardcoding it would mark every
+            // report GPS-verified including the ones with no fix at all. That is
+            // the difference between recording a weak location and lying about it.
+            'gps_verified' => $gpsCheck['valid'] ? 1 : 0,
             'device_id' => $deviceId,
             'sync_batch_id' => $syncBatchId,
             'created_at' => now(),
@@ -157,23 +160,14 @@ final class Visits
         }
 
         /* Evidence checks -------------------------------------------------- */
-        $minPhotos = Settings::int('min_visit_photos', 1);
+        // Photographs are counted, not required. A locked house with nobody to
+        // photograph is still a real visit with a real finding, and refusing it
+        // meant that finding was never recorded at all. The count travels with the
+        // report so a reviewer sees what evidence came with it.
         $photoCount = (int) Database::scalar(
             'SELECT COUNT(*) FROM visit_photos WHERE visit_id = :id',
             ['id' => $visitId]
         );
-
-        if ($photoCount < $minPhotos) {
-            throw new HttpException(
-                422,
-                sprintf(
-                    'At least %d photograph%s required. %d uploaded so far.',
-                    $minPhotos,
-                    $minPhotos === 1 ? ' is' : 's are',
-                    $photoCount
-                )
-            );
-        }
 
         $validGpsPoints = (int) Database::scalar(
             'SELECT COUNT(*) FROM visit_gps WHERE visit_id = :id AND is_valid = 1',
@@ -223,27 +217,12 @@ final class Visits
         }
 
         /* Declaration (section 11) ----------------------------------------- */
-        // The KRM OTS and CKCC OD-2 reports carry the RBI / Fair Practices Code
-        // declaration. Where the form asks for it, the report is not a valid
-        // certification unless it was accepted, so refuse rather than store a
-        // report that says "No" against its own declaration.
-        $declarationAsked = false;
-
-        foreach ($fields as $field) {
-            if ((string) $field['field_key'] === 'declaration_accepted') {
-                $declarationAsked = true;
-                break;
-            }
-        }
-
+        // Recorded as given, and no longer a condition of submitting. The report
+        // prints the RBI / Fair Practices Code declaration and ruled signature
+        // lines regardless, and the paper is signed by hand — a tick in the app was
+        // never what made the certification true. Whether it was accepted is stored
+        // on the visit, so a report submitted without it is visible as such.
         $declarationAccepted = $this->tristate($validated['values']['declaration_accepted'] ?? null) === 1;
-
-        if ($declarationAsked && !$declarationAccepted) {
-            throw new HttpException(
-                422,
-                'The declaration must be accepted before this report can be submitted.'
-            );
-        }
 
         /* Deadline classification ------------------------------------------ */
         $visitDate = (string) $visit['visit_date'];

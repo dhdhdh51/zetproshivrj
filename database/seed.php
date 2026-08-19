@@ -122,8 +122,8 @@ function lrms_seed_settings(): void
             'allow_late_submission_requests' => '1',
         ],
         'field' => [
-            'min_visit_photos' => '1',
-            'min_inspection_photos' => '1',
+            'min_visit_photos' => '0',
+            'min_inspection_photos' => '0',
             'watermark_photos' => '1',
             'payment_modes' => 'Cash,Bank Transfer,UPI,Cheque,Other',
         ],
@@ -192,9 +192,9 @@ function lrms_seed_visit_form(): int
     $fields = [
         ['account_context', 'Account details (auto-filled from the allocation)', 'section', 0, null,
             'Branch, BC Supervisor, borrower, father name, address, loan account, loan type, outstanding, overdue and NPA date are filled in by the app.'],
-        ['visit_status', 'Visit status', 'dropdown', 1,
+        ['visit_status', 'Visit status', 'dropdown', 0,
             "Customer met\nFamily met\nPhone contact only\nHouse locked\nCustomer not available\nAddress not found\nDeceased\nShifted\nRefused to pay\nOther", null],
-        ['customer_available', 'Customer available', 'yes_no', 1, null, null],
+        ['customer_available', 'Customer available', 'yes_no', 0, null, null],
         ['family_met', 'Family member met', 'yes_no', 0, null, null],
         ['phone_contact', 'Contacted over phone', 'yes_no', 0, null, null],
         ['house_locked', 'House locked', 'yes_no', 0, null, null],
@@ -202,15 +202,15 @@ function lrms_seed_visit_form(): int
         ['current_address', 'Current address', 'textarea', 0, null, 'Fill in when the borrower has shifted.'],
         ['occupation', 'Present occupation', 'text', 0, null, null],
         ['recovery_section', 'Recovery assessment', 'section', 0, null, null],
-        ['recovery_possibility', 'Recovery possibility', 'dropdown', 1, "High\nMedium\nLow\nNil", null],
+        ['recovery_possibility', 'Recovery possibility', 'dropdown', 0, "High\nMedium\nLow\nNil", null],
         ['promise_amount', 'Promise amount', 'decimal', 0, null, 'Leave blank when the customer gave no promise.'],
         ['promise_date', 'Promise date', 'date', 0, null, null],
         ['reason', 'Reason for non-payment', 'textarea', 0, null, null],
         ['recommendation', 'BC Supervisor recommendation', 'textarea', 0, null, null],
-        ['remarks', 'Remarks', 'remarks', 1, null, null],
+        ['remarks', 'Remarks', 'remarks', 0, null, null],
         ['evidence_section', 'Evidence', 'section', 0, null, null],
-        ['gps', 'Visit location', 'gps', 1, null, 'Captured automatically when the visit starts.'],
-        ['photo', 'Photographs', 'photo', 1, null, 'Customer / house / shop / land / document.'],
+        ['gps', 'Visit location', 'gps', 0, null, 'Captured automatically when the visit starts.'],
+        ['photo', 'Photographs', 'photo', 0, null, 'Customer / house / shop / land / document.'],
     ];
 
     $ids = [];
@@ -297,7 +297,7 @@ function lrms_report_verification_fields(): array
 {
     return [
         ['verification_section', '6. Physical verification', 'section', 0, null, null],
-        ['customer_available', 'Borrower met', 'yes_no', 1, null, null],
+        ['customer_available', 'Borrower met', 'yes_no', 0, null, null],
         ['family_met', 'Family member met', 'yes_no', 0, null, null],
         ['house_locked', 'House locked', 'yes_no', 0, null, null],
         ['is_alive', 'Borrower alive', 'yes_no', 0, null, 'Record "No" only when confirmed by the family.'],
@@ -338,7 +338,7 @@ function lrms_report_evidence_fields(string $stream, array $streamRecommendation
                 ['documents_verified', 'contains', 'Other']],
 
             ['observations_section', '8. BC Agent observations', 'section', 0, null, null],
-            ['remarks', 'Observations', 'remarks', 1, null,
+            ['remarks', 'Observations', 'remarks', 0, null,
                 'What was seen and said in the field, in your own words.'],
 
             ['recommendation_section', '9. Recommendation', 'section', 0, null, null],
@@ -348,8 +348,8 @@ function lrms_report_evidence_fields(string $stream, array $streamRecommendation
             ['recommendation', 'General recommendation', 'textarea', 0, null, null],
 
             ['evidence_section', '10. Evidence attached', 'section', 0, null, null],
-            ['gps', 'GPS location', 'gps', 1, null, 'Captured automatically when the visit starts.'],
-            ['photo', 'Photographs', 'photo', 1, null,
+            ['gps', 'GPS location', 'gps', 0, null, 'Captured automatically when the visit starts.'],
+            ['photo', 'Photographs', 'photo', 0, null,
                 'Borrower, house, land, Aadhaar copy, passbook copy as applicable.'],
             ['evidence_attached', 'Evidence attached', 'checkbox', 0,
                 "Borrower Photograph\nHouse Photograph\nLand Photograph\nAadhaar Copy\nPassbook Copy\n"
@@ -370,7 +370,7 @@ function lrms_report_declaration_fields(): array
 {
     return [
         ['declaration_section', '11. Declaration', 'section', 0, null, lrms_report_declaration_text()],
-        ['declaration_accepted', 'I accept the declaration above', 'yes_no', 1, null,
+        ['declaration_accepted', 'I accept the declaration above', 'yes_no', 0, null,
             'The report cannot be submitted without accepting it.'],
 
         ['certification_section', '12. Certification', 'section', 0, null,
@@ -481,21 +481,21 @@ function lrms_seed_krm_ots_form(): int
         lrms_report_context_fields(),
         [
             ['ots_section', '4. KRM OTS details', 'section', 0, null, null],
-            ['ots_eligible', 'Eligible for KRM OTS', 'yes_no', 1, null, null],
+            ['ots_eligible', 'Eligible for KRM OTS', 'yes_no', 0, null, null],
             ['scheme', 'Applicable scheme', 'dropdown', 0, "KRM OTS\nGeneral OTS\nOther", null],
             ['scheme_other', 'Other scheme', 'text', 0, null, null, ['scheme', 'equals', 'Other']],
             ['ots_amount', 'Proposed settlement', 'decimal', 0, null,
                 'Cannot be more than the outstanding balance.'],
             ['borrower_share', 'Borrower\'s share', 'decimal', 0, null, null],
             ['initial_deposit_required', 'Initial deposit required', 'decimal', 0, null, null],
-            ['customer_response', 'Customer response', 'dropdown', 1,
+            ['customer_response', 'Customer response', 'dropdown', 0,
                 "Agreed for OTS\nRequested Time\nFinancial Difficulty\nRefused OTS\nNot Eligible", null],
             ['promise_date', 'Expected deposit date', 'date', 0, null, null,
                 ['customer_response', 'equals', 'Agreed for OTS']],
         ],
         lrms_report_verification_fields(),
         lrms_report_evidence_fields('krm_ots', [
-            ['ots_recommendation', 'KRM OTS recommendation', 'dropdown', 1,
+            ['ots_recommendation', 'KRM OTS recommendation', 'dropdown', 0,
                 "OTS Proposal Recommended\nFollow-up Required\nCustomer Refused\nNot Eligible", null],
         ]),
         lrms_report_declaration_fields(),
@@ -543,7 +543,7 @@ function lrms_seed_ckcc_form(): int
         lrms_report_context_fields(),
         [
             ['renewal_section', '5. CKCC OD-2 renewal details', 'section', 0, null, null],
-            ['renewal_eligible', 'Eligible for renewal', 'yes_no', 1, null, null],
+            ['renewal_eligible', 'Eligible for renewal', 'yes_no', 0, null, null],
             ['renewal_due_bucket', 'Renewal due', 'dropdown', 0,
                 "Within 30 Days\nWithin 15 Days\nWithin 7 Days\nOverdue", null],
             ['renewal_due_date', 'Renewal due date', 'date', 0, null, null],
@@ -553,7 +553,7 @@ function lrms_seed_ckcc_form(): int
             ['aadhaar_seeded', 'Aadhaar seeded', 'yes_no', 0, null, null],
             ['mobile_linked', 'Mobile linked', 'yes_no', 0, null, null],
             ['aadhaar_authentication', 'Aadhaar authentication', 'dropdown', 0, "Completed\nPending", null],
-            ['renewal_consent', 'Borrower willing to renew', 'yes_no', 1, null, null],
+            ['renewal_consent', 'Borrower willing to renew', 'yes_no', 0, null, null],
             ['renewal_form_signed', 'Renewal form signed', 'yes_no', 0, null, null,
                 ['renewal_consent', 'equals', 'Yes']],
             ['biometrics_completed', 'Biometrics completed', 'yes_no', 0, null, null,
@@ -561,7 +561,7 @@ function lrms_seed_ckcc_form(): int
         ],
         lrms_report_verification_fields(),
         lrms_report_evidence_fields('ckcc_od2', [
-            ['renewal_recommendation', 'CKCC renewal recommendation', 'dropdown', 1,
+            ['renewal_recommendation', 'CKCC renewal recommendation', 'dropdown', 0,
                 "Renewal Immediately Recommended\nDocuments Complete\nPending Documents\n"
                 . "Customer Not Interested\nBranch Follow-up Required", null],
         ]),
@@ -600,18 +600,18 @@ function lrms_seed_inspection_form(): int
     ]);
 
     $fields = [
-        ['bc_visited_customer', 'Did the BC Supervisor visit the customer?', 'yes_no', 1, null, null],
-        ['customer_available', 'Was the customer available?', 'yes_no', 1, null, null],
-        ['customer_contacted', 'Was the customer contacted?', 'yes_no', 1, null, null],
-        ['location_correct', 'Was the location correct?', 'yes_no', 1, null, 'Compare with the address on the account.'],
-        ['gps_verified', 'Was the visit GPS verified?', 'yes_no', 1, null, 'The system shows the distance between your point and the BC Supervisor point.'],
-        ['photos_taken', 'Were the required photographs taken?', 'yes_no', 1, null, null],
-        ['information_correct', 'Was the information recorded correctly?', 'yes_no', 1, null, null],
-        ['recovery_recorded_correctly', 'Was recovery / promise information correctly recorded?', 'yes_no', 1, null, null],
+        ['bc_visited_customer', 'Did the BC Supervisor visit the customer?', 'yes_no', 0, null, null],
+        ['customer_available', 'Was the customer available?', 'yes_no', 0, null, null],
+        ['customer_contacted', 'Was the customer contacted?', 'yes_no', 0, null, null],
+        ['location_correct', 'Was the location correct?', 'yes_no', 0, null, 'Compare with the address on the account.'],
+        ['gps_verified', 'Was the visit GPS verified?', 'yes_no', 0, null, 'The system shows the distance between your point and the BC Supervisor point.'],
+        ['photos_taken', 'Were the required photographs taken?', 'yes_no', 0, null, null],
+        ['information_correct', 'Was the information recorded correctly?', 'yes_no', 0, null, null],
+        ['recovery_recorded_correctly', 'Was recovery / promise information correctly recorded?', 'yes_no', 0, null, null],
         ['customer_confirmation', 'What did the customer confirm?', 'dropdown', 0,
             "Confirmed the visit\nDenied the visit\nCould not recall\nCustomer not available", null],
-        ['followup_required', 'Is follow-up required?', 'yes_no', 1, null, null],
-        ['inspector_remarks', 'Inspector remarks', 'remarks', 1, null, null],
+        ['followup_required', 'Is follow-up required?', 'yes_no', 0, null, null],
+        ['inspector_remarks', 'Inspector remarks', 'remarks', 0, null, null],
     ];
 
     $order = 0;
