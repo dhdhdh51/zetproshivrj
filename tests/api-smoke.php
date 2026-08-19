@@ -378,33 +378,67 @@ if ($otherAccountId > 0) {
 section('Visit flow: start, photo, submit');
 /* -------------------------------------------------------------------------- */
 
-// GPS is mandatory.
-$noGps = api('POST', '/api/v1/visits', ['loan_account_id' => $accountId, 'uuid' => uuid()]);
-equals(422, $noGps['status'], 'Starting a visit without GPS is refused');
+// Nothing about a visit is mandatory any more, location included: a supervisor in
+// a village with no fix, or inside a thick-walled house, files the report instead
+// of losing the visit. What must not happen is the report *claiming* a verified
+// location it does not have — so each case below is accepted and then checked to
+// be recorded as unverified, with the reason kept against the point.
+$verdictOf = static fn (string $uuid): array => Database::selectOne(
+    'SELECT v.gps_verified, g.is_valid, g.validation_note
+       FROM visits v
+  LEFT JOIN visit_gps g ON g.visit_id = v.id
+      WHERE v.uuid = :u
+      LIMIT 1',
+    ['u' => $uuid]
+) ?? [];
 
-// Poor accuracy must be rejected by the server, not just the app.
+$noGpsUuid = uuid();
+$noGps = api('POST', '/api/v1/visits', ['loan_account_id' => $accountId, 'uuid' => $noGpsUuid]);
+equals(201, $noGps['status'], 'A visit with no location can still be started');
+equals(0, (int) ($verdictOf($noGpsUuid)['gps_verified'] ?? -1), 'A visit with no location is not marked GPS-verified');
+
+$badAccuracyUuid = uuid();
 $badAccuracy = api('POST', '/api/v1/visits', [
-    'uuid' => uuid(),
+    'uuid' => $badAccuracyUuid,
     'loan_account_id' => $accountId,
     'gps' => ['latitude' => 25.5389, 'longitude' => 87.5719, 'accuracy' => 5000],
 ]);
-equals(422, $badAccuracy['status'], 'A GPS fix worse than the accuracy limit is rejected');
+equals(201, $badAccuracy['status'], 'A poor fix no longer refuses the visit');
 
-// Mock locations must be rejected.
+$badAccuracyVerdict = $verdictOf($badAccuracyUuid);
+equals(0, (int) ($badAccuracyVerdict['gps_verified'] ?? -1), 'A fix beyond the accuracy limit is recorded unverified');
+equals(0, (int) ($badAccuracyVerdict['is_valid'] ?? -1), 'The point itself is stored as invalid');
+ok(
+    trim((string) ($badAccuracyVerdict['validation_note'] ?? '')) !== '',
+    'The reason the fix was rejected is kept with it'
+);
+
+$mockUuid = uuid();
 $mock = api('POST', '/api/v1/visits', [
-    'uuid' => uuid(),
+    'uuid' => $mockUuid,
     'loan_account_id' => $accountId,
     'gps' => ['latitude' => 25.5389, 'longitude' => 87.5719, 'accuracy' => 12, 'is_mock' => true],
 ]);
-equals(422, $mock['status'], 'A mock location is rejected');
+equals(201, $mock['status'], 'A mock location no longer refuses the visit');
+equals(0, (int) ($verdictOf($mockUuid)['gps_verified'] ?? -1), 'A mock location is recorded unverified, not verified');
 
-// Null Island must be rejected.
+$nullIslandUuid = uuid();
 $nullIsland = api('POST', '/api/v1/visits', [
-    'uuid' => uuid(),
+    'uuid' => $nullIslandUuid,
     'loan_account_id' => $accountId,
     'gps' => ['latitude' => 0, 'longitude' => 0, 'accuracy' => 8],
 ]);
-equals(422, $nullIsland['status'], 'Coordinates of 0,0 are rejected');
+equals(201, $nullIsland['status'], 'Coordinates of 0,0 no longer refuse the visit');
+equals(0, (int) ($verdictOf($nullIslandUuid)['gps_verified'] ?? -1), 'Coordinates of 0,0 are recorded unverified');
+
+// And a real fix must still come out verified, or the flag would mean nothing.
+$goodUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $goodUuid,
+    'loan_account_id' => $accountId,
+    'gps' => ['latitude' => 25.5391, 'longitude' => 87.5721, 'accuracy' => 8],
+]);
+equals(1, (int) ($verdictOf($goodUuid)['gps_verified'] ?? -1), 'A good fix is still marked GPS-verified');
 
 $visitUuid = uuid();
 $gps = [
@@ -549,12 +583,37 @@ equals(
     'Exactly one visit row exists for that uuid'
 );
 
-// Submitting before any photograph must be refused.
-$early = api('POST', '/api/v1/visits/' . $visitUuid . '/submit', [
-    'visit_status' => 'customer_met',
-    'form' => ['visit_status' => 'Customer met', 'customer_available' => 'Yes', 'recovery_possibility' => 'High', 'remarks' => 'Met the borrower.'],
+// A visit with no photograph submits: a locked house with nobody to photograph is
+// still a real finding, and refusing it meant the finding was never recorded.
+// Checked on its own visit, because it now really does submit — running it against
+// the visit the rest of this section uses would close it early.
+$noPhotoUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $noPhotoUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'gps' => $gps,
 ]);
-equals(422, $early['status'], 'Submitting with no photograph is refused');
+
+$noPhoto = api('POST', '/api/v1/visits/' . $noPhotoUuid . '/submit', [
+    'visit_status' => 'house_locked',
+    'form' => ['visit_status' => 'House locked'],
+]);
+
+equals(200, $noPhoto['status'], 'A visit with no photograph and almost nothing filled in submits');
+equals(
+    'submitted',
+    (string) Database::scalar('SELECT status FROM visits WHERE uuid = :u', ['u' => $noPhotoUuid]),
+    'That visit is recorded as submitted'
+);
+equals(
+    0,
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM visit_photos p JOIN visits v ON v.id = p.visit_id WHERE v.uuid = :u',
+        ['u' => $noPhotoUuid]
+    ),
+    'It carries no photographs, and says so'
+);
 
 $photo = api('POST', '/api/v1/visits/' . $visitUuid . '/photos', [
     'data' => samplePhoto(),

@@ -35,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,19 +59,30 @@ import `in`.lrms.field.ui.components.Tone
 import `in`.lrms.field.util.Times
 
 /**
- * Filter key to its label resource.
+ * Work stream chips: which book of accounts the supervisor is looking at.
+ *
+ * Its own row, separate from status, because they are two independent questions.
+ * As one combined filter you could see the KRM OTS accounts or the unvisited ones,
+ * but never the unvisited KRM OTS accounts — which is the list the day's work
+ * actually comes from. The Bankmitra2 leads screen splits them the same way.
  *
  * Resource ids rather than resolved strings: a top-level val is built once, before
  * any composition and before the chosen language is known, so a string captured
  * here would keep the language the process started in.
  */
-private val filters = listOf(
+private val streamFilters = listOf(
+    "all" to R.string.filter_all,
+    "krm_ots" to R.string.stream_krm_ots,
+    "ckcc_od2" to R.string.stream_ckcc,
+    "general" to R.string.stream_general,
+)
+
+/** Visit status chips: how far along each account is. */
+private val statusFilters = listOf(
     "all" to R.string.filter_all,
     "pending" to R.string.account_not_visited,
     "visited" to R.string.account_visited,
     "ptp" to R.string.filter_ptp,
-    "krm_ots" to R.string.stream_krm_ots,
-    "ckcc_od2" to R.string.stream_ckcc,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,7 +90,8 @@ private val filters = listOf(
 fun AccountsScreen(viewModel: AppViewModel, onOpenAccount: (Long) -> Unit) {
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
-    val filter by viewModel.filter.collectAsStateWithLifecycle()
+    val stream by viewModel.stream.collectAsStateWithLifecycle()
+    val status by viewModel.status.collectAsStateWithLifecycle()
     val sync by viewModel.sync.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -101,17 +114,37 @@ fun AccountsScreen(viewModel: AppViewModel, onOpenAccount: (Long) -> Unit) {
                     .padding(top = 8.dp),
             )
 
+            // Work stream first: this is the list being chosen.
             Row(
                 Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 8.dp),
+                    .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                filters.forEach { (key, labelRes) ->
+                streamFilters.forEach { (key, labelRes) ->
+                    val count by viewModel.streamCount(key).collectAsState(initial = 0)
+
                     FilterChip(
-                        selected = filter == key,
-                        onClick = { viewModel.setFilter(key) },
+                        selected = stream == key,
+                        onClick = { viewModel.setStream(key) },
+                        label = { Text(stringResource(labelRes) + if (count > 0) "  $count" else "") },
+                    )
+                }
+            }
+
+            // Then how far along, as a separate question.
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(top = 6.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                statusFilters.forEach { (key, labelRes) ->
+                    FilterChip(
+                        selected = status == key,
+                        onClick = { viewModel.setStatus(key) },
                         label = { Text(stringResource(labelRes)) },
                     )
                 }

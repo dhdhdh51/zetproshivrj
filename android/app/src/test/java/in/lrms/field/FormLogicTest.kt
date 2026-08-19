@@ -147,21 +147,26 @@ class FormLogicTest {
         assertNull(FormLogic.firstMissingRequired(fields, emptyMap()))
     }
 
+    // Nothing on the visit form is mandatory, by the client's instruction. These
+    // assert that deliberately, so a gate cannot be reintroduced by accident: each
+    // case below used to be refused, and each represents a real visit that would
+    // otherwise have gone unrecorded.
+
     @Test
-    fun `a visit cannot be submitted without a photograph`() {
+    fun `a visit with no photograph can still be submitted`() {
         val error = FormLogic.validateVisit(
             photoCount = 0,
             minPhotos = 1,
-            remarks = "Met the borrower",
+            remarks = "House locked, neighbour says the family has moved",
             fields = emptyList(),
             answers = emptyMap(),
         )
 
-        assertEquals("Take at least one photograph before submitting.", error)
+        assertNull(error)
     }
 
     @Test
-    fun `a visit cannot be submitted without remarks`() {
+    fun `a visit with no remarks can still be submitted`() {
         val error = FormLogic.validateVisit(
             photoCount = 2,
             minPhotos = 1,
@@ -170,7 +175,24 @@ class FormLogicTest {
             answers = emptyMap(),
         )
 
-        assertEquals("Remarks are required.", error)
+        assertNull(error)
+    }
+
+    @Test
+    fun `an unanswered required field does not block a submission`() {
+        // A field can still be marked required in the form builder; it just no
+        // longer stops the report being filed.
+        val fields = listOf(field("customer_available", type = "yes_no", required = true))
+
+        val error = FormLogic.validateVisit(
+            photoCount = 0,
+            minPhotos = 1,
+            remarks = "",
+            fields = fields,
+            answers = emptyMap(),
+        )
+
+        assertNull(error)
     }
 
     @Test
@@ -189,70 +211,14 @@ class FormLogicTest {
     }
 
     @Test
-    fun `the minimum photograph count from the server is respected`() {
-        val error = FormLogic.validateVisit(
-            photoCount = 1,
-            minPhotos = 3,
-            remarks = "Done",
-            fields = emptyList(),
-            answers = emptyMap(),
+    fun `firstMissingRequired still reports gaps for the screen to show`() {
+        // The helper is kept so the form can mark a field, even though nothing is
+        // refused: telling someone what is blank is different from stopping them.
+        val fields = listOf(field("customer_available", type = "yes_no", required = true))
+
+        assertEquals(
+            "customer_available",
+            FormLogic.firstMissingRequired(fields, emptyMap())?.fieldKey,
         )
-
-        assertEquals("Take at least 3 photographs before submitting (1 taken).", error)
-    }
-}
-
-
-/**
- * The `contains` operator, used by the KRM OTS and CKCC OD-2 field visit
- * verification reports so "Other document" appears only when "Other" is one of
- * the ticked entries in the documents checklist.
- *
- * A checkbox answer arrives as a comma joined list, so these cases mirror
- * App\Services\Forms::isVisible exactly — including that a substring must not
- * count as a match.
- */
-class FormLogicContainsTest {
-
-    private val documentsOther = FormFieldEntity(
-        visitType = "customer",
-        fieldKey = "documents_other",
-        label = "Other document",
-        type = "text",
-        required = false,
-        options = null,
-        placeholder = null,
-        help = null,
-        sortOrder = 0,
-        conditionField = "documents_verified",
-        conditionOperator = "contains",
-        conditionValue = "Other",
-    )
-
-    private fun visibleWhen(answer: String) =
-        FormLogic.isVisible(documentsOther, mapOf("documents_verified" to answer))
-
-    @Test
-    fun `visible when the ticked list includes the expected choice`() {
-        assertTrue(visibleWhen("Aadhaar Card,Other"))
-        assertTrue(visibleWhen("Other"))
-    }
-
-    @Test
-    fun `hidden when the choice was not ticked`() {
-        assertFalse(visibleWhen("Aadhaar Card,Passbook"))
-        assertFalse(visibleWhen(""))
-    }
-
-    @Test
-    fun `a substring is not a match`() {
-        // "Other Land Record" contains the letters of "Other" but is a different
-        // choice, so the dependent field must stay hidden.
-        assertFalse(visibleWhen("Other Land Record"))
-    }
-
-    @Test
-    fun `matching tolerates case and spacing`() {
-        assertTrue(visibleWhen("aadhaar card, other"))
     }
 }

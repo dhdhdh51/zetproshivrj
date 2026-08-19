@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
@@ -240,18 +241,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    private val _filter = MutableStateFlow("all")
-    val filter: StateFlow<String> = _filter.asStateFlow()
+    /** Work stream: all, krm_ots, ckcc_od2, general. Its own row of chips. */
+    private val _stream = MutableStateFlow("all")
+    val stream: StateFlow<String> = _stream.asStateFlow()
+
+    /** Visit status: all, pending, visited, ptp. A separate question. */
+    private val _status = MutableStateFlow("all")
+    val status: StateFlow<String> = _status.asStateFlow()
 
     private val _accounts = MutableStateFlow<List<AccountEntity>>(emptyList())
     val accounts: StateFlow<List<AccountEntity>> = _accounts.asStateFlow()
 
     init {
-        // Re-run the query whenever the search text or filter changes.
+        // Re-run the query whenever the search text or either filter changes.
         viewModelScope.launch {
-            kotlinx.coroutines.flow.combine(_query, _filter) { query, filter -> query to filter }
-                .collect { (query, filter) ->
-                    repository.observeAccounts(query.trim(), filter).collect { list ->
+            kotlinx.coroutines.flow.combine(_query, _stream, _status) { query, stream, status ->
+                Triple(query, stream, status)
+            }
+                .collectLatest { (query, stream, status) ->
+                    repository.observeAccounts(query.trim(), stream, status).collect { list ->
                         _accounts.value = list
                     }
                 }
@@ -262,9 +270,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _query.value = text
     }
 
-    fun setFilter(value: String) {
-        _filter.value = value
+    fun setStream(value: String) {
+        _stream.value = value
     }
+
+    fun setStatus(value: String) {
+        _status.value = value
+    }
+
+    /** Live count for a stream chip, so the supervisor sees how much work is in each. */
+    fun streamCount(stream: String) = repository.observeStreamCount(stream)
 
     suspend fun account(id: Long): AccountEntity? = repository.account(id)
 

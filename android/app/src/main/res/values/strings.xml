@@ -137,4 +137,5 @@
     <string name="case_type_pre_npa">Pre-NPA Verification</string>
     <string name="case_type_post_npa">Post-NPA Verification</string>
     <string name="case_type_other">Other</string>
+    <string name="stream_general">Recovery</string>
 </resources>

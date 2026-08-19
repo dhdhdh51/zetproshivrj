@@ -55,32 +55,28 @@ object FormLogic {
         }
 
     /**
-     * Everything that stops a visit being submitted, in the order a supervisor
-     * should fix it.
+     * What stops a visit being submitted.
+     *
+     * Nothing, by the client's instruction: no field on this form is mandatory. A
+     * supervisor at a locked house, with no one to photograph, no signal for a fix
+     * and nothing to write, still has a real finding to file — and every check here
+     * used to turn that finding into a visit that was never recorded.
+     *
+     * The function stays rather than being deleted at every call site, because the
+     * server still reports genuine failures (an unknown account, an expired session)
+     * and the screen needs somewhere to put them. It also means re-enabling a check
+     * is one edit here, not a hunt through the UI.
+     *
+     * What is missing is not lost: the report prints which photographs came with a
+     * visit and whether the location was verified, so a thin report is visible as a
+     * thin report instead of being impossible to file.
      */
+    @Suppress("UNUSED_PARAMETER")
     fun validateVisit(
         photoCount: Int,
         minPhotos: Int,
         remarks: String,
         fields: List<FormFieldEntity>,
         answers: Map<String, String>,
-    ): String? {
-        if (photoCount < minPhotos) {
-            return if (minPhotos == 1) {
-                "Take at least one photograph before submitting."
-            } else {
-                "Take at least $minPhotos photographs before submitting ($photoCount taken)."
-            }
-        }
-
-        if (remarks.isBlank()) {
-            return "Remarks are required."
-        }
-
-        firstMissingRequired(fields, answers)?.let { field ->
-            return "${field.label} is required."
-        }
-
-        return null
-    }
+    ): String? = null
 }

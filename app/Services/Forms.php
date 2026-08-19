@@ -292,8 +292,6 @@ final class Forms
                 continue;
             }
 
-            $required = (int) $field['is_required'] === 1;
-
             // Photo, signature and GPS values are recorded by their own tables;
             // the form value only records that they were captured.
             if (self::isCapturedType($type)) {
@@ -304,11 +302,19 @@ final class Forms
                 continue;
             }
 
+            // A blank answer is accepted, whatever is_required says.
+            //
+            // The client's instruction is that nothing on these forms is mandatory.
+            // The flag stays on the field because the app still marks it with an
+            // asterisk, so a supervisor can see what the office would like filled
+            // in — but marking it is all it does. Enforcing it here while the app
+            // submits anyway would be worse than either choice on its own: the
+            // report would be refused by the server after the supervisor had left
+            // the doorstep, with nothing on screen having warned them.
+            //
+            // What was recorded stays visible: a blank field prints blank on the
+            // report rather than the report not existing.
             if ($value === '') {
-                if ($required) {
-                    $errors[$key] = $label . ' is required.';
-                }
-
                 continue;
             }
 

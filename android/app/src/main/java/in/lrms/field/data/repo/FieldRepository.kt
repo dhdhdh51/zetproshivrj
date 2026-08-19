@@ -178,8 +178,10 @@ class FieldRepository(
     /* Local reads                                                         */
     /* ------------------------------------------------------------------ */
 
-    fun observeAccounts(query: String, filter: String): Flow<List<AccountEntity>> =
-        db.accounts().observe(query, filter)
+    fun observeAccounts(query: String, stream: String, status: String): Flow<List<AccountEntity>> =
+        db.accounts().observe(query, stream, status)
+
+    fun observeStreamCount(stream: String): Flow<Int> = db.accounts().observeStreamCount(stream)
 
     suspend fun account(id: Long): AccountEntity? = withContext(Dispatchers.IO) { db.accounts().find(id) }
 

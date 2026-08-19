@@ -25,8 +25,16 @@ interface AccountDao {
     suspend fun count(): Int
 
     /**
-     * The account list the supervisor works from. `filter` is one of all,
-     * pending, visited, ptp, krm_ots, ckcc_od2.
+     * The account list the supervisor works from.
+     *
+     * Work stream and visit status are two independent questions, each with its own
+     * row of chips on screen — the same shape the Bankmitra2 leads screen uses. They
+     * were one combined filter, which meant a supervisor could look at the KRM OTS
+     * accounts or the unvisited ones but never the unvisited KRM OTS accounts, which
+     * is the list they actually work from.
+     *
+     * `stream` is all, krm_ots, ckcc_od2 or general. `status` is all, pending,
+     * visited or ptp.
      */
     @Query(
         """
@@ -37,17 +45,20 @@ interface AccountDao {
                 OR IFNULL(fatherName, '') LIKE '%' || :query || '%'
                 OR IFNULL(mobile, '') LIKE '%' || :query || '%'
                 OR IFNULL(village, '') LIKE '%' || :query || '%')
-           AND (:filter = 'all'
-                OR (:filter = 'pending' AND visitCount = 0)
-                OR (:filter = 'visited' AND visitCount > 0)
-                OR (:filter = 'ptp' AND recoveryStatus = 'ptp')
-                OR (:filter = 'krm_ots' AND loanCategory = 'krm_ots')
-                OR (:filter = 'ckcc_od2' AND loanCategory = 'ckcc_od2'))
+           AND (:stream = 'all' OR loanCategory = :stream)
+           AND (:status = 'all'
+                OR (:status = 'pending' AND visitCount = 0)
+                OR (:status = 'visited' AND visitCount > 0)
+                OR (:status = 'ptp' AND recoveryStatus = 'ptp'))
          ORDER BY overdue DESC
          LIMIT 400
         """,
     )
-    fun observe(query: String, filter: String): Flow<List<AccountEntity>>
+    fun observe(query: String, stream: String, status: String): Flow<List<AccountEntity>>
+
+    /** How many accounts each work stream holds, for the chip labels. */
+    @Query("SELECT COUNT(*) FROM accounts WHERE :stream = 'all' OR loanCategory = :stream")
+    fun observeStreamCount(stream: String): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM accounts WHERE visitCount = 0")
     fun observePendingCount(): Flow<Int>

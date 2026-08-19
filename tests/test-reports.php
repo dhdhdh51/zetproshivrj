@@ -388,7 +388,7 @@ $krmForCkccAccount = Database::selectOne(
 ok($krmForCkccAccount === null, 'A CKCC report creates no KRM OTS case');
 
 /* -------------------------------------------------------------------------- */
-section('The declaration is not optional');
+section('The declaration is recorded, not enforced');
 /* -------------------------------------------------------------------------- */
 
 $refusedAccountId = lrms_test_account('9900000003', $branchId, $supervisorId, 'krm_ots');
@@ -411,27 +411,55 @@ $answers = [
     'ots_recommendation' => 'Customer Refused',
 ];
 
-throws(
-    static function () use ($visits, $refusedUuid, $supervisorId, $answers): void {
-        $visits->submit($refusedUuid, $supervisorId, [
-            'form' => $answers + ['declaration_accepted' => 'No'],
-        ]);
-    },
-    'Refusing the declaration blocks submission',
-    'declaration must be accepted'
+// The declaration no longer blocks a submission — nothing on this form does. It is
+// recorded as answered or not, and the printed report carries the declaration text
+// and ruled signature lines either way, because the paper is signed by hand. What
+// matters is that a report submitted without accepting it is visible as such rather
+// than being indistinguishable from one that was.
+$visits->submit($refusedUuid, $supervisorId, [
+    'form' => $answers + ['declaration_accepted' => 'No'],
+]);
+
+equals(
+    'submitted',
+    (string) Database::scalar('SELECT status FROM visits WHERE uuid = :u', ['u' => $refusedUuid]),
+    'A report with the declaration refused still submits'
 );
 
 equals(
-    'draft',
-    (string) Database::scalar('SELECT status FROM visits WHERE uuid = :u', ['u' => $refusedUuid]),
-    'The report stayed a draft when the declaration was refused'
+    0,
+    (int) Database::scalar('SELECT declaration_accepted FROM visits WHERE uuid = :u', ['u' => $refusedUuid]),
+    'The refusal is recorded against the visit, not silently treated as accepted'
 );
 
-// Accepting it lets the same report through, and a refusal is still a valid
-// outcome to record.
-$visits->submit($refusedUuid, $supervisorId, [
+// Accepting it is recorded too, so the two are told apart. On a fresh visit,
+// because a submitted report is not re-submitted — that idempotency is what stops a
+// retry from a flaky connection filing the same visit twice.
+$acceptedStart = $visits->start($supervisorId, [
+    'uuid' => 'aaaa1111-2222-4333-8444-555566660014',
+    'loan_account_id' => $refusedAccountId,
+    'visit_type' => 'krm_ots',
+    'gps' => lrms_test_gps(),
+], null);
+
+$acceptedUuid = (string) $acceptedStart['visit']['uuid'];
+lrms_test_photo((int) $acceptedStart['visit']['id']);
+
+$visits->submit($acceptedUuid, $supervisorId, [
     'form' => $answers + ['declaration_accepted' => 'Yes'],
 ]);
+
+equals(
+    1,
+    (int) Database::scalar('SELECT declaration_accepted FROM visits WHERE uuid = :u', ['u' => $acceptedUuid]),
+    'Accepting the declaration is recorded'
+);
+
+equals(
+    'submitted',
+    (string) Database::scalar('SELECT status FROM visits WHERE uuid = :u', ['u' => $acceptedUuid]),
+    'And that report submits as well'
+);
 
 equals(
     'submitted',

@@ -223,7 +223,7 @@ fun VisitScreen(
                     }
 
                     Text(
-                        "At least one photograph is required. They are watermarked with your name, " +
+                        "Photographs are watermarked with your name, " +
                             "the time and the coordinates.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -375,7 +375,7 @@ fun VisitScreen(
                     OutlinedTextField(
                         value = remarks,
                         onValueChange = { remarks = it },
-                        label = { Text("Remarks (required)") },
+                        label = { Text("Remarks") },
                         minLines = 2,
                         modifier = Modifier.fillMaxWidth(),
                     )
