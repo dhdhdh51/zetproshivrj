@@ -4,6 +4,9 @@
         <div class="subtitle">.xlsx or .csv. Column names can be anything — you map them on the next screen.</div>
     </div>
     <div class="page-actions">
+        <a class="btn btn-secondary" href="<?= e(url('/admin/imports/sample')) ?>">
+            <?= icon('download', '', 16) ?> Sample Excel
+        </a>
         <a class="btn btn-secondary" href="<?= e(url('/admin/imports')) ?>">Import history</a>
     </div>
 </div>
@@ -34,6 +37,21 @@
         </div>
     </div>
 <?php endif; ?>
+
+<div class="alert alert-info">
+    <?= icon('download', '', 17) ?>
+    <div>
+        <strong>Not sure how the sheet should look?</strong>
+        Download the sample — it has every column heading LRMS recognises and three filled-in example rows,
+        already using <em>your</em> branch codes, so it imports as-is.
+        <a href="<?= e(url('/admin/imports/sample')) ?>">Sample .xlsx</a> ·
+        <a href="<?= e(url('/admin/imports/sample?format=csv')) ?>">Sample .csv</a>
+        <div class="small muted" style="margin-top:4px">
+            The example rows use account numbers starting <code>SAMPLE-</code>. Replace them with your own
+            data — or import once to see how it works, then delete those three accounts.
+        </div>
+    </div>
+</div>
 
 <div class="grid grid-2">
     <div class="card">

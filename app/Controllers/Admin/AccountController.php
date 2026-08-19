@@ -12,8 +12,10 @@ use App\Core\Request;
 use App\Services\Allocation;
 use App\Services\Audit;
 use App\Services\CkccRenewals;
+use App\Services\Excel\SystemFields;
 use App\Services\Forms;
 use App\Services\KrmOts;
+use App\Services\LoanAccounts;
 
 /**
  * The loan book: search, account history, and the allocation screens.
@@ -21,6 +23,128 @@ use App\Services\KrmOts;
 final class AccountController extends BaseController
 {
     private const PER_PAGE = 40;
+
+    /**
+     * The manual entry form.
+     *
+     * Most of the loan book arrives as a spreadsheet, but not all of it: an
+     * account opened after the monthly extract, or one the branch reports over the
+     * phone, previously had no way in at all short of building a one-row Excel
+     * file. The form takes the same fields the importer understands, so the two
+     * routes cannot disagree about what an account is.
+     */
+    public function create(Request $request): void
+    {
+        $this->page('admin.accounts.form', [
+            'title' => 'Add loan account',
+            'fields' => SystemFields::all(),
+            'branches' => $this->branchOptions(),
+            'supervisors' => $this->supervisorOptions(),
+        ]);
+    }
+
+    public function store(Request $request): void
+    {
+        $data = $this->validate($request, $this->accountRules(), [
+            'account_number.unique' => 'That account number is already on the loan book. Open the existing '
+                . 'account instead of creating a second one.',
+        ], '/admin/accounts/create');
+
+        $branchId = (int) $data['branch_id'];
+
+        // The branch is chosen from a dropdown of ids here, so there is no raw
+        // sheet text to record; branch_code_raw stays null and marks this row as
+        // hand-entered rather than imported.
+        $result = LoanAccounts::upsert($data, $branchId, null);
+        $accountId = $result['id'];
+
+        Audit::log(Audit::ACCOUNT_CREATED, [
+            'entity_type' => 'loan_account',
+            'entity_id' => $accountId,
+            'description' => sprintf(
+                'Loan account %s (%s) added by hand.',
+                $data['account_number'],
+                $data['borrower_name']
+            ),
+            'new' => $data,
+        ]);
+
+        $allocation = (string) $request->input('allocation_mode', 'none');
+
+        if ($allocation === 'auto' || $allocation === 'supervisor') {
+            $bcCode = null;
+
+            if ($allocation === 'supervisor') {
+                $supervisorId = (int) $request->input('bc_supervisor_id', 0);
+                $bcCode = $supervisorId > 0
+                    ? (string) Database::scalar(
+                        'SELECT bc_code FROM bc_supervisors WHERE id = :id',
+                        ['id' => $supervisorId]
+                    )
+                    : null;
+            }
+
+            // Reuses the importer's allocation path: by BC code when one is given,
+            // otherwise the least-loaded supervisor in that branch.
+            $outcome = (new Allocation())->allocateImported($accountId, $branchId, $bcCode, null);
+
+            $this->success(
+                ($outcome['assigned'] ?? false)
+                    ? 'Account added and allocated. The supervisor has been notified.'
+                    : 'Account added. It could not be allocated automatically — no active supervisor was '
+                        . 'available in that branch, so allocate it by hand.'
+            );
+        } else {
+            $this->success('Account added. It is not allocated to anyone yet.');
+        }
+
+        $this->redirect('/admin/accounts/' . $accountId);
+    }
+
+    /**
+     * Validation for the manual form.
+     *
+     * Lengths come from SystemFields, which mirrors the column widths, so the form
+     * cannot accept a value the column will silently truncate.
+     *
+     * @return array<string, string>
+     */
+    private function accountRules(): array
+    {
+        $rules = [
+            'account_number' => sprintf(
+                'required|max:%d|unique:loan_accounts,account_number',
+                SystemFields::textLength('account_number')
+            ),
+            'borrower_name' => 'required|max:' . SystemFields::textLength('borrower_name'),
+            'branch_id' => 'required|integer|exists:branches,id',
+            'loan_category' => 'required|in:general,krm_ots,ckcc_od2',
+        ];
+
+        $skip = ['account_number', 'borrower_name', 'branch_name', 'branch_code', 'bc_code'];
+
+        foreach (SystemFields::all() as $key => $field) {
+            if (in_array($key, $skip, true)) {
+                continue;
+            }
+
+            $options = SystemFields::options($key);
+
+            if ($options !== []) {
+                $rules[$key] = 'nullable|in:' . implode(',', array_keys($options));
+
+                continue;
+            }
+
+            $rules[$key] = match ($field['type']) {
+                'date' => 'nullable|date',
+                'amount' => 'nullable|numeric|min:0',
+                default => 'nullable|max:' . SystemFields::textLength($key),
+            };
+        }
+
+        return $rules;
+    }
 
     public function index(Request $request): void
     {
