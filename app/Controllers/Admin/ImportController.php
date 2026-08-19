@@ -299,7 +299,11 @@ final class ImportController extends BaseController
             'mapping' => $importer->mapping($import),
             'systemFields' => SystemFields::all(),
             'errors' => Database::select(
-                'SELECT * FROM excel_import_errors WHERE import_id = :id ORDER BY row_number ASC LIMIT 500',
+                // `row_number` must be quoted: MariaDB and MySQL 8 read the bare
+                // word as the ROW_NUMBER() window function and fail on the next
+                // token. The column name is fine in DDL, where it is already
+                // quoted, which is why this only surfaced when the page was opened.
+                'SELECT * FROM excel_import_errors WHERE import_id = :id ORDER BY `row_number` ASC LIMIT 500',
                 ['id' => $importId]
             ),
             'errorCounts' => Database::select(
