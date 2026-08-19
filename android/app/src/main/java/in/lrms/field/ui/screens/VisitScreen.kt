@@ -507,6 +507,21 @@ fun VisitScreen(
                             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                         )
                     }
+
+                    // Half a promise is not stored as one: the server opens a promise
+                    // case only when an amount and a date arrive together, so an agent
+                    // who clears the date would watch the promise disappear without
+                    // being told. A warning, not a block — nothing on this form is
+                    // mandatory, and the visit is still worth filing without it.
+                    val promiseValue = promiseAmount.replace(",", "").trim().toDoubleOrNull()
+                    if ((promiseValue != null && promiseValue > 0.0) != promiseDate.isNotBlank()) {
+                        Text(
+                            stringResource(R.string.visit_promise_incomplete),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
                 }
             }
 

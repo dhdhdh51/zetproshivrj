@@ -194,4 +194,5 @@
     <string name="action_keep">Keep</string>
     <string name="common_yes">Yes</string>
     <string name="common_no">No</string>
+    <string name="visit_promise_incomplete">A promise needs both an amount and a date, or it is not recorded as a promise.</string>
 </resources>

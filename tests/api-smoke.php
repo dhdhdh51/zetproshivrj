@@ -704,6 +704,60 @@ api('POST', '/api/v1/visits/' . $driftUuid . '/submit', [
 $driftNote = (string) Database::scalar('SELECT gps_note FROM visits WHERE uuid = :u', ['u' => $driftUuid]);
 ok($driftNote !== '' && str_contains($driftNote, 'from where the visit was started'), 'A report filed far from the doorstep says so (' . $driftNote . ')');
 
+// Picking "Other" for occupation and saying which: the answer typed is what gets
+// stored, so the printed report ticks Other and prints the trade beside it. The
+// column could previously only ever hold the word "Other", which left the report's
+// "Occupation as recorded" line unreachable.
+$occupationUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $occupationUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'visit_type' => 'krm_ots',
+    'gps' => $gps,
+]);
+
+api('POST', '/api/v1/visits/' . $occupationUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => [
+        'customer_available' => 'Yes',
+        'occupation' => 'Other',
+        'occupation_other' => 'Tailoring',
+    ],
+]);
+
+equals(
+    'Tailoring',
+    (string) Database::scalar('SELECT occupation FROM visits WHERE uuid = :u', ['u' => $occupationUuid]),
+    'An "Other" occupation is stored as the trade the agent typed'
+);
+
+// And one of the six listed trades is stored as itself, not overwritten by a stale
+// free-text box the agent filled in and then changed their mind about.
+$listedUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $listedUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'visit_type' => 'krm_ots',
+    'gps' => $gps,
+]);
+
+api('POST', '/api/v1/visits/' . $listedUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => [
+        'customer_available' => 'Yes',
+        'occupation' => 'Dairy',
+        'occupation_other' => 'Tailoring',
+    ],
+]);
+
+equals(
+    'Dairy',
+    (string) Database::scalar('SELECT occupation FROM visits WHERE uuid = :u', ['u' => $listedUuid]),
+    'A listed occupation is not overwritten by a leftover "other" box'
+);
+
 $photo = api('POST', '/api/v1/visits/' . $visitUuid . '/photos', [
     'data' => samplePhoto(),
     'photo_type' => 'customer',

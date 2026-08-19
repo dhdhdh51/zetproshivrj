@@ -183,4 +183,5 @@
     <string name="action_keep">रखें</string>
     <string name="common_yes">हाँ</string>
     <string name="common_no">नहीं</string>
+    <string name="visit_promise_incomplete">वादे के लिए राशि और तारीख़ दोनों ज़रूरी हैं, वरना यह वादा दर्ज नहीं होगा।</string>
 </resources>

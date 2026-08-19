@@ -310,6 +310,12 @@ function lrms_report_verification_fields(): array
         ['neighbour_verified', 'Neighbour verification conducted', 'yes_no', 0, null, null],
         ['occupation', 'Current occupation', 'dropdown', 0,
             "Agriculture\nDairy\nBusiness\nLabour\nService\nOther", null],
+        // Reveals when "Other" is chosen, as the reference app does. What is typed
+        // here becomes the stored occupation, so the report prints "Occupation as
+        // recorded: Tailoring" beside the ticked Other box instead of a bare tick
+        // that says nothing.
+        ['occupation_other', 'Which other occupation', 'text', 0, null, null,
+            ['occupation', 'equals', 'Other']],
     ];
 }
 

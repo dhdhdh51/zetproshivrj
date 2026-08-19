@@ -265,7 +265,7 @@ final class Visits
             'is_alive' => $this->tristate($values['is_alive'] ?? null),
             'current_address' => isset($values['current_address']) ? mb_substr($values['current_address'], 0, 500) : null,
             'address_shifted' => $this->tristate($values['address_shifted'] ?? null),
-            'occupation' => isset($values['occupation']) ? mb_substr($values['occupation'], 0, 160) : null,
+            'occupation' => $this->occupation($values),
             // Section 6, the remaining two verification questions.
             'residence_verified' => $this->tristate($values['residence_verified'] ?? null),
             'neighbour_verified' => $this->tristate($values['neighbour_verified'] ?? null),
@@ -659,6 +659,28 @@ final class Visits
         }
 
         return mb_substr(implode(' ', $notes), 0, 255);
+    }
+
+    /**
+     * The occupation as it should be stored and printed.
+     *
+     * "Other" on its own tells a reader nothing. When the agent picks Other and says
+     * which, the answer they typed is what gets stored, so the report ticks the Other
+     * box and prints the trade beside it — the printed form already has that line and
+     * it was unreachable, because the column could only ever hold the word "Other".
+     *
+     * @param array<string, mixed> $values
+     */
+    private function occupation(array $values): ?string
+    {
+        $occupation = trim((string) ($values['occupation'] ?? ''));
+        $other = trim((string) ($values['occupation_other'] ?? ''));
+
+        if (strcasecmp($occupation, 'other') === 0 && $other !== '') {
+            return mb_substr($other, 0, 160);
+        }
+
+        return $occupation === '' ? null : mb_substr($occupation, 0, 160);
     }
 
     private function recoveryPossibility(mixed $value): ?string
