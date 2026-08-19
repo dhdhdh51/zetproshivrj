@@ -8,7 +8,7 @@
     two apps do not name the same thing differently.
 -->
 <resources>
-    <string name="app_name">LRMS Field</string>
+    <string name="app_name" translatable="false">D2 Recovery Solutions &amp; Services</string>
     <string name="app_full_name">Loan Recovery Management System</string>
 
     <!-- Language switcher. Each language is named in its own script. -->
@@ -19,7 +19,7 @@
     <string name="language_change">Change language</string>
 
     <!-- Sign in -->
-    <string name="login_title">LRMS Field</string>
+    <string name="login_title" translatable="false">D2 Recovery Solutions &amp; Services</string>
     <string name="login_subtitle">BC Supervisor sign-in</string>
     <string name="login_identifier">BCBF code or username</string>
     <string name="login_password">Password</string>

@@ -17,11 +17,15 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -37,10 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.io.File
 import `in`.lrms.field.R
 import `in`.lrms.field.camera.PhotoFiles
 import `in`.lrms.field.data.local.FormFieldEntity
@@ -52,7 +57,6 @@ import `in`.lrms.field.ui.components.StatusChip
 import `in`.lrms.field.ui.components.Tone
 import `in`.lrms.field.util.FormLogic
 import `in`.lrms.field.util.Times
-import java.io.File
 
 /**
  * The case types the printed form offers, in the server's order (Visits::CASE_TYPES).
@@ -304,24 +308,44 @@ fun VisitScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
 
-                    caseTypes.chunked(2).forEach { row ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    // A dropdown, as the reference app does it: seven case types as a
+                    // row of chips filled the screen before the first question, and
+                    // the list will only grow. The field reads as one answer with one
+                    // value, which is what it is.
+                    var caseTypeOpen by remember { mutableStateOf(false) }
+                    val selectedLabel = caseTypes.firstOrNull { it.first == caseType }
+                        ?.let { stringResource(it.second) }
+                        ?: ""
+
+                    ExposedDropdownMenuBox(
+                        expanded = caseTypeOpen,
+                        onExpandedChange = { caseTypeOpen = !caseTypeOpen },
+                    ) {
+                        OutlinedTextField(
+                            value = selectedLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.visit_case_type)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = caseTypeOpen) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = caseTypeOpen,
+                            onDismissRequest = { caseTypeOpen = false },
                         ) {
-                            row.forEach { (key, labelRes) ->
-                                FilterChip(
-                                    selected = caseType == key,
-                                    onClick = { viewModel.setVisitType(visitUuid, key) },
-                                    label = { Text(stringResource(labelRes)) },
-                                    modifier = Modifier.weight(1f),
+                            caseTypes.forEach { (key, labelRes) ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(labelRes)) },
+                                    onClick = {
+                                        viewModel.setVisitType(visitUuid, key)
+                                        caseTypeOpen = false
+                                    },
                                 )
-                            }
-
-                            if (row.size == 1) {
-                                Spacer(Modifier.weight(1f))
                             }
                         }
                     }
