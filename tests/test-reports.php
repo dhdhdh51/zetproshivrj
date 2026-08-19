@@ -489,10 +489,36 @@ ok(is_file($ckccPdf['path']), 'CKCC OD-2 report PDF written');
 $krmText = pdf_text($krmPdf['path']);
 $ckccText = pdf_text($ckccPdf['path']);
 
+// The section number and its title are drawn as two runs, in two colours, the
+// way the client's template does it. A text extractor joins those runs with a
+// single space, so headings are compared with whitespace collapsed: the check is
+// that the heading is printed, not how many spaces survive extraction.
+$flat = static fn (string $text): string => (string) preg_replace('/\s+/', ' ', $text);
+$krmFlat = $flat($krmText);
+$ckccFlat = $flat($ckccText);
+
 ok(str_contains($krmText, 'FIELD VISIT VERIFICATION REPORT'), 'Title block printed');
 ok(str_contains($krmText, "RBI Guidelines & Bank's Code of Conduct Compliant Format"), 'Compliance strapline printed');
-ok(str_contains($krmText, '(KRM OTS)'), 'KRM PDF names its case type');
-ok(str_contains($ckccText, '(CKCC OD-2 Renewal)'), 'CKCC PDF names its case type');
+ok(str_contains($krmFlat, $flat(org_name())), 'The organisation name heads the title block');
+ok(str_contains($krmFlat, '(KRM OTS / Recovery Verification Report)'), 'KRM PDF names its case type');
+ok(str_contains($ckccFlat, '(CKCC OD-2 Renewal / Recovery Verification Report)'), 'CKCC PDF names its case type');
+
+// Each report names only its own stream in the title block.
+ok(!str_contains($krmFlat, '(KRM OTS / CKCC OD-2 Renewal'), 'KRM title block does not offer both streams');
+ok(!str_contains($ckccFlat, 'KRM OTS / Recovery'), 'CKCC title block does not offer both streams');
+
+// The closing note the template prints under the last section.
+ok(str_contains($krmFlat, 'Important Note'), 'KRM PDF prints the closing note');
+ok(str_contains($ckccFlat, 'Important Note'), 'CKCC PDF prints the closing note');
+ok(
+    str_contains($krmFlat, 'designed for use in KRM OTS, Recovery Follow-up'),
+    'The KRM closing note lists only the KRM cases'
+);
+ok(
+    str_contains($ckccFlat, 'designed for use in CKCC OD-2 Renewal, Recovery Follow-up'),
+    'The CKCC closing note lists only the renewal cases'
+);
+ok(str_contains($krmFlat, 'Fair Practices Code'), 'The closing note keeps the compliance wording');
 
 // Every section that applies, by its printed heading.
 $sharedSections = [
@@ -510,12 +536,12 @@ $sharedSections = [
 ];
 
 foreach ($sharedSections as $heading) {
-    ok(str_contains($krmText, $heading), 'KRM PDF prints section "' . $heading . '"');
-    ok(str_contains($ckccText, $heading), 'CKCC PDF prints section "' . $heading . '"');
+    ok(str_contains($krmFlat, $flat($heading)), 'KRM PDF prints section "' . $heading . '"');
+    ok(str_contains($ckccFlat, $flat($heading)), 'CKCC PDF prints section "' . $heading . '"');
 }
 
-ok(str_contains($krmText, '4.  KRM OTS DETAILS'), 'KRM PDF prints section 4');
-ok(str_contains($ckccText, '5.  CKCC OD-2 RENEWAL DETAILS'), 'CKCC PDF prints section 5');
+ok(str_contains($krmFlat, '4. KRM OTS DETAILS'), 'KRM PDF prints section 4');
+ok(str_contains($ckccFlat, '5. CKCC OD-2 RENEWAL DETAILS'), 'CKCC PDF prints section 5');
 
 // The separation the client asked for, proven on the printed page.
 ok(!str_contains($krmText, 'CKCC OD-2 RENEWAL DETAILS'), 'KRM PDF omits the CKCC renewal section');

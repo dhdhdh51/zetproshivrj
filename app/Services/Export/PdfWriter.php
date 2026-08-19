@@ -51,8 +51,49 @@ final class PdfWriter
     /** @var array<int, string> */
     private array $metaLines = [];
 
+    /**
+     * Set by documentHeader() when this PDF is the client's form rather than an
+     * ordinary management report.
+     *
+     * @var array{organisation: string, subtitles: array<int, string>}|null
+     */
+    private ?array $documentHeading = null;
+
+    /** True once the full title block has been drawn, so it is not repeated. */
+    private bool $documentHeadingDrawn = false;
+
     private const FONT_REGULAR = 'F1';
     private const FONT_BOLD = 'F2';
+
+    /**
+     * The palette of the client's own Word template, kept as the hex codes taken
+     * from that file so the two can be compared without arithmetic.
+     *
+     * Everything on the printed form is a shaded block — the template sets every
+     * table border to `none`. Drawing boxes with outlines would look tidier on
+     * screen and would not be the document the branch is used to signing.
+     */
+    private const INK_NAVY = '1f3864';      // header block and section bars
+    private const INK_GOLD = 'b8860b';      // report title, section numbers
+    private const INK_WHITE = 'ffffff';
+    private const INK_PALE = 'd9e2f1';      // header subtitles on navy
+    private const INK_TEAL = '0e7c7b';      // the tick glyph
+    private const FILL_TICK = 'eaf4f4';     // tick-box cells
+    private const INK_BODY = '2b2b2b';      // labels and values
+    private const FILL_DECLARATION = 'fbf3df';
+    private const FILL_NOTE = 'eef2f8';
+    private const INK_MUTED = '6b7280';
+
+    /** Hex to the `r g b` triple a PDF content stream wants. */
+    private static function ink(string $hex): string
+    {
+        return sprintf(
+            '%.3F %.3F %.3F',
+            hexdec(substr($hex, 0, 2)) / 255,
+            hexdec(substr($hex, 2, 2)) / 255,
+            hexdec(substr($hex, 4, 2)) / 255
+        );
+    }
 
     public function __construct(private string $orientation = 'portrait', string $size = 'A4')
     {
@@ -80,6 +121,27 @@ final class PdfWriter
         $this->title = $title;
         $this->subtitle = $subtitle;
         $this->metaLines = $metaLines;
+    }
+
+    /**
+     * The four-line title block of the field visit verification report.
+     *
+     * Reproduces the client's template: organisation name, the report title in
+     * gold, and two lines of qualifying text, all centred on navy.
+     *
+     * Pages after the first get a slim navy bar carrying the title only, so a
+     * page that comes loose from the staple can still be identified. The template
+     * itself is one blank page and says nothing about continuation pages.
+     *
+     * @param array<int, string> $subtitles
+     */
+    public function documentHeader(string $organisation, string $title, array $subtitles = []): void
+    {
+        $this->title = $title;
+        $this->documentHeading = [
+            'organisation' => $organisation,
+            'subtitles' => array_values(array_filter($subtitles, static fn (string $l): bool => trim($l) !== '')),
+        ];
     }
 
     public function contentWidth(): float
@@ -115,6 +177,12 @@ final class PdfWriter
 
     private function drawHeaderBand(): void
     {
+        if ($this->documentHeading !== null) {
+            $this->drawDocumentHeading();
+
+            return;
+        }
+
         if ($this->title === '') {
             return;
         }
@@ -152,6 +220,86 @@ final class PdfWriter
             }
 
             $this->y += 4;
+        }
+    }
+
+    /**
+     * The template's title block: organisation, title, two qualifying lines,
+     * centred on navy. Sizes and colours are the template's own.
+     */
+    private function drawDocumentHeading(): void
+    {
+        $heading = $this->documentHeading;
+
+        if ($heading === null) {
+            return;
+        }
+
+        $centre = $this->marginLeft + ($this->contentWidth() / 2);
+
+        // Continuation pages carry a slim bar rather than the whole block.
+        if ($this->documentHeadingDrawn) {
+            $barHeight = 20.0;
+            $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $barHeight, self::ink(self::INK_NAVY), true);
+            $this->setFont(self::FONT_BOLD, 9.5);
+            $this->drawText($centre, $this->y + 13.5, $this->title, self::ink(self::INK_WHITE), 'center');
+            $this->y += $barHeight + 8;
+
+            return;
+        }
+
+        $lines = [
+            ['text' => $heading['organisation'], 'size' => 17.0, 'font' => self::FONT_BOLD, 'ink' => self::INK_WHITE],
+            ['text' => $this->title, 'size' => 13.0, 'font' => self::FONT_BOLD, 'ink' => self::INK_GOLD],
+        ];
+
+        foreach ($heading['subtitles'] as $index => $subtitle) {
+            $lines[] = [
+                'text' => $subtitle,
+                'size' => $index === 0 ? 9.5 : 9.0,
+                'font' => self::FONT_REGULAR,
+                'ink' => self::INK_PALE,
+            ];
+        }
+
+        $padding = 11.0;
+        $gap = 4.5;
+        $blockHeight = $padding * 2;
+
+        foreach ($lines as $line) {
+            $blockHeight += $line['size'] + $gap;
+        }
+
+        $blockHeight -= $gap;
+
+        $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $blockHeight, self::ink(self::INK_NAVY), true);
+
+        $cursor = $this->y + $padding;
+
+        foreach ($lines as $line) {
+            $this->setFont($line['font'], $line['size']);
+            $this->drawText(
+                $centre,
+                $cursor + $line['size'],
+                $this->fit($line['text'], $this->contentWidth() - 16, $line['size'], $line['font']),
+                self::ink($line['ink']),
+                'center'
+            );
+            $cursor += $line['size'] + $gap;
+        }
+
+        $this->y += $blockHeight + 9;
+        $this->documentHeadingDrawn = true;
+
+        if ($this->metaLines !== []) {
+            $this->setFont(self::FONT_REGULAR, 8.0);
+
+            foreach ($this->metaLines as $line) {
+                $this->drawText($this->marginLeft, $this->y + 7, $line, self::ink(self::INK_MUTED));
+                $this->y += 10.5;
+            }
+
+            $this->y += 3;
         }
     }
 
@@ -198,19 +346,87 @@ final class PdfWriter
      */
     public function sectionBand(string $number, string $title): void
     {
-        $height = 16.0;
+        $height = 19.0;
         $this->ensurePage($height + 6);
 
-        $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $height, '0.878 0.902 0.937', true);
-        $this->setFont(self::FONT_BOLD, 9.0);
-        $this->drawText(
-            $this->marginLeft + 6,
-            $this->y + 11.5,
-            rtrim($number, '.') . '.  ' . strtoupper($title),
-            '0.10 0.14 0.22'
-        );
+        // Navy bar, gold number, white title — the template's own styling. The
+        // number and title are separate runs there too, in different colours.
+        $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $height, self::ink(self::INK_NAVY), true);
 
-        $this->y += $height + 6;
+        $label = rtrim($number, '.') . '.  ';
+        $baseline = $this->y + 13.0;
+
+        $this->setFont(self::FONT_BOLD, 11.0);
+        $this->drawText($this->marginLeft + 8, $baseline, $label, self::ink(self::INK_GOLD));
+
+        $offset = $this->textWidth($label, 11.0, self::FONT_BOLD);
+        $this->drawText($this->marginLeft + 8 + $offset, $baseline, strtoupper($title), self::ink(self::INK_WHITE));
+
+        $this->y += $height + 7;
+    }
+
+    /**
+     * A shaded notice block: the declaration and the closing note.
+     *
+     * @param array<int, string> $paragraphs
+     */
+    public function noticeBox(string $fillHex, array $paragraphs, ?string $heading = null, float $size = 9.0): void
+    {
+        $paragraphs = array_values(array_filter($paragraphs, static fn (string $p): bool => trim($p) !== ''));
+
+        if ($paragraphs === []) {
+            return;
+        }
+
+        $padding = 8.0;
+        $inner = $this->contentWidth() - ($padding * 2);
+        $lineHeight = $size + 3.0;
+
+        // Measured first so the shading can be drawn behind the text in one
+        // piece; a block split mid-sentence across a page break looks like a
+        // fault on a document someone has to sign.
+        $blocks = [];
+        $height = $padding * 2;
+
+        if ($heading !== null && $heading !== '') {
+            $blocks[] = ['lines' => [$heading], 'font' => self::FONT_BOLD, 'size' => $size + 0.5];
+            $height += $size + 0.5 + 4.0;
+        }
+
+        foreach ($paragraphs as $paragraph) {
+            $lines = $this->wrap($paragraph, $inner, $size, self::FONT_REGULAR);
+            $blocks[] = ['lines' => $lines, 'font' => self::FONT_REGULAR, 'size' => $size];
+            $height += (count($lines) * $lineHeight) + 4.0;
+        }
+
+        $this->ensurePage($height + 4);
+        $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $height, self::ink($fillHex), true);
+
+        $cursor = $this->y + $padding;
+
+        foreach ($blocks as $block) {
+            $this->setFont($block['font'], $block['size']);
+
+            foreach ($block['lines'] as $line) {
+                $this->drawText($this->marginLeft + $padding, $cursor + $block['size'], $line, self::ink(self::INK_BODY));
+                $cursor += $block['font'] === self::FONT_BOLD ? $block['size'] + 4.0 : $lineHeight;
+            }
+
+            $cursor += 4.0;
+        }
+
+        $this->y += $height + 7;
+    }
+
+    /**
+     * A shaded box left blank for handwriting, as the template does for the
+     * observations and recommendation sections when nothing was typed.
+     */
+    public function writingBox(float $height = 42.0, string $fillHex = self::FILL_NOTE): void
+    {
+        $this->ensurePage($height + 4);
+        $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $height, self::ink($fillHex), true);
+        $this->y += $height + 7;
     }
 
     /**
@@ -231,10 +447,7 @@ final class PdfWriter
         }
 
         if ($label !== null && $label !== '') {
-            $this->ensurePage(14);
-            $this->setFont(self::FONT_BOLD, 8.5);
-            $this->drawText($this->marginLeft, $this->y + 8.5, $label, '0.20 0.25 0.33');
-            $this->y += 13;
+            $this->fieldLabel($label);
         }
 
         $ticked = array_map(
@@ -243,52 +456,86 @@ final class PdfWriter
         );
 
         $columns = max(1, $columns);
-        $columnWidth = $this->contentWidth() / $columns;
-        $rowHeight = 14.0;
-        $box = 7.5;
+        $gutter = 4.0;
+        $cellWidth = ($this->contentWidth() - ($gutter * ($columns - 1))) / $columns;
+        $cellHeight = 17.0;
+        $rowGap = 3.0;
+        $box = 8.0;
         $index = 0;
 
         foreach ($options as $option) {
             $column = $index % $columns;
 
             if ($column === 0) {
-                $this->ensurePage($rowHeight + 2);
+                $this->ensurePage($cellHeight + $rowGap);
             }
 
-            $x = $this->marginLeft + ($column * $columnWidth);
+            $x = $this->marginLeft + ($column * ($cellWidth + $gutter));
             $isTicked = in_array(strtolower(trim($option)), $ticked, true);
 
-            // The box itself.
-            $boxTop = $this->y + 2.5;
-            $this->rect($x, $boxTop, $box, $box, '0.45 0.50 0.58', false);
+            // Each option sits in its own pale cell, as in the template.
+            $this->rect($x, $this->y, $cellWidth, $cellHeight, self::ink(self::FILL_TICK), true);
+
+            // The glyphs the template uses (U+2610 / U+2612) have no place in the
+            // standard PDF fonts, so the box is drawn. It also survives
+            // photocopying, which is what happens to these forms.
+            $boxTop = $this->y + (($cellHeight - $box) / 2);
+            $boxLeft = $x + 5.0;
+            $this->rect($boxLeft, $boxTop, $box, $box, self::ink(self::INK_TEAL), false);
 
             if ($isTicked) {
-                // A cross, drawn corner to corner inside the box.
-                $inset = 1.6;
-                $this->line($x + $inset, $boxTop + $inset, $x + $box - $inset, $boxTop + $box - $inset, '0.10 0.14 0.22');
-                $this->line($x + $inset, $boxTop + $box - $inset, $x + $box - $inset, $boxTop + $inset, '0.10 0.14 0.22');
+                $inset = 1.7;
+                $this->line(
+                    $boxLeft + $inset,
+                    $boxTop + $inset,
+                    $boxLeft + $box - $inset,
+                    $boxTop + $box - $inset,
+                    self::ink(self::INK_TEAL)
+                );
+                $this->line(
+                    $boxLeft + $inset,
+                    $boxTop + $box - $inset,
+                    $boxLeft + $box - $inset,
+                    $boxTop + $inset,
+                    self::ink(self::INK_TEAL)
+                );
             }
 
-            $this->setFont($isTicked ? self::FONT_BOLD : self::FONT_REGULAR, 8.5);
+            $font = $isTicked ? self::FONT_BOLD : self::FONT_REGULAR;
+            $textLeft = $boxLeft + $box + 5.0;
+
+            $this->setFont($font, 9.0);
             $this->drawText(
-                $x + $box + 5,
-                $this->y + 9,
-                $this->fit($option, $columnWidth - $box - 10, 8.5, $isTicked ? self::FONT_BOLD : self::FONT_REGULAR),
-                $isTicked ? '0.10 0.14 0.22' : '0.35 0.40 0.48'
+                $textLeft,
+                $this->y + 11.8,
+                $this->fit($option, $x + $cellWidth - $textLeft - 4, 9.0, $font),
+                self::ink(self::INK_BODY)
             );
 
             $index++;
 
             if ($index % $columns === 0) {
-                $this->y += $rowHeight;
+                $this->y += $cellHeight + $rowGap;
             }
         }
 
         if ($index % $columns !== 0) {
-            $this->y += $rowHeight;
+            $this->y += $cellHeight + $rowGap;
         }
 
-        $this->y += 3;
+        $this->y += 2;
+    }
+
+    /**
+     * A bold sub-heading above a group, as the template puts "Case Type" or
+     * "Gender" above its tick rows.
+     */
+    public function fieldLabel(string $text): void
+    {
+        $this->ensurePage(15);
+        $this->setFont(self::FONT_BOLD, 9.5);
+        $this->drawText($this->marginLeft, $this->y + 9.5, $text, self::ink(self::INK_BODY));
+        $this->y += 14;
     }
 
     /**
@@ -362,7 +609,7 @@ final class PdfWriter
     {
         $columns = max(1, $columns);
         $columnWidth = $this->contentWidth() / $columns;
-        $labelWidth = $columnWidth * 0.42;
+        $labelWidth = $columnWidth * 0.46;
         $valueWidth = $columnWidth - $labelWidth - 8;
         $lineHeight = 10.0;
         $maxLines = 3;
@@ -382,14 +629,23 @@ final class PdfWriter
                 $lines[$maxLines - 1] = $this->fit($lines[$maxLines - 1] . ' ...', $valueWidth, 8.5, self::FONT_BOLD);
             }
 
-            $cells[] = ['label' => (string) $label, 'lines' => $lines === [] ? ['—'] : $lines];
+            // Labels wrap rather than being cut. "Father's / Husband's Name :" is
+            // the borrower's parentage on a bank document; abbreviating it to
+            // "Father's / Husband's N..." is not something to print and sign.
+            $labelText = rtrim((string) $label, ' :') . ' :';
+            $labelLines = $this->wrap($labelText, $labelWidth - 6, 9.0, self::FONT_BOLD);
+
+            $cells[] = [
+                'labelLines' => $labelLines === [] ? [$labelText] : array_slice($labelLines, 0, 2),
+                'lines' => $lines === [] ? ['—'] : $lines,
+            ];
         }
 
         foreach (array_chunk($cells, $columns) as $row) {
             $tallest = 1;
 
             foreach ($row as $cell) {
-                $tallest = max($tallest, count($cell['lines']));
+                $tallest = max($tallest, count($cell['lines']), count($cell['labelLines']));
             }
 
             $rowHeight = max(15.0, ($tallest * $lineHeight) + 5.0);
@@ -398,13 +654,18 @@ final class PdfWriter
             foreach ($row as $column => $cell) {
                 $x = $this->marginLeft + ($column * $columnWidth);
 
-                $this->setFont(self::FONT_REGULAR, 8);
-                $this->drawText(
-                    $x,
-                    $this->y + 10,
-                    $this->fit($cell['label'], $labelWidth - 6, 8, self::FONT_REGULAR),
-                    '0.45 0.50 0.58'
-                );
+                // The template writes "Label :" in bold, the same ink as the
+                // value, rather than the greyed-out caption a screen would use.
+                $this->setFont(self::FONT_BOLD, 9.0);
+
+                foreach ($cell['labelLines'] as $labelIndex => $labelLine) {
+                    $this->drawText(
+                        $x,
+                        $this->y + 10 + ($labelIndex * $lineHeight),
+                        $labelLine,
+                        self::ink(self::INK_BODY)
+                    );
+                }
 
                 $this->setFont(self::FONT_BOLD, 8.5);
 
