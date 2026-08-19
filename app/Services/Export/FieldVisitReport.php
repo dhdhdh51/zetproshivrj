@@ -90,17 +90,27 @@ final class FieldVisitReport
         );
 
         $pdf = new PdfWriter('portrait');
-        $pdf->header(
-            'FIELD VISIT VERIFICATION REPORT',
+
+        // The four-line title block of the client's Word template. Each report
+        // names only its own stream: the master template lists both because it is
+        // one form for both cases, but these are issued separately, and the
+        // client's own filled CKCC example carries just "(CKCC OD-2 Renewal /
+        // Recovery Verification Report)".
+        $pdf->documentHeader(
             org_name(),
+            'FIELD VISIT VERIFICATION REPORT',
             [
                 sprintf(
-                    '(%s)   -   RBI Guidelines & Bank\'s Code of Conduct Compliant Format',
+                    '(%s  /  Recovery Verification Report)',
                     $stream === 'krm_ots' ? 'KRM OTS' : 'CKCC OD-2 Renewal'
                 ),
-                sprintf('Report reference: %s', (string) $visit['uuid']),
+                'RBI Guidelines & Bank\'s Code of Conduct Compliant Format',
             ]
         );
+
+        $pdf->header('FIELD VISIT VERIFICATION REPORT', org_name(), [
+            sprintf('Report reference: %s', (string) $visit['uuid']),
+        ]);
 
         self::sectionGeneral($pdf, $visit, $point);
         self::sectionBorrower($pdf, $visit);
@@ -120,6 +130,7 @@ final class FieldVisitReport
         self::sectionDeclaration($pdf, $visit);
         self::sectionCertification($pdf, $visit);
         self::sectionFinalStatus($pdf, $case, $stream);
+        self::closingNote($pdf, $stream);
 
         $fileName = sprintf(
             '%s-verification-report-%s-%s.pdf',
@@ -563,7 +574,17 @@ final class FieldVisitReport
         $pdf->sectionBand('8', 'BC Agent / DRA observations');
 
         $remarks = trim((string) $visit['remarks']);
-        $pdf->paragraph($remarks === '' ? 'No observations were recorded.' : $remarks);
+
+        if ($remarks === '') {
+            // The template leaves a shaded panel here for handwriting. Printing
+            // "No observations were recorded." instead would deny the branch the
+            // space the form gives them.
+            $pdf->writingBox(46.0);
+
+            return;
+        }
+
+        $pdf->noticeBox('eef2f8', [$remarks], null, 9.0);
     }
 
     /* ------------------------------------------------------------------ */
@@ -588,8 +609,18 @@ final class FieldVisitReport
             $stream === 'krm_ots' ? 'KRM OTS' : 'CKCC Renewal'
         );
 
+        // "General Recommendation" is a bold sub-heading over a panel in the
+        // template, not a label-and-value row.
         $general = trim((string) $visit['recommendation']);
-        $pdf->keyValues(['General Recommendation' => $general === '' ? '' : $general], 1);
+        $pdf->fieldLabel('General Recommendation');
+
+        if ($general === '') {
+            $pdf->writingBox(40.0);
+
+            return;
+        }
+
+        $pdf->noticeBox('eef2f8', [$general], null, 9.0);
     }
 
     /* ------------------------------------------------------------------ */
@@ -640,13 +671,38 @@ final class FieldVisitReport
     /**
      * @param array<string, mixed> $visit
      */
+    /**
+     * The closing note the template prints under the last section.
+     *
+     * The wording is the client's, with only the case list narrowed to the stream
+     * this report covers — their own CKCC example does exactly that.
+     */
+    private static function closingNote(PdfWriter $pdf, string $stream): void
+    {
+        $cases = $stream === 'krm_ots'
+            ? 'KRM OTS, Recovery Follow-up, Pre-NPA Verification, and Post-NPA Verification cases'
+            : 'CKCC OD-2 Renewal, Recovery Follow-up, Pre-NPA Verification, and Post-NPA Verification cases';
+
+        $pdf->spacer(2);
+        $pdf->noticeBox(
+            'eef2f8',
+            [
+                'This report is designed for use in ' . $cases . '. It is intended to support field '
+                . 'verification, customer due diligence, recovery monitoring, renewal processing, and timely '
+                . 'preventive action in accordance with the applicable RBI guidelines, the Bank\'s internal '
+                . 'policies, and the Fair Practices Code.',
+            ],
+            'Important Note',
+            8.5
+        );
+    }
+
     private static function sectionDeclaration(PdfWriter $pdf, array $visit): void
     {
         $pdf->sectionBand('11', 'Declaration');
 
-        foreach (self::declarationParagraphs() as $paragraph) {
-            $pdf->paragraph($paragraph, 8.5);
-        }
+        // One cream block, as in the template, rather than loose paragraphs.
+        $pdf->noticeBox('fbf3df', self::declarationParagraphs(), null, 8.5);
 
         $accepted = (int) ($visit['declaration_accepted'] ?? 0) === 1;
 
@@ -762,14 +818,10 @@ final class FieldVisitReport
             $stream === 'krm_ots' ? 'KRM OTS' : 'CKCC OD-2 Renewal'
         );
 
-        $pdf->spacer(4);
-        $pdf->paragraph(
-            'This report is designed for use in KRM OTS, CKCC OD-2 Renewal, Recovery Follow-up, Pre-NPA '
-            . 'Verification and Post-NPA Verification cases. It supports field verification, customer due '
-            . 'diligence, recovery monitoring, renewal processing and timely preventive action in accordance with '
-            . 'the applicable RBI guidelines, the Bank\'s internal policies and the Fair Practices Code.',
-            7.5
-        );
+        // The closing note is drawn by closingNote() as the template's shaded
+        // "Important Note" block. The loose paragraph that used to sit here also
+        // listed CKCC OD-2 Renewal on a KRM report, which these two separate
+        // reports are specifically meant not to do.
     }
 
     /* ------------------------------------------------------------------ */
