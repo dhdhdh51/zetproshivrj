@@ -91,15 +91,18 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
 
-      # A pull request never produces a signed release build — it has no access
-      # to the signing secrets — so the debug APK is published instead. That
-      # gives a reviewer something installable without merging first. It is
-      # debug signed and points at the development API, so it is for testing
-      # only.
-      - name: Upload debug APK
+      # Published only for pull requests, which produce no release build because
+      # they have no access to the signing secrets. Everywhere else the release
+      # job publishes the real APK, and offering a debug APK beside it is a trap:
+      # it is compiled against 10.0.2.2, the address an emulator uses to reach
+      # the machine hosting it, so on a real handset every request times out and
+      # looks exactly like a bad mobile signal. The name says so, because an
+      # artifact list is the only thing someone sees before downloading.
+      - name: Upload debug APK (emulator only)
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: LRMS-debug-apk
+          name: EMULATOR-ONLY-debug-apk-DO-NOT-INSTALL-ON-A-PHONE
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
           if-no-files-found: error
@@ -192,6 +195,7 @@ jobs:
                "secrets before distributing this build."
 
       - name: Build release APK and AAB
+        id: build
         working-directory: android
         env:
           LRMS_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -210,12 +214,17 @@ jobs:
           fi
 
           if [[ -n "$API_URL" ]]; then
-            echo "Using API base URL: $API_URL"
+            echo "Using API base URL from CI: $API_URL"
             ARGS+=("-PlrmsApiUrl=${API_URL}")
           else
-            echo "::warning::Neither the LRMS_API_URL repository variable nor an input was" \
-                 "provided; the release default from app/build.gradle.kts will be used."
+            # Not a warning: gradle.properties carries the production URL, so a
+            # build with nothing configured still reaches the real server.
+            API_URL="$(sed -n 's/^lrmsReleaseApiUrl=//p' gradle.properties | tail -1)"
+            echo "Using the committed release API base URL: $API_URL"
           fi
+
+          # Recorded so the run page states which server this APK talks to.
+          echo "api_url=${API_URL}" >> "$GITHUB_OUTPUT"
 
           if [[ -n "${{ steps.keystore.outputs.path }}" ]]; then
             ARGS+=("-PlrmsKeystoreFile=${{ steps.keystore.outputs.path }}")
@@ -333,6 +342,10 @@ jobs:
             echo "### LRMS Android build"
             echo
             echo "- Version: \`${{ steps.version.outputs.name }}\` (code ${{ steps.version.outputs.code }})"
+            echo "- Server this APK talks to: \`${{ steps.build.outputs.api_url }}\`"
             echo "- Signing: ${{ steps.keystore.outputs.path != '' && 'release keystore from secrets' || 'debug key (no secrets configured)' }}"
-            echo "- Artifacts: APK and AAB attached to this run"
+            echo
+            echo "**Install this one:** artifact \`LRMS-${{ steps.artifacts.outputs.version }}-release-apk\`"
+            echo
+            echo "The \`.aab\` is for Google Play upload only — a phone cannot install it."
           } >> "$GITHUB_STEP_SUMMARY"

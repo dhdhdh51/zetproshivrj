@@ -39,8 +39,14 @@ sealed class ApiResult<out T> {
         val permanent: Boolean get() = status in 400..499 && status != 401 && status != 408 && status != 429
     }
 
+    /**
+     * The message states only what failed. The sync screens compose their own
+     * wording about queued work, so promising "your work is saved" here ends up
+     * on the sign-in screen, where there is no work to save and it reads as
+     * nonsense.
+     */
     data class Offline(
-        val message: String = "No connection. Your work is saved on this device.",
+        val message: String = "No connection to the server.",
         val reason: Reason = Reason.NO_NETWORK,
     ) : ApiResult<Nothing>()
 
@@ -85,6 +91,17 @@ object ApiClient {
     } catch (e: Exception) {
         BuildConfig.API_BASE_URL
     }
+
+    /**
+     * True when this build points at a developer machine rather than a real server.
+     *
+     * 10.0.2.2 is how an emulator reaches the host it runs on; on a physical handset
+     * nothing is there, so every call simply times out. A debug APK sitting next to
+     * the release APK in the same CI run is easy to install by mistake, and without
+     * this the only symptom is a timeout that looks like a bad mobile signal.
+     */
+    val isDeveloperEndpoint: Boolean =
+        host == "10.0.2.2" || host == "127.0.0.1" || host == "localhost"
 
     fun create(session: SessionStore): ApiService {
         val authInterceptor = Interceptor { chain ->
@@ -169,7 +186,7 @@ object ApiClient {
             )
         } catch (e: SocketTimeoutException) {
             ApiResult.Offline(
-                "$host did not answer in time. Your work is saved on this device.",
+                "$host did not answer in time.",
                 ApiResult.Reason.TIMEOUT,
             )
         } catch (e: ConnectException) {
@@ -184,7 +201,7 @@ object ApiClient {
             )
         } catch (e: IOException) {
             ApiResult.Offline(
-                "Connection to $host failed (${e.javaClass.simpleName}). Your work is saved on this device.",
+                "Connection to $host failed (${e.javaClass.simpleName}).",
                 ApiResult.Reason.OTHER,
             )
         } catch (e: Exception) {

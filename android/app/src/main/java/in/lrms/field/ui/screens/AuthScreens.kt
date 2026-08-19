@@ -66,6 +66,17 @@ fun LoginScreen(viewModel: AppViewModel) {
 
                 Spacer(Modifier.height(20.dp))
 
+                // Installing the debug APK by mistake used to look like a bad
+                // signal: every call to 10.0.2.2 just timed out. Say so up front.
+                if (ApiClient.isDeveloperEndpoint) {
+                    InlineNotice(
+                        "This is a developer build. It is set to ${ApiClient.host}, which only exists on " +
+                            "an emulator, so sign-in cannot work on a phone. Install the release APK instead.",
+                        Tone.WARNING,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
                 if (auth.error != null) {
                     InlineNotice(auth.error!!, Tone.DANGER)
                     Spacer(Modifier.height(12.dp))
