@@ -643,7 +643,7 @@ final class StaffController extends BaseController
             // Accepts a full Aadhaar number or just the last four; only the last
             // four are stored (see below).
             'aadhaar_number' => 'nullable|max:20',
-            'pan_number' => 'nullable|max:12|regex:/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/',
+            'pan_number' => ['nullable', 'max:12', 'regex:/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/'],
             'block' => 'nullable|max:120',
             'tehsil' => 'nullable|max:120',
             'district' => 'nullable|max:120',
