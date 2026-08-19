@@ -186,12 +186,24 @@ jobs:
           echo "path=${KEYSTORE_PATH}" >> "$GITHUB_OUTPUT"
           echo "Keystore restored ($(stat -c%s "$KEYSTORE_PATH") bytes)."
 
+      # A build for a tag is a release someone will hand out or upload. The debug
+      # key fallback exists so there is always an installable APK, but it must not
+      # become the key a release is shipped under: it is Android's shared debug
+      # key, anyone can sign with it, and a store will not take it.
+      - name: Refuse to publish a tag without a signing key
+        if: startsWith(github.ref, 'refs/tags/v') && steps.keystore.outputs.path == ''
+        run: |
+          echo "::error::This tag would be signed with Android's debug key."
+          echo "Add the KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD"
+          echo "secrets, then re-run. See KEYSTORE-SETUP.md."
+          exit 1
+
       - name: Warn when no signing secrets are configured
         if: steps.keystore.outputs.path == ''
         run: |
-          echo "::warning::KEYSTORE_BASE64 is not set. The release build will be signed with the" \
-               "debug key so the pipeline still produces an installable APK. Add the signing" \
-               "secrets before distributing this build."
+          echo "::warning::No signing secrets configured; this APK is signed with the" \
+               "Android debug key. It installs, but it cannot install *over* an APK" \
+               "signed with a different key, so the app must be uninstalled first."
 
       - name: Build release APK and AAB
         id: build
@@ -342,7 +354,14 @@ jobs:
             echo
             echo "- Version: \`${{ steps.version.outputs.name }}\` (code ${{ steps.version.outputs.code }})"
             echo "- Server this APK talks to: \`${{ steps.build.outputs.api_url }}\`"
-            echo "- Signing: ${{ steps.keystore.outputs.path != '' && 'release keystore from secrets' || 'debug key (no secrets configured)' }}"
+            echo "- Signing: ${{ steps.keystore.outputs.path != '' && '**release keystore from secrets**' || '**debug key** - no signing secrets configured' }}"
+            if [[ -z "${{ steps.keystore.outputs.path }}" ]]; then
+              echo
+              echo "> This APK is signed with Android's debug key. It installs and runs, but"
+              echo "> it cannot install over an APK signed with a different key, so the old"
+              echo "> app has to be uninstalled first. Add the four signing secrets"
+              echo "> (see \`KEYSTORE-SETUP.md\`) and every build after that upgrades in place."
+            fi
             echo
             echo "**Install this one:** artifact \`LRMS-${{ steps.artifacts.outputs.version }}-release-apk\`"
             echo
