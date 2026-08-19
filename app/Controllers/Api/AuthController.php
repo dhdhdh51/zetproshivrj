@@ -38,9 +38,13 @@ final class AuthController extends ApiController
         $userKey = 'api-login:user:' . strtolower($login);
         $maxAttempts = (int) Config::get('security.login_max_attempts', 5);
         $decay = ((int) Config::get('security.login_decay_minutes', 15)) * 60;
+        // The IP ceiling is separate and much higher: a shared carrier address or
+        // one office connection carries the whole team's sign-ins, so the username
+        // limit is what guards an account and this only stops a flood.
+        $ipMaxAttempts = max($maxAttempts, (int) Config::get('security.login_ip_max_attempts', 50));
 
-        foreach ([$ipKey, $userKey] as $key) {
-            if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
+        foreach ([$userKey => $maxAttempts, $ipKey => $ipMaxAttempts] as $key => $limit) {
+            if (RateLimiter::tooManyAttempts($key, $limit)) {
                 $this->fail(
                     sprintf(
                         'Too many sign-in attempts. Try again in %d minute(s).',

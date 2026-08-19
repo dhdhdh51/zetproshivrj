@@ -44,10 +44,14 @@ final class AuthController extends Controller
 
         $maxAttempts = (int) Config::get('security.login_max_attempts', 5);
         $decay = ((int) Config::get('security.login_decay_minutes', 15)) * 60;
+        // The IP ceiling is separate and much higher: a branch office shares one
+        // connection, so the username limit is what guards an account and this only
+        // stops a flood from a single address.
+        $ipMaxAttempts = max($maxAttempts, (int) Config::get('security.login_ip_max_attempts', 50));
 
         // Throttle by both address and account so one does not mask the other.
-        foreach ([$ipKey, $userKey] as $key) {
-            if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
+        foreach ([$userKey => $maxAttempts, $ipKey => $ipMaxAttempts] as $key => $limit) {
+            if (RateLimiter::tooManyAttempts($key, $limit)) {
                 $seconds = RateLimiter::availableIn($key);
 
                 Audit::log(Audit::LOGIN_FAILED, [
