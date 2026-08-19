@@ -11,9 +11,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-private val Navy = Color(0xFF1E3A5F)
-private val NavyDark = Color(0xFF0B1220)
-private val NavyLight = Color(0xFFE8EEF7)
+// The organisation's brand pair, the same values as res/values/colors.xml, the
+// Bankmitra2 app and the navy/gold section bars on the printed verification
+// report. Defined here as well because Compose cannot read an XML colour without a
+// context, and a second approximate navy is how two screens end up disagreeing.
+private val Navy = Color(0xFF0B2A5B)
+private val NavyDark = Color(0xFF071D40)
+private val NavyLight = Color(0xFFE7EDF8)
+private val Gold = Color(0xFFF2B21C)
 private val Success = Color(0xFF15803D)
 private val Warning = Color(0xFFA16207)
 private val Danger = Color(0xFFB91C1C)
@@ -28,7 +33,8 @@ private val LightColors = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = NavyLight,
     onPrimaryContainer = Navy,
-    secondary = Color(0xFF24507F),
+    secondary = Gold,
+    onSecondary = Color(0xFF1A1206),
     onSecondary = Color.White,
     background = Canvas,
     onBackground = Color(0xFF0F172A),

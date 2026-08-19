@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Brand colours, taken from the organisation's own Bankmitra2 app so the two
-    apps and the printed report look like one product: navy is the primary, gold
-    the accent. The same pair appears on the field visit verification report,
-    where the section bars are navy with gold numbering.
+    Brand colours, taken from the organisation's own Bankmitra2 app so the two apps
+    and the printed report look like one product: navy primary, gold accent. The
+    same pair sets the section bars on the field visit verification report.
+
+    Compose keeps its own copies of these values in ui/theme/Theme.kt, because a
+    Compose colour cannot be read from XML without a context. Both must move
+    together; a second approximate navy is how two screens end up disagreeing.
 -->
 <resources>
-    <color name="lrms_brand_navy">#0B2A5B</color>
-    <color name="lrms_brand_gold">#F2B21C</color>
-
     <color name="brand">#0B2A5B</color>
     <color name="brand_dark">#071D40</color>
     <color name="brand_light">#E7EDF8</color>
+    <color name="brand_accent">#F2B21C</color>
     <color name="white">#FFFFFF</color>
 </resources>
