@@ -205,6 +205,9 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
+    // For AppCompatDelegate.setApplicationLocales: the per-app language
+    // picker, backported below API 33 (minSdk here is 24).
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.navigation.compose)

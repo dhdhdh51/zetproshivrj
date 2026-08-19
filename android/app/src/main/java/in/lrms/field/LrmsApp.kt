@@ -10,11 +10,17 @@ import `in`.lrms.field.data.remote.ApiClient
 import `in`.lrms.field.data.remote.ApiService
 import `in`.lrms.field.data.repo.FieldRepository
 import `in`.lrms.field.sync.SyncWorker
+import `in`.lrms.field.util.AppLanguage
 
 class LrmsApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Before anything reads a string. Notification channels, the sync worker
+        // and the foreground service all resolve text without an Activity in
+        // sight, and they must speak the language the supervisor chose.
+        AppLanguage.apply(AppLanguage.fromTag(ServiceLocator.session(this).languageTag()))
 
         // WorkManager is initialised here (its default initialiser is removed in
         // the manifest) so it is always configured before the first sync request.

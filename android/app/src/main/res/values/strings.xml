@@ -1,5 +1,127 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    English source strings.
+
+    Every string a supervisor can read belongs here, not in a Kotlin literal, so
+    values-hi/strings.xml can carry the Hindi and Android can pick between them.
+    Hindi wording follows the Bankmitra2 app used by the same field staff, so the
+    two apps do not name the same thing differently.
+-->
 <resources>
     <string name="app_name">LRMS Field</string>
-    <string name="app_tagline">Loan Recovery Management System</string>
+    <string name="app_full_name">Loan Recovery Management System</string>
+
+    <!-- Language switcher. Each language is named in its own script. -->
+    <string name="language">Language</string>
+    <string name="language_english">English</string>
+    <string name="language_hindi">हिन्दी</string>
+    <string name="language_system">Phone language</string>
+    <string name="language_change">Change language</string>
+
+    <!-- Sign in -->
+    <string name="login_title">LRMS Field</string>
+    <string name="login_subtitle">BC Supervisor sign-in</string>
+    <string name="login_identifier">BCBF code or username</string>
+    <string name="login_password">Password</string>
+    <string name="login_button">Sign in</string>
+    <string name="login_enter_both">Enter your BCBF code and password.</string>
+    <string name="login_device_note">Your account is bound to this device. Ask your Admin/Supervisor to reset the binding if you change handset.</string>
+    <string name="login_test_connection">Test connection</string>
+    <string name="login_testing">Checking the server…</string>
+    <string name="login_developer_build">This is a developer build. It is set to %1$s, which only exists on an emulator, so sign-in cannot work on a phone. Install the release APK instead.</string>
+
+    <!-- Verification code -->
+    <string name="otp_title">Verify sign-in</string>
+    <string name="otp_default_message">Enter the verification code sent to you.</string>
+    <string name="otp_code">Verification code</string>
+    <string name="otp_verify">Verify and continue</string>
+    <string name="otp_start_again">Start again</string>
+
+    <!-- Password change -->
+    <string name="password_title">Set a new password</string>
+    <string name="password_temporary_note">Your account uses a temporary password. Choose a new one to continue.</string>
+    <string name="password_current">Current password</string>
+    <string name="password_new">New password</string>
+    <string name="password_confirm">Confirm new password</string>
+    <string name="password_rule">At least 8 characters, with a letter and a number.</string>
+    <string name="password_update">Update password</string>
+    <string name="password_change">Change password</string>
+
+    <!-- Home -->
+    <string name="home_role">BC Supervisor</string>
+    <string name="home_quick_actions">Quick actions</string>
+    <string name="home_start_visit">Start a customer visit</string>
+    <string name="home_attendance">Attendance</string>
+    <string name="home_check_in">Check in</string>
+    <string name="home_daily_report">Daily report</string>
+    <string name="home_notifications">Notifications</string>
+    <string name="home_sync_now">Sync now</string>
+    <string name="home_visits_today">Visits today</string>
+    <string name="home_todays_visits">Today\'s visits</string>
+    <string name="home_no_visits_today">No visits recorded today</string>
+    <string name="home_start_hint">Open Accounts and start a visit. Everything works offline.</string>
+    <string name="home_continue_visit">Continue this visit</string>
+    <string name="home_waiting_to_sync">Waiting to sync</string>
+    <string name="home_not_visited">Not visited</string>
+    <string name="home_targets_hint">Targets, allocations and inspection results appear here.</string>
+    <string name="home_deadline_unknown">Sync once to load today\'s report deadline.</string>
+    <string name="home_deadline_countdown">Report deadline %1$s — %2$s.</string>
+    <string name="home_deadline_passed">The report deadline (%1$s) has passed.</string>
+    <string name="home_late_needs_approval">A late submission needs Admin/Supervisor approval.</string>
+
+    <!-- Accounts -->
+    <string name="accounts_title">Allocated accounts</string>
+    <string name="accounts_search_hint">Search account, name, mobile, village</string>
+    <string name="accounts_loading">Loading your accounts…</string>
+    <string name="accounts_empty">No accounts here</string>
+    <string name="accounts_empty_hint">Pull a sync from the Home screen, or clear the filters.</string>
+    <string name="account_loading">Loading account…</string>
+    <string name="account_visited">Visited</string>
+    <string name="account_not_visited">Not visited</string>
+    <string name="account_start_visit">Start visit (captures GPS)</string>
+    <string name="account_gps_waiting">Getting a GPS fix…</string>
+    <string name="account_call">Call customer</string>
+    <string name="account_navigate">Navigate</string>
+
+    <!-- Borrower and loan labels -->
+    <string name="label_borrower">Borrower</string>
+    <string name="label_father">Father / guardian</string>
+    <string name="label_mobile">Mobile</string>
+    <string name="label_village">Village</string>
+    <string name="label_address">Address</string>
+    <string name="label_branch">Branch</string>
+    <string name="label_loan_type">Loan type</string>
+    <string name="label_limit">Limit</string>
+    <string name="label_outstanding">Outstanding</string>
+    <string name="label_overdue">Overdue</string>
+    <string name="label_recovered">Recovered</string>
+    <string name="label_npa_date">NPA date</string>
+    <string name="label_last_visit">Last visit</string>
+    <string name="label_recovery_status">Recovery status</string>
+    <string name="label_remarks">Remarks</string>
+    <string name="label_notes">Notes</string>
+    <string name="label_account">Account</string>
+
+    <!-- Recovery and promise to pay -->
+    <string name="recovery_record">Record recovery</string>
+    <string name="recovery_add">Add recovery</string>
+    <string name="recovery_amount">Amount collected</string>
+    <string name="recovery_receipt">Receipt number</string>
+    <string name="ptp_title">Promise to pay</string>
+    <string name="ptp_add">Add PTP</string>
+    <string name="ptp_amount">Promised amount</string>
+    <string name="ptp_date">Promise date (YYYY-MM-DD)</string>
+    <string name="followup_schedule">Schedule follow-up</string>
+    <string name="followup_date">Follow-up date (YYYY-MM-DD)</string>
+    <string name="followup_reason">Reason / remarks</string>
+    <string name="offline_entries_note">Entries are saved on this device immediately and sent to LRMS when a connection is available.</string>
+
+    <!-- Work streams -->
+    <string name="stream_krm_ots">KRM OTS</string>
+    <string name="stream_ckcc">CKCC OD-2</string>
+
+    <!-- Shared actions -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_retry">Retry</string>
 </resources>

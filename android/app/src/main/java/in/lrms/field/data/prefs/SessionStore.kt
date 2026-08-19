@@ -138,10 +138,28 @@ class SessionStore(context: Context) {
     }
 
     /** Keeps the device id so a re-install is recognised, clears everything else. */
+    /**
+     * The chosen app language as a BCP-47 tag, or "" to follow the phone.
+     *
+     * Survives sign-out: the language someone reads in is a property of the person
+     * holding the handset, not of the session, and making them pick it again after
+     * every sign-out would be a small daily insult.
+     */
+    fun languageTag(): String = prefs.getString(KEY_LANGUAGE, "") ?: ""
+
+    fun setLanguageTag(tag: String) {
+        prefs.edit().putString(KEY_LANGUAGE, tag).apply()
+    }
+
     fun clear() {
         val device = deviceUuid()
+        val language = languageTag()
 
-        prefs.edit().clear().putString(KEY_DEVICE, device).apply()
+        prefs.edit()
+            .clear()
+            .putString(KEY_DEVICE, device)
+            .putString(KEY_LANGUAGE, language)
+            .apply()
     }
 
     private companion object {
@@ -162,6 +180,7 @@ class SessionStore(context: Context) {
         const val KEY_DEADLINE_SYNCED_ELAPSED = "deadline_synced_elapsed"
         const val KEY_DEADLINE_LOCKED = "deadline_locked"
         const val KEY_SERVER_TIME = "server_time"
+        const val KEY_LANGUAGE = "language_tag"
     }
 }
 

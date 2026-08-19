@@ -31,12 +31,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.lrms.field.R
 import `in`.lrms.field.BuildConfig
 import `in`.lrms.field.data.remote.ApiClient
 import `in`.lrms.field.ui.AppViewModel
 import `in`.lrms.field.ui.components.InlineNotice
+import `in`.lrms.field.ui.components.LanguageSwitch
 import `in`.lrms.field.ui.components.Tone
 
 @Composable
@@ -57,9 +60,9 @@ fun LoginScreen(viewModel: AppViewModel) {
                     .padding(24.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
-                Text("LRMS Field", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.login_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "BC Supervisor sign-in",
+                    stringResource(R.string.login_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -70,8 +73,7 @@ fun LoginScreen(viewModel: AppViewModel) {
                 // signal: every call to 10.0.2.2 just timed out. Say so up front.
                 if (ApiClient.isDeveloperEndpoint) {
                     InlineNotice(
-                        "This is a developer build. It is set to ${ApiClient.host}, which only exists on " +
-                            "an emulator, so sign-in cannot work on a phone. Install the release APK instead.",
+                        stringResource(R.string.login_developer_build, ApiClient.host),
                         Tone.WARNING,
                     )
                     Spacer(Modifier.height(12.dp))
@@ -91,7 +93,7 @@ fun LoginScreen(viewModel: AppViewModel) {
                     value = username,
                     onValueChange = { username = it },
                     // The BCBF code is what a supervisor has on their paperwork.
-                    label = { Text("BCBF code or username") },
+                    label = { Text(stringResource(R.string.login_identifier)) },
                     singleLine = true,
                     enabled = !auth.busy,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
@@ -103,7 +105,7 @@ fun LoginScreen(viewModel: AppViewModel) {
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Password") },
+                    label = { Text(stringResource(R.string.login_password)) },
                     singleLine = true,
                     enabled = !auth.busy,
                     visualTransformation = PasswordVisualTransformation(),
@@ -125,15 +127,14 @@ fun LoginScreen(viewModel: AppViewModel) {
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                     } else {
-                        Text("Sign in")
+                        Text(stringResource(R.string.login_button))
                     }
                 }
 
                 Spacer(Modifier.height(16.dp))
 
                 Text(
-                    "Your account is bound to this device. Ask your Admin/Supervisor to reset the " +
-                        "binding if you change handset.",
+                    stringResource(R.string.login_device_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -143,12 +144,16 @@ fun LoginScreen(viewModel: AppViewModel) {
                 // Nobody could previously tell which server an APK was built
                 // against, which made a wrong URL indistinguishable from a dead
                 // network. Now it is on the screen, and testable before sign-in.
+                // Before the login form, not after: someone who reads Hindi has to
+                // be able to switch first.
+                LanguageSwitch()
+
                 TextButton(
                     onClick = { viewModel.testConnection() },
                     enabled = !auth.testing && !auth.busy,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (auth.testing) "Checking the server…" else "Test connection")
+                    Text(if (auth.testing) stringResource(R.string.login_testing) else stringResource(R.string.login_test_connection))
                 }
 
                 Text(
@@ -186,12 +191,12 @@ fun OtpScreen(viewModel: AppViewModel) {
     ) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(24.dp)) {
-                Text("Verify sign-in", style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.otp_title), style = MaterialTheme.typography.titleLarge)
 
                 Spacer(Modifier.height(8.dp))
 
                 Text(
-                    auth.otpMessage ?: "Enter the verification code sent to you.",
+                    auth.otpMessage ?: stringResource(R.string.otp_default_message),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -206,7 +211,7 @@ fun OtpScreen(viewModel: AppViewModel) {
                 OutlinedTextField(
                     value = code,
                     onValueChange = { code = it.filter { char -> char.isDigit() }.take(8) },
-                    label = { Text("Verification code") },
+                    label = { Text(stringResource(R.string.otp_code)) },
                     singleLine = true,
                     enabled = !auth.busy,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -220,14 +225,14 @@ fun OtpScreen(viewModel: AppViewModel) {
                     enabled = !auth.busy && code.length >= 4,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Verify and continue")
+                    Text(stringResource(R.string.otp_verify))
                 }
 
                 TextButton(
                     onClick = { viewModel.cancelOtp() },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Start again")
+                    Text(stringResource(R.string.otp_start_again))
                 }
             }
         }
@@ -250,13 +255,13 @@ fun ChangePasswordScreen(viewModel: AppViewModel, forced: Boolean, onDone: () ->
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            if (forced) "Set a new password" else "Change password",
+            if (forced) stringResource(R.string.password_title) else stringResource(R.string.password_change),
             style = MaterialTheme.typography.titleLarge,
         )
 
         if (forced) {
             InlineNotice(
-                "Your account uses a temporary password. Choose a new one to continue.",
+                stringResource(R.string.password_temporary_note),
                 Tone.WARNING,
             )
         }
@@ -266,7 +271,7 @@ fun ChangePasswordScreen(viewModel: AppViewModel, forced: Boolean, onDone: () ->
         OutlinedTextField(
             value = current,
             onValueChange = { current = it },
-            label = { Text("Current password") },
+            label = { Text(stringResource(R.string.password_current)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
@@ -275,8 +280,8 @@ fun ChangePasswordScreen(viewModel: AppViewModel, forced: Boolean, onDone: () ->
         OutlinedTextField(
             value = next,
             onValueChange = { next = it },
-            label = { Text("New password") },
-            supportingText = { Text("At least 8 characters, with a letter and a number.") },
+            label = { Text(stringResource(R.string.password_new)) },
+            supportingText = { Text(stringResource(R.string.password_rule)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
@@ -285,7 +290,7 @@ fun ChangePasswordScreen(viewModel: AppViewModel, forced: Boolean, onDone: () ->
         OutlinedTextField(
             value = confirm,
             onValueChange = { confirm = it },
-            label = { Text("Confirm new password") },
+            label = { Text(stringResource(R.string.password_confirm)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
@@ -308,12 +313,12 @@ fun ChangePasswordScreen(viewModel: AppViewModel, forced: Boolean, onDone: () ->
             enabled = !busy && current.isNotBlank() && next.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Update password")
+            Text(stringResource(R.string.password_update))
         }
 
         if (!forced) {
             TextButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     }

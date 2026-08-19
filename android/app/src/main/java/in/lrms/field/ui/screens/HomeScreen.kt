@@ -32,8 +32,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.lrms.field.R
 import `in`.lrms.field.data.local.SyncState
 import `in`.lrms.field.ui.AppViewModel
 import `in`.lrms.field.ui.components.EmptyState
@@ -83,7 +85,7 @@ fun HomeScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(viewModel.session.userName().ifBlank { "BC Supervisor" })
+                        Text(viewModel.session.userName().ifBlank { stringResource(R.string.home_role) })
                         Text(
                             listOf(viewModel.session.bcCode(), viewModel.session.branchName())
                                 .filter { it.isNotBlank() }
@@ -94,10 +96,10 @@ fun HomeScreen(
                 },
                 actions = {
                     IconButton(onClick = onOpenNotifications) {
-                        Icon(Icons.Filled.Notifications, contentDescription = "Notifications")
+                        Icon(Icons.Filled.Notifications, contentDescription = stringResource(R.string.home_notifications))
                     }
                     IconButton(onClick = { viewModel.syncNow() }, enabled = !sync.busy) {
-                        Icon(Icons.Filled.Sync, contentDescription = "Sync now")
+                        Icon(Icons.Filled.Sync, contentDescription = stringResource(R.string.home_sync_now))
                     }
                 },
             )
@@ -115,16 +117,20 @@ fun HomeScreen(
 
                 // Deadline banner: the single most operationally important thing.
                 if (deadline.deadlineAt == null) {
-                    InlineNotice("Sync once to load today's report deadline.", Tone.INFO)
+                    InlineNotice(stringResource(R.string.home_deadline_unknown), Tone.INFO)
                 } else if (deadline.locked || secondsRemaining <= 0L) {
                     InlineNotice(
-                        "The report deadline (${Times.timeOnly(deadline.deadlineAt)}) has passed. " +
-                            "A late submission needs Admin/Supervisor approval.",
+                        stringResource(R.string.home_deadline_passed, Times.timeOnly(deadline.deadlineAt)) +
+                            " " + stringResource(R.string.home_late_needs_approval),
                         Tone.DANGER,
                     )
                 } else {
                     InlineNotice(
-                        "Report deadline ${Times.timeOnly(deadline.deadlineAt)} — ${Times.countdown(secondsRemaining)}.",
+                        stringResource(
+                            R.string.home_deadline_countdown,
+                            Times.timeOnly(deadline.deadlineAt),
+                            Times.countdown(secondsRemaining),
+                        ),
                         if (secondsRemaining < 3600) Tone.WARNING else Tone.INFO,
                     )
                 }
@@ -133,7 +139,7 @@ fun HomeScreen(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile(
-                        label = "Visits today",
+                        label = stringResource(R.string.home_visits_today),
                         value = todaysVisits.count { it.syncState != SyncState.DRAFT }.toString(),
                         meta = if (todaysVisits.any { it.syncState == SyncState.DRAFT }) {
                             "${todaysVisits.count { it.syncState == SyncState.DRAFT }} in progress"
@@ -144,7 +150,7 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                     )
                     StatTile(
-                        label = "Not visited",
+                        label = stringResource(R.string.home_not_visited),
                         value = pendingAccounts.toString(),
                         meta = "allocated accounts",
                         accent = StatusWarning,
@@ -156,14 +162,14 @@ fun HomeScreen(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile(
-                        label = "Waiting to sync",
+                        label = stringResource(R.string.home_waiting_to_sync),
                         value = (pendingVisits + pendingOutbox).toString(),
                         meta = if (sync.offline) "offline — will retry" else "records queued",
                         accent = if (pendingVisits + pendingOutbox > 0) StatusWarning else StatusSuccess,
                         modifier = Modifier.weight(1f),
                     )
                     StatTile(
-                        label = "Attendance",
+                        label = stringResource(R.string.home_attendance),
                         value = attendance?.checkInAt?.let { Times.timeOnly(it) } ?: "—",
                         meta = attendance?.checkOutAt?.let { "out ${Times.timeOnly(it)}" } ?: "not checked out",
                         accent = if (attendance?.checkInAt != null) StatusSuccess else StatusDanger,
@@ -175,21 +181,21 @@ fun HomeScreen(
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
-                        Text("Quick actions", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.home_quick_actions), style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.height(10.dp))
 
                         Button(onClick = onOpenAccounts, modifier = Modifier.fillMaxWidth()) {
-                            Text("Start a customer visit")
+                            Text(stringResource(R.string.home_start_visit))
                         }
 
                         Spacer(Modifier.height(8.dp))
 
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = onOpenAttendance, modifier = Modifier.weight(1f)) {
-                                Text(if (attendance?.checkInAt == null) "Check in" else "Attendance")
+                                Text(if (attendance?.checkInAt == null) stringResource(R.string.home_check_in) else stringResource(R.string.home_attendance))
                             }
                             OutlinedButton(onClick = onOpenReport, modifier = Modifier.weight(1f)) {
-                                Text("Daily report")
+                                Text(stringResource(R.string.home_daily_report))
                             }
                         }
                     }
@@ -210,7 +216,7 @@ fun HomeScreen(
                             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                                 Text("$unread unread notification(s)", style = MaterialTheme.typography.titleSmall)
                                 Text(
-                                    "Targets, allocations and inspection results appear here.",
+                                    stringResource(R.string.home_targets_hint),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -223,7 +229,7 @@ fun HomeScreen(
 
             item {
                 Text(
-                    "Today's visits",
+                    stringResource(R.string.home_todays_visits),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = 6.dp),
                 )
@@ -234,8 +240,8 @@ fun HomeScreen(
                     Card(Modifier.fillMaxWidth()) {
                         EmptyState(
                             icon = Icons.AutoMirrored.Filled.Assignment,
-                            title = "No visits recorded today",
-                            message = "Open Accounts and start a visit. Everything works offline.",
+                            title = stringResource(R.string.home_no_visits_today),
+                            message = stringResource(R.string.home_start_hint),
                         )
                     }
                 }
@@ -285,7 +291,7 @@ fun HomeScreen(
                             if (visit.syncState == SyncState.DRAFT) {
                                 Spacer(Modifier.height(8.dp))
                                 Button(onClick = { onOpenVisit(visit.uuid) }, modifier = Modifier.fillMaxWidth()) {
-                                    Text("Continue this visit")
+                                    Text(stringResource(R.string.home_continue_visit))
                                 }
                             }
                         }

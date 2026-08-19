@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Hindi strings.
+
+    Wording follows the Bankmitra2 app that the same field staff already use, so a
+    supervisor moving between the two apps reads the same word for the same thing:
+    विज़िट, वसूली, बकाया, ऋणी, टिप्पणियाँ.
+
+    Codes that appear on the borrower's paperwork stay in Latin script — KRM OTS,
+    CKCC OD-2, BCBF, NPA, PTP, GPS — because those are what is printed on the forms
+    and spreadsheets in front of them.
+
+    app_name is deliberately absent: the launcher icon keeps one name in both
+    languages, which is what people point at when they say "open LRMS".
+-->
+<resources>
+    <string name="app_full_name">ऋण वसूली प्रबंधन प्रणाली</string>
+
+    <string name="language">भाषा</string>
+    <string name="language_system">फ़ोन की भाषा</string>
+    <string name="language_change">भाषा बदलें</string>
+
+    <!-- Sign in -->
+    <string name="login_subtitle">बीसी सुपरवाइज़र साइन इन</string>
+    <string name="login_identifier">BCBF कोड या यूज़रनेम</string>
+    <string name="login_password">पासवर्ड</string>
+    <string name="login_button">साइन इन</string>
+    <string name="login_enter_both">अपना BCBF कोड और पासवर्ड दर्ज करें।</string>
+    <string name="login_device_note">आपका खाता इसी डिवाइस से जुड़ा है। फ़ोन बदलने पर अपने एडमिन/सुपरवाइज़र से डिवाइस बाइंडिंग रीसेट करवाएँ।</string>
+    <string name="login_test_connection">कनेक्शन जाँचें</string>
+    <string name="login_testing">सर्वर जाँचा जा रहा है…</string>
+    <string name="login_developer_build">यह डेवलपर बिल्ड है। यह %1$s पर सेट है, जो सिर्फ़ एमुलेटर पर चलता है, इसलिए फ़ोन पर साइन इन नहीं होगा। रिलीज़ APK इंस्टॉल करें।</string>
+
+    <!-- Verification code -->
+    <string name="otp_title">साइन इन की पुष्टि</string>
+    <string name="otp_default_message">आपको भेजा गया सत्यापन कोड दर्ज करें।</string>
+    <string name="otp_code">सत्यापन कोड</string>
+    <string name="otp_verify">पुष्टि कर आगे बढ़ें</string>
+    <string name="otp_start_again">फिर से शुरू करें</string>
+
+    <!-- Password change -->
+    <string name="password_title">नया पासवर्ड सेट करें</string>
+    <string name="password_temporary_note">आपके खाते पर अस्थायी पासवर्ड है। आगे बढ़ने के लिए नया पासवर्ड चुनें।</string>
+    <string name="password_current">मौजूदा पासवर्ड</string>
+    <string name="password_new">नया पासवर्ड</string>
+    <string name="password_confirm">नया पासवर्ड दोबारा</string>
+    <string name="password_rule">कम से कम 8 अक्षर, जिसमें एक अक्षर और एक अंक हो।</string>
+    <string name="password_update">पासवर्ड अपडेट करें</string>
+    <string name="password_change">पासवर्ड बदलें</string>
+
+    <!-- Home -->
+    <string name="home_role">बीसी सुपरवाइज़र</string>
+    <string name="home_quick_actions">तुरंत काम</string>
+    <string name="home_start_visit">ग्राहक विज़िट शुरू करें</string>
+    <string name="home_attendance">हाज़िरी</string>
+    <string name="home_check_in">हाज़िरी लगाएँ</string>
+    <string name="home_daily_report">दैनिक रिपोर्ट</string>
+    <string name="home_notifications">सूचनाएँ</string>
+    <string name="home_sync_now">अभी सिंक करें</string>
+    <string name="home_visits_today">आज की विज़िट</string>
+    <string name="home_todays_visits">आज की विज़िट</string>
+    <string name="home_no_visits_today">आज कोई विज़िट दर्ज नहीं है</string>
+    <string name="home_start_hint">खाते खोलें और विज़िट शुरू करें। सब कुछ बिना इंटरनेट भी चलता है।</string>
+    <string name="home_continue_visit">यह विज़िट जारी रखें</string>
+    <string name="home_waiting_to_sync">सिंक होना बाकी है</string>
+    <string name="home_not_visited">विज़िट नहीं हुई</string>
+    <string name="home_targets_hint">लक्ष्य, आवंटन और निरीक्षण के नतीजे यहाँ दिखेंगे।</string>
+    <string name="home_deadline_unknown">आज की रिपोर्ट समय-सीमा लाने के लिए एक बार सिंक करें।</string>
+    <string name="home_deadline_countdown">रिपोर्ट समय-सीमा %1$s — %2$s।</string>
+    <string name="home_deadline_passed">रिपोर्ट की समय-सीमा (%1$s) बीत चुकी है।</string>
+    <string name="home_late_needs_approval">देर से भेजी रिपोर्ट के लिए एडमिन/सुपरवाइज़र की मंज़ूरी चाहिए।</string>
+
+    <!-- Accounts -->
+    <string name="accounts_title">आवंटित खाते</string>
+    <string name="accounts_search_hint">खाता, नाम, मोबाइल, गाँव खोजें</string>
+    <string name="accounts_loading">आपके खाते लोड हो रहे हैं…</string>
+    <string name="accounts_empty">यहाँ कोई खाता नहीं</string>
+    <string name="accounts_empty_hint">होम स्क्रीन से सिंक करें, या फ़िल्टर हटाएँ।</string>
+    <string name="account_loading">खाता लोड हो रहा है…</string>
+    <string name="account_visited">विज़िट हो चुकी</string>
+    <string name="account_not_visited">विज़िट नहीं हुई</string>
+    <string name="account_start_visit">विज़िट शुरू करें (GPS लेगा)</string>
+    <string name="account_gps_waiting">GPS लोकेशन ली जा रही है…</string>
+    <string name="account_call">ग्राहक को कॉल करें</string>
+    <string name="account_navigate">रास्ता दिखाएँ</string>
+
+    <!-- Borrower and loan labels -->
+    <string name="label_borrower">ऋणी</string>
+    <string name="label_father">पिता / अभिभावक</string>
+    <string name="label_mobile">मोबाइल</string>
+    <string name="label_village">गाँव</string>
+    <string name="label_address">पता</string>
+    <string name="label_branch">शाखा</string>
+    <string name="label_loan_type">ऋण का प्रकार</string>
+    <string name="label_limit">सीमा</string>
+    <string name="label_outstanding">बकाया</string>
+    <string name="label_overdue">अतिदेय</string>
+    <string name="label_recovered">वसूल हुआ</string>
+    <string name="label_npa_date">NPA तिथि</string>
+    <string name="label_last_visit">पिछली विज़िट</string>
+    <string name="label_recovery_status">वसूली की स्थिति</string>
+    <string name="label_remarks">टिप्पणियाँ</string>
+    <string name="label_notes">टिप्पणी</string>
+    <string name="label_account">खाता</string>
+
+    <!-- Recovery and promise to pay -->
+    <string name="recovery_record">वसूली दर्ज करें</string>
+    <string name="recovery_add">वसूली जोड़ें</string>
+    <string name="recovery_amount">वसूल की गई राशि</string>
+    <string name="recovery_receipt">रसीद संख्या</string>
+    <string name="ptp_title">भुगतान का वादा</string>
+    <string name="ptp_add">PTP जोड़ें</string>
+    <string name="ptp_amount">वादा राशि</string>
+    <string name="ptp_date">वादे की तारीख़ (YYYY-MM-DD)</string>
+    <string name="followup_schedule">फ़ॉलो-अप तय करें</string>
+    <string name="followup_date">फ़ॉलो-अप तारीख़ (YYYY-MM-DD)</string>
+    <string name="followup_reason">कारण / टिप्पणी</string>
+    <string name="offline_entries_note">प्रविष्टियाँ इसी डिवाइस पर तुरंत सेव हो जाती हैं और कनेक्शन मिलने पर LRMS को भेज दी जाती हैं।</string>
+
+    <!-- Shared actions -->
+    <string name="action_cancel">रद्द करें</string>
+    <string name="action_save">सेव करें</string>
+    <string name="action_retry">दोबारा कोशिश करें</string>
+</resources>

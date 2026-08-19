@@ -43,8 +43,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.lrms.field.R
 import `in`.lrms.field.data.local.AccountEntity
 import `in`.lrms.field.ui.AppViewModel
 import `in`.lrms.field.ui.components.DetailRow
@@ -57,8 +59,8 @@ import `in`.lrms.field.util.Times
 
 private val filters = listOf(
     "all" to "All",
-    "pending" to "Not visited",
-    "visited" to "Visited",
+    "pending" to stringResource(R.string.account_not_visited),
+    "visited" to stringResource(R.string.account_visited),
     "ptp" to "PTP",
     "krm_ots" to "KRM OTS",
     "ckcc_od2" to "CKCC OD-2",
@@ -73,7 +75,7 @@ fun AccountsScreen(viewModel: AppViewModel, onOpenAccount: (Long) -> Unit) {
     val sync by viewModel.sync.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Allocated accounts") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.accounts_title)) }) },
     ) { padding ->
         Column(
             Modifier
@@ -84,7 +86,7 @@ fun AccountsScreen(viewModel: AppViewModel, onOpenAccount: (Long) -> Unit) {
             OutlinedTextField(
                 value = query,
                 onValueChange = { viewModel.search(it) },
-                label = { Text("Search account, name, mobile, village") },
+                label = { Text(stringResource(R.string.accounts_search_hint)) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 singleLine = true,
                 modifier = Modifier
@@ -110,12 +112,12 @@ fun AccountsScreen(viewModel: AppViewModel, onOpenAccount: (Long) -> Unit) {
 
             if (accounts.isEmpty()) {
                 if (sync.busy) {
-                    LoadingBlock("Loading your accounts…")
+                    LoadingBlock(stringResource(R.string.accounts_loading))
                 } else {
                     EmptyState(
                         icon = Icons.Filled.Search,
-                        title = "No accounts here",
-                        message = "Pull a sync from the Home screen, or clear the filters.",
+                        title = stringResource(R.string.accounts_empty),
+                        message = stringResource(R.string.accounts_empty_hint),
                     )
                 }
             } else {
@@ -216,7 +218,7 @@ fun AccountDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(current?.borrowerName ?: "Account") },
+                title = { Text(current?.borrowerName ?: stringResource(R.string.label_account)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -227,7 +229,7 @@ fun AccountDetailScreen(
                         IconButton(onClick = {
                             context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$mobile")))
                         }) {
-                            Icon(Icons.Filled.Call, contentDescription = "Call customer")
+                            Icon(Icons.Filled.Call, contentDescription = stringResource(R.string.account_call))
                         }
                     }
 
@@ -236,7 +238,7 @@ fun AccountDetailScreen(
                             val query = Uri.encode(listOfNotNull(village, current.address).joinToString(", "))
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$query")))
                         }) {
-                            Icon(Icons.Filled.Map, contentDescription = "Navigate")
+                            Icon(Icons.Filled.Map, contentDescription = stringResource(R.string.account_navigate))
                         }
                     }
                 },
@@ -244,7 +246,7 @@ fun AccountDetailScreen(
         },
     ) { padding ->
         if (current == null) {
-            LoadingBlock("Loading account…", Modifier.padding(padding))
+            LoadingBlock(stringResource(R.string.account_loading), Modifier.padding(padding))
 
             return@Scaffold
         }
@@ -261,15 +263,15 @@ fun AccountDetailScreen(
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
-                    Text("Borrower", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.label_borrower), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(6.dp))
-                    DetailRow("Account", current.accountNumber)
+                    DetailRow(stringResource(R.string.label_account), current.accountNumber)
                     DetailRow("CIF", current.cif)
-                    DetailRow("Father / guardian", current.fatherName)
-                    DetailRow("Mobile", current.mobile)
-                    DetailRow("Village", current.village)
-                    DetailRow("Address", current.address)
-                    DetailRow("Branch", current.branchName)
+                    DetailRow(stringResource(R.string.label_father), current.fatherName)
+                    DetailRow(stringResource(R.string.label_mobile), current.mobile)
+                    DetailRow(stringResource(R.string.label_village), current.village)
+                    DetailRow(stringResource(R.string.label_address), current.address)
+                    DetailRow(stringResource(R.string.label_branch), current.branchName)
                 }
             }
 
@@ -277,15 +279,15 @@ fun AccountDetailScreen(
                 Column(Modifier.padding(14.dp)) {
                     Text("Loan", style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(6.dp))
-                    DetailRow("Loan type", current.loanType)
-                    DetailRow("Outstanding", Times.money(current.outstanding))
-                    DetailRow("Overdue", Times.money(current.overdue))
-                    DetailRow("Limit", Times.money(current.limitAmount))
-                    DetailRow("Recovered", Times.money(current.totalRecovered))
-                    DetailRow("NPA date", Times.humanDate(current.npaDate))
+                    DetailRow(stringResource(R.string.label_loan_type), current.loanType)
+                    DetailRow(stringResource(R.string.label_outstanding), Times.money(current.outstanding))
+                    DetailRow(stringResource(R.string.label_overdue), Times.money(current.overdue))
+                    DetailRow(stringResource(R.string.label_limit), Times.money(current.limitAmount))
+                    DetailRow(stringResource(R.string.label_recovered), Times.money(current.totalRecovered))
+                    DetailRow(stringResource(R.string.label_npa_date), Times.humanDate(current.npaDate))
                     DetailRow("Visits", current.visitCount.toString())
-                    DetailRow("Last visit", Times.humanDateTime(current.lastVisitAt))
-                    DetailRow("Recovery status", current.recoveryStatus.replace('_', ' '))
+                    DetailRow(stringResource(R.string.label_last_visit), Times.humanDateTime(current.lastVisitAt))
+                    DetailRow(stringResource(R.string.label_recovery_status), current.recoveryStatus.replace('_', ' '))
                 }
             }
 
@@ -294,7 +296,7 @@ fun AccountDetailScreen(
             }
 
             if (locationState.busy || starting) {
-                LoadingBlock("Getting a GPS fix…")
+                LoadingBlock(stringResource(R.string.account_gps_waiting))
             }
 
             Button(
@@ -315,25 +317,24 @@ fun AccountDetailScreen(
                 enabled = !starting && !locationState.busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Start visit (captures GPS)")
+                Text(stringResource(R.string.account_start_visit))
             }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { sheet = "recovery" }, modifier = Modifier.weight(1f)) {
-                    Text("Add recovery")
+                    Text(stringResource(R.string.recovery_add))
                 }
                 OutlinedButton(onClick = { sheet = "promise" }, modifier = Modifier.weight(1f)) {
-                    Text("Add PTP")
+                    Text(stringResource(R.string.ptp_add))
                 }
             }
 
             OutlinedButton(onClick = { sheet = "followup" }, modifier = Modifier.fillMaxWidth()) {
-                Text("Schedule follow-up")
+                Text(stringResource(R.string.followup_schedule))
             }
 
             Text(
-                "Entries are saved on this device immediately and sent to LRMS when a connection " +
-                    "is available.",
+                stringResource(R.string.offline_entries_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -395,7 +396,7 @@ private fun RecoveryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Record recovery") },
+        title = { Text(stringResource(R.string.recovery_record)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 account?.let {
@@ -409,7 +410,7 @@ private fun RecoveryDialog(
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it.filter { char -> char.isDigit() || char == '.' } },
-                    label = { Text("Amount collected") },
+                    label = { Text(stringResource(R.string.recovery_amount)) },
                     singleLine = true,
                 )
 
@@ -426,14 +427,14 @@ private fun RecoveryDialog(
                 OutlinedTextField(
                     value = receipt,
                     onValueChange = { receipt = it },
-                    label = { Text("Receipt number") },
+                    label = { Text(stringResource(R.string.recovery_receipt)) },
                     singleLine = true,
                 )
 
                 OutlinedTextField(
                     value = remarks,
                     onValueChange = { remarks = it },
-                    label = { Text("Remarks") },
+                    label = { Text(stringResource(R.string.label_remarks)) },
                 )
             }
         },
@@ -451,7 +452,7 @@ private fun RecoveryDialog(
                 Text("Save")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -463,25 +464,25 @@ private fun PromiseDialog(onDismiss: () -> Unit, onSave: (Double, String, String
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Promise to pay") },
+        title = { Text(stringResource(R.string.ptp_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it.filter { char -> char.isDigit() || char == '.' } },
-                    label = { Text("Promised amount") },
+                    label = { Text(stringResource(R.string.ptp_amount)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = date,
                     onValueChange = { date = it },
-                    label = { Text("Promise date (YYYY-MM-DD)") },
+                    label = { Text(stringResource(R.string.ptp_date)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = remarks,
                     onValueChange = { remarks = it },
-                    label = { Text("Reason / remarks") },
+                    label = { Text(stringResource(R.string.followup_reason)) },
                 )
             }
         },
@@ -499,7 +500,7 @@ private fun PromiseDialog(onDismiss: () -> Unit, onSave: (Double, String, String
                 Text("Save")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -511,13 +512,13 @@ private fun FollowupDialog(onDismiss: () -> Unit, onSave: (String, String, Strin
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Schedule follow-up") },
+        title = { Text(stringResource(R.string.followup_schedule)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = date,
                     onValueChange = { date = it },
-                    label = { Text("Follow-up date (YYYY-MM-DD)") },
+                    label = { Text(stringResource(R.string.followup_date)) },
                     singleLine = true,
                 )
 
@@ -534,7 +535,7 @@ private fun FollowupDialog(onDismiss: () -> Unit, onSave: (String, String, Strin
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Notes") },
+                    label = { Text(stringResource(R.string.label_notes)) },
                 )
             }
         },
@@ -546,6 +547,6 @@ private fun FollowupDialog(onDismiss: () -> Unit, onSave: (String, String, Strin
                 Text("Save")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }

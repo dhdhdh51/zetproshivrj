@@ -41,8 +41,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import `in`.lrms.field.R
 import `in`.lrms.field.BuildConfig
 import `in`.lrms.field.camera.PhotoFiles
 import `in`.lrms.field.data.local.SyncState
@@ -50,6 +52,7 @@ import `in`.lrms.field.ui.AppViewModel
 import `in`.lrms.field.ui.components.DetailRow
 import `in`.lrms.field.ui.components.EmptyState
 import `in`.lrms.field.ui.components.InlineNotice
+import `in`.lrms.field.ui.components.LanguageSwitch
 import `in`.lrms.field.ui.components.LoadingBlock
 import `in`.lrms.field.ui.components.StatTile
 import `in`.lrms.field.ui.components.StatusChip
@@ -368,7 +371,7 @@ fun OutboxScreen(viewModel: AppViewModel) {
                     enabled = !sync.busy,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Sync now")
+                    Text(stringResource(R.string.home_sync_now))
                 }
             }
 
@@ -621,8 +624,18 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
                 }
             }
 
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(stringResource(R.string.language), style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(8.dp))
+                    // The phone option belongs here rather than on the sign-in
+                    // screen: it is a considered setting, not a first-run choice.
+                    LanguageSwitch(showSystemOption = true)
+                }
+            }
+
             OutlinedButton(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) {
-                Text("Change password")
+                Text(stringResource(R.string.password_change))
             }
 
             OutlinedButton(
