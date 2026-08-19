@@ -430,7 +430,7 @@ private fun RecoveryDialog(
     onSave: (Double, String, String?, String?) -> Unit,
 ) {
     var amount by remember { mutableStateOf("") }
-    var mode by remember { mutableStateOf("Cash") }
+    var mode by remember { mutableStateOf("UPI") }
     var receipt by remember { mutableStateOf("") }
     var remarks by remember { mutableStateOf("") }
 
@@ -454,15 +454,23 @@ private fun RecoveryDialog(
                     singleLine = true,
                 )
 
+                // Shared with the visit screen, so the two cannot offer different
+                // modes — and neither of them offers cash.
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("Cash", "UPI", "Bank Transfer").forEach { option ->
+                    paymentModes.forEach { (key, labelRes) ->
                         FilterChip(
-                            selected = mode == option,
-                            onClick = { mode = option },
-                            label = { Text(option) },
+                            selected = mode == key,
+                            onClick = { mode = key },
+                            label = { Text(stringResource(labelRes)) },
                         )
                     }
                 }
+
+                Text(
+                    stringResource(R.string.recovery_no_cash),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
 
                 OutlinedTextField(
                     value = receipt,

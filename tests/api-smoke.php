@@ -462,6 +462,71 @@ equals($visitUuid, $start['json']['data']['visit']['uuid'] ?? '', 'The visit kee
 equals('draft', $start['json']['data']['visit']['status'] ?? '', 'A started visit is a draft until submitted');
 
 /* -------------------------------------------------------------------------- */
+section('This system does not collect cash');
+/* -------------------------------------------------------------------------- */
+
+// Recovery follow-up is the work; taking money is not. The borrower pays the bank and
+// the agent records the bank's reference, so no payment mode may mean "handed to me".
+$offeredModes = payment_modes();
+
+equals(
+    [],
+    array_values(array_filter(
+        $offeredModes,
+        static fn (string $mode): bool => stripos($mode, 'cash') !== false
+    )),
+    'No offered payment mode is cash (' . implode(', ', $offeredModes) . ')'
+);
+
+// The important half. An unrecognised mode used to be replaced by the first entry of
+// the allowed list, which was 'Cash' — so a typo, or an app version older than this
+// one, was filed as a cash collection that never happened. It is kept as reported now,
+// which is what lets a supervisor see an old handset still reporting the old mode
+// instead of the server quietly agreeing with it.
+$legacyUuid = uuid();
+$legacy = api('POST', '/api/v1/recoveries', [
+    'uuid' => $legacyUuid,
+    'loan_account_id' => $accountId,
+    'amount' => 900,
+    'recovery_date' => today(),
+    'payment_mode' => 'Cash',
+    'receipt_number' => 'LEGACY-' . random_int(100000, 999999),
+]);
+
+ok(in_array($legacy['status'], [200, 201], true), 'A repayment from an older app is still accepted');
+equals(
+    'Cash',
+    (string) Database::scalar('SELECT payment_mode FROM recoveries WHERE uuid = :u', ['u' => $legacyUuid]),
+    'What that app reported is stored as reported, not relabelled'
+);
+
+$typoUuid = uuid();
+api('POST', '/api/v1/recoveries', [
+    'uuid' => $typoUuid,
+    'loan_account_id' => $accountId,
+    'amount' => 400,
+    'recovery_date' => today(),
+    'payment_mode' => 'NEFT transfer',
+]);
+
+equals(
+    'NEFT transfer',
+    (string) Database::scalar('SELECT payment_mode FROM recoveries WHERE uuid = :u', ['u' => $typoUuid]),
+    'A mode outside the list is not silently turned into a cash collection'
+);
+
+// MariaDB reports a string default with its quotes, MySQL without them, so the
+// comparison strips them the same way database/upgrade.php does.
+equals(
+    'Other',
+    trim((string) Database::scalar(
+        "SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'recoveries' AND COLUMN_NAME = 'payment_mode'"
+    ), "'"),
+    'A row inserted without a mode does not default to claiming cash'
+);
+
+/* -------------------------------------------------------------------------- */
 section('The sign-in throttle does not lock out a whole team');
 /* -------------------------------------------------------------------------- */
 
@@ -806,9 +871,9 @@ $submit = api('POST', '/api/v1/visits/' . $visitUuid . '/submit', [
         'uuid' => uuid(),
         'amount' => 1500,
         'recovery_date' => today(),
-        'payment_mode' => 'Cash',
+        'payment_mode' => 'UPI',
         'receipt_number' => 'RCPT-' . random_int(100000, 999999),
-        'remarks' => 'Collected in cash.',
+        'remarks' => 'Borrower paid the branch; UPI reference recorded.',
     ],
     'followup' => [
         'uuid' => uuid(),

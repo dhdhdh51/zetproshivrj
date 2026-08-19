@@ -105,8 +105,8 @@
     <!-- Recovery and promise to pay -->
     <string name="recovery_record">Record recovery</string>
     <string name="recovery_add">Add recovery</string>
-    <string name="recovery_amount">Amount collected</string>
-    <string name="recovery_receipt">Receipt number</string>
+    <string name="recovery_amount">Amount paid to the bank</string>
+    <string name="recovery_receipt">Bank receipt / transaction number</string>
     <string name="ptp_title">Promise to pay</string>
     <string name="ptp_add">Add PTP</string>
     <string name="ptp_amount">Promised amount</string>
@@ -179,10 +179,11 @@
     <string name="possibility_nil">Nil</string>
     <string name="visit_recommendation">Your recommendation</string>
     <string name="visit_recovery_promise">Recovery and promise</string>
-    <string name="visit_recovery_blank">Leave blank when nothing was collected or promised.</string>
-    <string name="payment_cash">Cash</string>
+    <string name="visit_recovery_blank">Leave blank when nothing was paid or promised.</string>
+    <string name="recovery_no_cash">Never take money yourself. Record only what the borrower paid the bank, and its receipt or transaction number.</string>
     <string name="payment_upi" translatable="false">UPI</string>
     <string name="payment_bank">Bank transfer</string>
+    <string name="payment_cheque">Cheque</string>
     <string name="visit_form_title">Visit form</string>
     <string name="visit_form_note">Configured by your Admin/Supervisor.</string>
     <string name="visit_submit">Submit visit</string>

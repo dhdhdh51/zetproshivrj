@@ -492,7 +492,7 @@ if (!function_exists('payment_modes')) {
     /** @return array<int, string> */
     function payment_modes(): array
     {
-        return Settings::list('payment_modes', ['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'Other']);
+        return Settings::list('payment_modes', ['UPI', 'Bank Transfer', 'Cheque', 'Other']);
     }
 }
 

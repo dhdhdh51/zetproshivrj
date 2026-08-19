@@ -125,7 +125,7 @@ function lrms_seed_settings(): void
             'min_visit_photos' => '0',
             'min_inspection_photos' => '0',
             'watermark_photos' => '1',
-            'payment_modes' => 'Cash,Bank Transfer,UPI,Cheque,Other',
+            'payment_modes' => 'UPI,Bank Transfer,Cheque,Other',
         ],
         'gps' => [
             'gps_max_accuracy_metres' => '200',

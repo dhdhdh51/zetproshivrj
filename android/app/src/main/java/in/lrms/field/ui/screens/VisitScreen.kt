@@ -107,11 +107,18 @@ private val photoTypes = listOf(
     "other" to R.string.photo_type_other,
 )
 
-/** Payment modes. The key is stored and reported; the label is translated. */
-private val paymentModes = listOf(
-    "Cash" to R.string.payment_cash,
+/**
+ * How the borrower paid the bank. The key is stored and reported; the label is
+ * translated.
+ *
+ * There is no cash entry. This company does no cash collection — the borrower pays
+ * the bank and the agent records the bank's receipt — so offering a mode that means
+ * "handed to me" would invite something nobody here is authorised to do.
+ */
+internal val paymentModes = listOf(
     "UPI" to R.string.payment_upi,
     "Bank Transfer" to R.string.payment_bank,
+    "Cheque" to R.string.payment_cheque,
 )
 
 /** Recovery possibility, same split of stored key and shown label. */
@@ -155,7 +162,7 @@ fun VisitScreen(
 
     // Money captured with the visit.
     var recoveryAmount by remember { mutableStateOf("") }
-    var recoveryMode by remember { mutableStateOf("Cash") }
+    var recoveryMode by remember { mutableStateOf("UPI") }
     var recoveryReceipt by remember { mutableStateOf("") }
     var promiseAmount by remember { mutableStateOf("") }
     var promiseDate by remember { mutableStateOf(Times.date(7)) }
@@ -453,6 +460,14 @@ fun VisitScreen(
                         stringResource(R.string.visit_recovery_blank),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    // The rule, on the screen rather than only in a policy document.
+                    Text(
+                        stringResource(R.string.recovery_no_cash),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
 
                     Spacer(Modifier.height(8.dp))

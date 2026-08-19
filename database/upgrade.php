@@ -199,6 +199,20 @@ $modifications = [
 ];
 
 /** Indexes worth adding for the new report filters. */
+/**
+ * Column defaults that changed. Checked against COLUMN_DEFAULT rather than
+ * COLUMN_TYPE, which is why these cannot live in $modifications: a type comparison
+ * cannot see a default, so the same ALTER would be re-applied on every run.
+ *
+ * @var array<int, array{0:string, 1:string, 2:string, 3:string}> $defaults
+ */
+$defaults = [
+    // A repayment row inserted without a mode used to claim a cash collection,
+    // because 'Cash' was the column default. Recovery follow-up is this company's
+    // work; taking money is not, and a default must not assert otherwise.
+    ['recoveries', 'payment_mode', "VARCHAR(40) NOT NULL DEFAULT 'Other'", 'Other'],
+];
+
 $indexes = [
     ['bc_supervisors', 'ix_bc_iibf', '(`iibf_number`)'],
     ['bc_supervisors', 'ix_bc_dra', '(`dra_id`)'],
@@ -233,6 +247,17 @@ function columnType(string $database, string $table, string $column): string
           WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :t AND COLUMN_NAME = :c',
         ['db' => $database, 't' => $table, 'c' => $column]
     );
+}
+
+function columnDefault(string $database, string $table, string $column): ?string
+{
+    $value = Database::scalar(
+        'SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :t AND COLUMN_NAME = :c',
+        ['db' => $database, 't' => $table, 'c' => $column]
+    );
+
+    return $value === null ? null : trim((string) $value, "'");
 }
 
 function indexExists(string $database, string $table, string $index): bool
@@ -316,6 +341,36 @@ foreach ($modifications as [$table, $column, $definition, $marker]) {
         $applied++;
     } catch (Throwable $e) {
         printf("  !! %s.%s failed: %s\n", $table, $column, $e->getMessage());
+        $failed++;
+    }
+}
+
+/* Defaults ----------------------------------------------------------------- */
+
+foreach ($defaults as [$table, $column, $definition, $expected]) {
+    if (!columnExists($database, $table, $column)) {
+        continue;
+    }
+
+    if (columnDefault($database, $table, $column) === $expected) {
+        $skipped++;
+        continue;
+    }
+
+    $sql = sprintf('ALTER TABLE `%s` MODIFY COLUMN `%s` %s', $table, $column, $definition);
+
+    if ($dryRun) {
+        printf("  ~  %s\n", $sql);
+        $applied++;
+        continue;
+    }
+
+    try {
+        $pdo->exec($sql);
+        printf("  ~  %s.%s default is now %s\n", $table, $column, $expected);
+        $applied++;
+    } catch (Throwable $e) {
+        printf("  !! %s.%s default failed: %s\n", $table, $column, $e->getMessage());
         $failed++;
     }
 }

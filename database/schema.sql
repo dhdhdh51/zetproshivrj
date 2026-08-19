@@ -814,7 +814,7 @@ CREATE TABLE `recoveries` (
   `branch_id`        BIGINT UNSIGNED NOT NULL,
   `amount`           DECIMAL(15,2) NOT NULL,
   `recovery_date`    DATE NOT NULL,
-  `payment_mode`     VARCHAR(40) NOT NULL DEFAULT 'Cash',
+  `payment_mode`     VARCHAR(40) NOT NULL DEFAULT 'Other',
   `receipt_number`   VARCHAR(80) NULL,
   `remarks`          VARCHAR(500) NULL,
   `status`           ENUM('recorded','verified','rejected') NOT NULL DEFAULT 'recorded',

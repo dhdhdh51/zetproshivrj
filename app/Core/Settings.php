@@ -52,7 +52,7 @@ final class Settings
         'maintenance_mode' => '0',
         'report_working_days' => '1,2,3,4,5,6',
         'report_reminder_minutes' => '60,30,10',
-        'payment_modes' => 'Cash,Bank Transfer,UPI,Cheque,Other',
+        'payment_modes' => 'UPI,Bank Transfer,Cheque,Other',
         // A supervisor whose device has not checked in for this long is shown as
         // offline rather than "live".
         'supervisor_offline_minutes' => '15',
