@@ -306,6 +306,12 @@ $screens = [
     '/admin/supervisors/create' => 'Add BC supervisor',
     '/admin/inspections' => 'BC inspections',
     '/admin/inspections/create' => 'Start inspection (chooser)',
+    '/admin/inspections/register' => 'Inspection register',
+    // Sidebar shortcuts that redirect into the reports; listed so a broken
+    // redirect is caught here rather than by someone clicking the nav.
+    '/admin/krm-ots' => 'KRM OTS shortcut',
+    '/admin/ckcc' => 'CKCC OD-2 shortcut',
+    '/admin/accounts/create' => 'Add loan account',
     '/admin/monitoring' => 'Live monitoring',
     '/admin/targets' => 'Targets',
     '/admin/deadline' => 'Report deadline',
@@ -515,6 +521,68 @@ equals(
     ),
     'An account with no borrower name is not created'
 );
+
+/* -------------------------------------------------------------------------- */
+section('Import detail page, including the rejected rows');
+/* -------------------------------------------------------------------------- */
+
+// This page was never opened by the suite, and it carried a query that MariaDB
+// refuses outright — `row_number` reads as the ROW_NUMBER() window function
+// unless it is quoted. Every screen that lists rejected rows is exercised here,
+// with a row present, so the query really runs.
+$errorImportId = (int) Database::insert('excel_imports', [
+    'user_id' => $adminId,
+    'original_name' => 'smoke-rejected-rows.xlsx',
+    'stored_path' => 'uploads/imports/smoke-rejected-rows.xlsx',
+    'file_size' => 2048,
+    'sheet_name' => 'Sheet1',
+    'header_row' => 1,
+    'detected_headers' => json_encode(['A/C No', 'Name']),
+    'mapping' => json_encode(['account_number' => 'A/C No', 'borrower_name' => 'Name']),
+    'status' => 'completed',
+    'total_rows' => 3,
+    'imported_rows' => 1,
+    'error_rows' => 2,
+    'created_at' => date('Y-m-d H:i:s'),
+    'updated_at' => date('Y-m-d H:i:s'),
+]);
+
+foreach ([
+    [7, 'missing_required', 'error', 'Account Number is empty.'],
+    [9, 'unknown_branch', 'warning', 'Branch "ZZZ" is not set up in LRMS.'],
+] as [$row, $type, $severity, $message]) {
+    Database::insert('excel_import_errors', [
+        'import_id' => $errorImportId,
+        'row_number' => $row,
+        'error_type' => $type,
+        'severity' => $severity,
+        'message' => $message,
+        'created_at' => date('Y-m-d H:i:s'),
+    ]);
+}
+
+$importDetail = page('/admin/imports/' . $errorImportId, 'Import detail with rejected rows');
+ok(str_contains($importDetail, 'Account Number is empty.'), 'The rejected row and its reason are listed');
+ok(str_contains($importDetail, 'not set up in LRMS'), 'A warning row is listed too');
+
+// And the detail page of a real import from the earlier suite run, if there is one.
+$realImportId = (int) Database::scalar('SELECT MAX(id) FROM excel_imports WHERE status = :s', ['s' => 'completed']);
+
+if ($realImportId > 0 && $realImportId !== $errorImportId) {
+    page('/admin/imports/' . $realImportId, 'Import detail for a completed import');
+}
+
+// Generated exports are streamed through an authorisation check rather than being
+// served from the web root, and that route had no coverage either.
+$export = Database::selectOne('SELECT id, file_name FROM report_exports ORDER BY id DESC LIMIT 1');
+
+if ($export === null) {
+    ok(false, 'No report export was produced earlier — cannot test authorised file download');
+} else {
+    $download = request($base . '/files/export/' . (int) $export['id']);
+    equals(200, $download['status'], 'A generated export downloads through the authorised route');
+    ok(strlen($download['body']) > 100, 'The downloaded export has content');
+}
 
 /* -------------------------------------------------------------------------- */
 section('The sample import sheet downloads');

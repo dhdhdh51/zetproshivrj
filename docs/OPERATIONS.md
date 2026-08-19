@@ -300,7 +300,7 @@ After changing anything on the server:
 
 ```bash
 php tests/test-import.php    # import, allocation, exports          (160 checks)
-php tests/http-smoke.php     # every screen, all reports            (182 checks)
+php tests/http-smoke.php     # every screen, all reports            (191 checks)
 php tests/api-smoke.php      # the Android API end to end           (105 checks)
 php tests/test-reports.php   # the Field Visit Verification Reports (236 checks)
 ```
