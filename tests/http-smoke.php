@@ -415,6 +415,13 @@ if ($installer['status'] === 200) {
         'Installer hides its form on an installed site'
     );
 
+    // Compare the configuration before and after, rather than against a fixed
+    // database name: this suite runs against whatever database the environment
+    // provides, and CI's is not the same as a developer's.
+    $configFile = dirname(__DIR__) . '/config/config.local.php';
+    $configFile = is_file($configFile) ? $configFile : dirname(__DIR__) . '/config/config.php';
+    $configBefore = is_file($configFile) ? (string) md5_file($configFile) : '';
+
     // A POST straight at it must not get past the guard either.
     $attack = request($base . '/install.php', [
         'post' => [
@@ -433,11 +440,16 @@ if ($installer['status'] === 200) {
         'Installer refuses a POST on an installed site'
     );
 
-    // The real configuration must be untouched by that attempt.
+    clearstatcache(true, $configFile);
+
     equals(
-        'lrms',
-        (string) App\Core\Config::get('database.database'),
-        'The configured database was not repointed by the installer'
+        $configBefore,
+        is_file($configFile) ? (string) md5_file($configFile) : '',
+        'The configuration file was not rewritten by the installer'
+    );
+    ok(
+        !str_contains(is_file($configFile) ? (string) file_get_contents($configFile) : '', 'attacker_db'),
+        'The site was not repointed at another database'
     );
     ok(
         (int) Database::scalar("SELECT COUNT(*) FROM users WHERE username = 'attacker'") === 0,
