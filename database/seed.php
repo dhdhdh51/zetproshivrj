@@ -672,7 +672,11 @@ function lrms_seed_admin(): void
         'email' => $email,
         'username' => 'admin',
         'employee_code' => 'ADM001',
-        'mobile' => getenv('LRMS_ADMIN_MOBILE') ?: null,
+        // Trimmed to the column width: this can arrive from an environment
+        // variable, so it is not necessarily something a form has checked.
+        'mobile' => ($mobile = trim((string) (getenv('LRMS_ADMIN_MOBILE') ?: ''))) === ''
+            ? null
+            : mb_substr($mobile, 0, 20),
         'password' => Auth::hashPassword($password),
         'status' => 'active',
         'must_change_password' => 1,
