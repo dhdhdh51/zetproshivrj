@@ -78,6 +78,74 @@ function lrms_connect(array $db): PDO
     ]);
 }
 
+/**
+ * Normalise a mobile number to something the 20-character column accepts.
+ *
+ * Operators paste all sorts of things here — country codes, spaces, brackets,
+ * sometimes two numbers separated by a slash. Storing that raw failed the whole
+ * install on the very last insert, after the tables had already been built.
+ *
+ * @return array{0: ?string, 1: string} value + error message
+ */
+function lrms_normalise_mobile(string $raw): array
+{
+    $raw = trim($raw);
+
+    if ($raw === '') {
+        return [null, ''];
+    }
+
+    // Keep the digits, and a single leading + if there was one.
+    $plus = str_starts_with($raw, '+');
+    $digits = (string) preg_replace('/\D/', '', $raw);
+
+    if ($digits === '') {
+        return [null, 'The mobile number contains no digits.'];
+    }
+
+    $value = ($plus ? '+' : '') . $digits;
+
+    if (strlen($value) > 20) {
+        return [
+            null,
+            'The mobile number is too long (' . strlen($value) . ' characters after removing spaces; '
+            . 'the limit is 20). Enter one number only, without a second number or extra notes.',
+        ];
+    }
+
+    return [$value, ''];
+}
+
+/**
+ * Drop every table in the database.
+ *
+ * Only ever called after a failed install, and only because the installer
+ * refuses to start unless the database was empty — so everything present was
+ * created by the attempt that just failed. Without this, a failure left 40 tables
+ * behind, which the "database already has tables" guard then treated as a live
+ * site: the operator could neither retry nor clean up without a shell.
+ */
+function lrms_rollback(PDO $pdo): int
+{
+    $tables = $pdo->query(
+        'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()'
+    )->fetchAll(PDO::FETCH_COLUMN);
+
+    if ($tables === []) {
+        return 0;
+    }
+
+    $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+
+    foreach ($tables as $table) {
+        $pdo->exec('DROP TABLE IF EXISTS `' . str_replace('`', '', (string) $table) . '`');
+    }
+
+    $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+
+    return count($tables);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Requirements                                                              */
 /* -------------------------------------------------------------------------- */
@@ -174,6 +242,42 @@ if ($blocked === null && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
     if ($input['admin_email'] !== '' && filter_var($input['admin_email'], FILTER_VALIDATE_EMAIL) === false) {
         $errors[] = 'That email address is not valid.';
+    }
+
+    // Length limits, checked up front. Without these the insert fails on the
+    // last step, after the whole schema has been built — the rollback below then
+    // has to undo it. Better to say so before touching anything.
+    foreach ([
+        'admin_name' => ['Full name', 160],
+        'admin_username' => ['Username', 80],
+        'admin_email' => ['Email', 190],
+        'db_name' => ['Database name', 64],
+        'db_user' => ['Database user', 64],
+        'app_url' => ['Site address', 255],
+        'org_name' => ['Organisation name', 190],
+    ] as $field => [$label, $limit]) {
+        if (mb_strlen($input[$field]) > $limit) {
+            $errors[] = sprintf(
+                '%s is too long (%d characters; the limit is %d).',
+                $label,
+                mb_strlen($input[$field]),
+                $limit
+            );
+        }
+    }
+
+    // The username is typed at sign-in, so keep it to characters that survive a
+    // URL, a form and a phone keyboard.
+    if ($input['admin_username'] !== '' && preg_match('/^[A-Za-z0-9._@-]+$/', $input['admin_username']) !== 1) {
+        $errors[] = 'The username may only contain letters, numbers, dot, dash, underscore or @.';
+    }
+
+    // Checked before anything is created, so a bad number cannot fail the
+    // install half way through.
+    [$adminMobile, $mobileError] = lrms_normalise_mobile($input['admin_mobile']);
+
+    if ($mobileError !== '') {
+        $errors[] = $mobileError;
     }
 
     // Matches the application's own password policy, so the account you create
@@ -321,13 +425,19 @@ PHP;
             // rather than a copy of it, and create the admin from this form.
             putenv('LRMS_ADMIN_EMAIL=' . $input['admin_email']);
             putenv('LRMS_ADMIN_PASSWORD=' . $input['admin_password']);
-            putenv('LRMS_ADMIN_MOBILE=' . $input['admin_mobile']);
+            putenv('LRMS_ADMIN_MOBILE=' . (string) $adminMobile);
 
+            // The seed prints its progress. Capture it in all cases: on an
+            // exception an un-flushed buffer ends up printed above this page.
             ob_start();
-            require LRMS_BASE . '/app/bootstrap.php';
-            require LRMS_BASE . '/database/seed.php';
-            lrms_seed(false);
-            ob_end_clean();
+
+            try {
+                require LRMS_BASE . '/app/bootstrap.php';
+                require LRMS_BASE . '/database/seed.php';
+                lrms_seed(false);
+            } finally {
+                $seedOutput = (string) ob_get_clean();
+            }
 
             // The seed always uses "admin" and forces a password change. The
             // password here was chosen by the operator, so neither applies.
@@ -354,8 +464,38 @@ PHP;
             // Remove the installer immediately; report honestly if we cannot.
             $selfDeleted = @unlink(__FILE__);
         } catch (Throwable $e) {
-            $errors[] = 'Installation failed: ' . $e->getMessage();
-            $errors[] = 'The database may be half-built. Drop its tables before trying again.';
+            $message = $e->getMessage();
+
+            // Turn the common driver errors into something actionable.
+            if (str_contains($message, '1406') || stripos($message, 'Data too long') !== false) {
+                if (preg_match("/column '([^']+)'/", $message, $m) === 1) {
+                    $errors[] = sprintf('The value entered for "%s" is too long for the database.', $m[1]);
+                } else {
+                    $errors[] = 'One of the values entered is too long for the database.';
+                }
+            } elseif (stripos($message, 'Duplicate entry') !== false) {
+                $errors[] = 'That username or email is already taken in this database.';
+            } else {
+                $errors[] = 'Installation failed: ' . $message;
+            }
+
+            // The database was empty when this started, so everything in it was
+            // created by this attempt. Removing it leaves a clean database that
+            // can simply be tried again.
+            try {
+                $dropped = lrms_rollback($pdo);
+
+                $errors[] = $dropped > 0
+                    ? sprintf(
+                        'The %d tables created by this attempt have been removed, so the database is '
+                        . 'clean. Correct the value above and submit again.',
+                        $dropped
+                    )
+                    : 'Nothing was left behind. Correct the value above and submit again.';
+            } catch (Throwable $cleanup) {
+                $errors[] = 'The database is half-built and could not be cleaned up automatically ('
+                    . $cleanup->getMessage() . '). Drop its tables in phpMyAdmin before trying again.';
+            }
         }
     }
 }
@@ -545,7 +685,8 @@ $e = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
         </div>
         <div>
           <label for="admin_mobile">Mobile</label>
-          <input id="admin_mobile" name="admin_mobile" value="<?= $e($input['admin_mobile']) ?>">
+          <input id="admin_mobile" name="admin_mobile" value="<?= $e($input['admin_mobile']) ?>" maxlength="20">
+          <div class="hint">One number, digits only. Optional.</div>
         </div>
         <div class="full">
           <label for="admin_password">Password</label>
