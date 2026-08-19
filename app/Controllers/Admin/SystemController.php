@@ -6,6 +6,7 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Core\Database;
+use App\Core\Lang;
 use App\Core\Request;
 use App\Core\Settings;
 use App\Services\Audit;
@@ -171,9 +172,14 @@ final class SystemController extends BaseController
     {
         $before = Settings::all();
 
+        // An unknown code would leave the panel with no strings at all, so only a
+        // language that ships a catalogue can become the default.
+        $locale = trim((string) $request->input('default_locale', Lang::FALLBACK));
+
         $values = [
             'site_name' => trim((string) $request->input('site_name', 'LRMS')),
             'organisation_name' => trim((string) $request->input('organisation_name', '')),
+            'default_locale' => Lang::isSupported($locale) ? $locale : Lang::FALLBACK,
             'maintenance_mode' => $request->boolean('maintenance_mode') ? '1' : '0',
             'supervisor_offline_minutes' => (string) max(1, (int) $request->input('supervisor_offline_minutes', 15)),
         ];

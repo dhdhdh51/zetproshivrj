@@ -28,13 +28,26 @@ final class Auth
     /**
      * Users may sign in with their email address, username or employee code.
      */
+    /**
+     * Resolve a user from whatever they typed in the login field.
+     *
+     * A BC Supervisor knows their BCBF code — it is on their paperwork and in the
+     * bank's spreadsheets — far better than a username invented when their
+     * account was created, so it signs them in too. The join is safe: one
+     * bc_supervisors row per user is enforced by `uq_bc_user`, and `uq_bc_code`
+     * keeps the code unique across supervisors.
+     */
     public static function findByLogin(string $login): ?array
     {
         return Database::selectOne(
             'SELECT u.*, r.slug AS role, r.name AS role_name
                FROM users u
                JOIN roles r ON r.id = u.role_id
-              WHERE u.email = :login OR u.username = :login OR u.employee_code = :login
+          LEFT JOIN bc_supervisors s ON s.user_id = u.id
+              WHERE u.email = :login
+                 OR u.username = :login
+                 OR u.employee_code = :login
+                 OR s.bc_code = :login
               LIMIT 1',
             ['login' => $login]
         );

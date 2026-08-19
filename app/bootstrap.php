@@ -40,6 +40,7 @@ require_once BASE_PATH . '/app/Helpers/functions.php';
 
 use App\Core\Config;
 use App\Core\Kernel;
+use App\Core\Lang;
 use App\Core\Session;
 
 try {
@@ -91,4 +92,8 @@ Kernel::registerErrorHandlers();
 // Stateless API requests must not start a cookie session.
 if (!defined('LRMS_STATELESS')) {
     Session::start();
+
+    // Resolve the panel language once the session exists, so every view and
+    // redirect message in this request speaks the same language.
+    Lang::boot();
 }

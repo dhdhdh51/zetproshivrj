@@ -109,6 +109,9 @@ function lrms_seed_settings(): void
         'general' => [
             'site_name' => 'LRMS',
             'organisation_name' => 'Loan Recovery Management System',
+            // English by default; each user can switch to Hindi from the top bar
+            // and that choice sticks on their browser.
+            'default_locale' => 'en',
             'maintenance_mode' => '0',
             'supervisor_offline_minutes' => '15',
         ],
