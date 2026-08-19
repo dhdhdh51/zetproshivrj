@@ -23,6 +23,7 @@ class FormLogicTest {
         conditionOperator: String? = null,
         conditionValue: String? = null,
     ) = FormFieldEntity(
+        visitType = "customer",
         fieldKey = key,
         label = label,
         type = type,
@@ -214,6 +215,7 @@ class FormLogicTest {
 class FormLogicContainsTest {
 
     private val documentsOther = FormFieldEntity(
+        visitType = "customer",
         fieldKey = "documents_other",
         label = "Other document",
         type = "text",
