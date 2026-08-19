@@ -187,7 +187,6 @@ final class SystemController extends BaseController
         $field = [
             'min_visit_photos' => (string) max(0, (int) $request->input('min_visit_photos', 1)),
             'min_inspection_photos' => (string) max(0, (int) $request->input('min_inspection_photos', 1)),
-            'require_borrower_signature' => $request->boolean('require_borrower_signature') ? '1' : '0',
             'watermark_photos' => $request->boolean('watermark_photos') ? '1' : '0',
             'payment_modes' => trim((string) $request->input('payment_modes', 'Cash,Bank Transfer,UPI,Cheque,Other')),
         ];

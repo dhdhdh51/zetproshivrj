@@ -766,7 +766,7 @@ final class FieldVisitReport
         // unapproved report must not look countersigned.
         $approved = $visit['approved_at'] !== null && ($visit['approver_name'] ?? '') !== '';
 
-        $pdf->heading('Supervisor verification', 9.0);
+        $pdf->heading('Supervisor Verification', 9.0);
         $pdf->keyValues([
             'Name' => $approved ? (string) $visit['approver_name'] : '',
             'Designation' => $approved ? 'Admin / Supervisor' : '',
@@ -774,27 +774,15 @@ final class FieldVisitReport
             'Date' => $approved ? format_datetime((string) $visit['approved_at']) : '',
         ]);
 
-        $signatures = [
-            'Borrower signature' => $visit['borrower_signature'],
-            'BC Agent signature' => $visit['supervisor_signature'],
-            'Verifier signature' => $visit['verifier_signature'],
-        ];
-
-        $present = array_filter(
-            $signatures,
-            static fn (?string $path): bool => $path !== null && $path !== ''
-        );
-
-        if ($present !== []) {
-            $pdf->imageGrid(array_map(
-                static fn (string $path, string $label): array => [
-                    'path' => storage_path($path),
-                    'caption' => $label,
-                ],
-                array_values($present),
-                array_keys($present)
-            ), 3);
-        }
+        // Signed on paper, by hand. The app captures no signature and the
+        // template carries ruled boxes, so that is what prints — a report that
+        // showed nothing here gave the branch names and dates with nowhere to
+        // sign.
+        $pdf->signatureLines([
+            'Signature — BC Agent / DRA',
+            'Signature — Supervisor',
+            'Signature — Borrower',
+        ]);
     }
 
     /* ------------------------------------------------------------------ */

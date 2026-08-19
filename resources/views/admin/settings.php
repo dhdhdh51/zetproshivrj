@@ -81,11 +81,6 @@
                     <input type="checkbox" id="watermark_photos" name="watermark_photos" value="1" <?= setting('watermark_photos') === '1' ? 'checked' : '' ?>>
                     <label for="watermark_photos">Burn name, time and coordinates into photographs</label>
                 </div>
-                <div class="check">
-                    <input type="checkbox" id="require_borrower_signature" name="require_borrower_signature" value="1"
-                           <?= setting('require_borrower_signature') === '1' ? 'checked' : '' ?>>
-                    <label for="require_borrower_signature">Require a borrower signature to submit a visit</label>
-                </div>
             </div>
         </div>
 

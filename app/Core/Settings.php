@@ -30,7 +30,6 @@ final class Settings
 
         'min_visit_photos' => 'field.min_visit_photos',
         'min_inspection_photos' => 'field.min_inspection_photos',
-        'require_borrower_signature' => 'field.require_borrower_signature',
         'watermark_photos' => 'field.watermark_photos',
 
         'otp_web_login' => 'security.otp_web_login',

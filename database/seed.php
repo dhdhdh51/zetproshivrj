@@ -124,7 +124,6 @@ function lrms_seed_settings(): void
         'field' => [
             'min_visit_photos' => '1',
             'min_inspection_photos' => '1',
-            'require_borrower_signature' => '0',
             'watermark_photos' => '1',
             'payment_modes' => 'Cash,Bank Transfer,UPI,Cheque,Other',
         ],
@@ -212,8 +211,6 @@ function lrms_seed_visit_form(): int
         ['evidence_section', 'Evidence', 'section', 0, null, null],
         ['gps', 'Visit location', 'gps', 1, null, 'Captured automatically when the visit starts.'],
         ['photo', 'Photographs', 'photo', 1, null, 'Customer / house / shop / land / document.'],
-        ['borrower_signature', 'Borrower signature', 'signature', 0, null, null],
-        ['supervisor_signature', 'BC Supervisor signature', 'signature', 0, null, null],
     ];
 
     $ids = [];
@@ -379,8 +376,6 @@ function lrms_report_declaration_fields(): array
         ['certification_section', '12. Certification', 'section', 0, null,
             'Your name, BC code, DRA ID and mobile number are printed from your profile. '
             . 'The Admin/Supervisor countersigns when the report is approved.'],
-        ['borrower_signature', 'Borrower signature', 'signature', 0, null, null],
-        ['supervisor_signature', 'BC Agent signature', 'signature', 0, null, null],
     ];
 }
 

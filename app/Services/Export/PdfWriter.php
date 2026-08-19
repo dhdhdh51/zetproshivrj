@@ -419,6 +419,45 @@ final class PdfWriter
     }
 
     /**
+     * Ruled boxes to be signed by hand.
+     *
+     * The report is signed on paper, so what it needs is a line with room above it
+     * and a name under it — not a captured image. Printing nothing, as this used to
+     * when no signature had been stored, left the certification section with names
+     * and dates but nowhere to put a pen.
+     *
+     * @param array<int, string> $labels
+     */
+    public function signatureLines(array $labels, float $boxHeight = 34.0): void
+    {
+        if ($labels === []) {
+            return;
+        }
+
+        $gutter = 12.0;
+        $columns = count($labels);
+        $width = ($this->contentWidth() - ($gutter * ($columns - 1))) / $columns;
+
+        $this->ensurePage($boxHeight + 16);
+
+        $top = $this->y;
+
+        foreach (array_values($labels) as $index => $label) {
+            $x = $this->marginLeft + ($index * ($width + $gutter));
+            $ruleY = $top + $boxHeight;
+
+            // The rule itself, then the label beneath it, the way a form is laid
+            // out for signing rather than for reading back.
+            $this->line($x, $ruleY, $x + $width, $ruleY, self::ink(self::INK_MUTED));
+
+            $this->setFont(self::FONT_REGULAR, 8.0);
+            $this->drawText($x, $ruleY + 9.5, $label, self::ink(self::INK_MUTED));
+        }
+
+        $this->y = $top + $boxHeight + 15;
+    }
+
+    /**
      * A shaded box left blank for handwriting, as the template does for the
      * observations and recommendation sections when nothing was typed.
      */

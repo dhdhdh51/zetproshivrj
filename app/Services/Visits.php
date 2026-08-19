@@ -216,10 +216,6 @@ final class Visits
             $borrowerSignature = $photos->storeSignature((string) $payload['borrower_signature'], 'borrower-' . $visitId);
         }
 
-        if (Settings::bool('require_borrower_signature', false) && $borrowerSignature === null) {
-            throw new HttpException(422, 'The borrower signature is required by your configuration.');
-        }
-
         $supervisorSignature = $visit['supervisor_signature'];
 
         if (!empty($payload['supervisor_signature'])) {
