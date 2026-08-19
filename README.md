@@ -112,7 +112,7 @@ managers and six BC Supervisors for testing.
 php tests/test-import.php    # Excel import, allocation, exports    (160 checks)
 php tests/http-smoke.php     # every web screen, all 13 reports     (191 checks)
 php tests/api-smoke.php      # the Android API end to end           (123 checks)
-php tests/test-reports.php   # the Field Visit Verification Reports (244 checks)
+php tests/test-reports.php   # the Field Visit Verification Reports (248 checks)
 ```
 
 The suites run against a real database and a real HTTP server — they start

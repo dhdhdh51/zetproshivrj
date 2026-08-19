@@ -598,7 +598,18 @@ ok(str_contains($krmText, 'Declaration accepted by the BC Agent'), 'Declaration 
 // Section 12: the BC Agent is the BC Supervisor, and an unapproved report must
 // not look countersigned.
 ok(str_contains($krmText, 'BC Agent / DRA'), 'Certification names the BC Agent');
-ok(str_contains($krmText, 'Supervisor verification'), 'Certification has the supervisor block');
+
+// Signed by hand, so the page must carry lines to sign on. This block used to
+// print only when a signature image had been stored, and nothing ever stored one.
+foreach (['Signature', 'BC Agent / DRA', 'Supervisor', 'Borrower'] as $needle) {
+    ok(str_contains($krmText, $needle), 'The certification page carries "' . $needle . '"');
+}
+
+ok(
+    !str_contains($krmText, 'Borrower signature'),
+    'No captured-signature caption is printed, because none is captured'
+);
+ok(str_contains($krmText, 'Supervisor Verification'), 'Certification has the supervisor block');
 
 $unapproved = (string) Database::scalar('SELECT approved_at FROM visits WHERE id = :id', ['id' => $krmVisitId]) === '';
 ok($unapproved, 'The test report is not yet approved');

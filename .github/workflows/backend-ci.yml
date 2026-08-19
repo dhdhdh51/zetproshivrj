@@ -130,6 +130,13 @@ jobs:
       - name: Android API smoke tests
         run: php tests/api-smoke.php
 
+      # This suite covers the two field visit verification reports — the printed
+      # sections, the case types, the declaration and the PDF itself. It was
+      # missing from this list, so 243 checks never ran here and a broken
+      # assertion could sit in the branch with the build still green.
+      - name: Field visit verification report tests
+        run: php tests/test-reports.php
+
       - name: Upload application logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
