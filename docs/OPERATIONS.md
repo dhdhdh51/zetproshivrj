@@ -294,8 +294,26 @@ php tests/api-smoke.php      # the Android API end to end           (101 checks)
 php tests/test-reports.php   # the Field Visit Verification Reports (236 checks)
 ```
 
-These run against a real database, so point them at a scratch one — they migrate
-it fresh.
+These are development tools and are not part of the hosting package. They wipe
+and rebuild the database they are pointed at, so never run them against your live
+one — use a separate database on a development machine.
+
+**LRMS itself needs exactly one database.** `schema.sql` contains no
+`CREATE DATABASE`, so it only ever creates its 40 tables inside the database your
+config points at. If your hosting panel shows several, only one of them is in use:
+the one named in `config/config.local.php` (or `config/config.php`). To see which
+has the data:
+
+```sql
+SELECT TABLE_SCHEMA AS db, COUNT(*) AS tables_count
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA NOT IN ('information_schema','mysql','performance_schema','sys')
+GROUP BY TABLE_SCHEMA ORDER BY tables_count DESC;
+```
+
+The live one has 40 tables. Any others are leftovers from setting up and can be
+deleted — take a backup first, and never touch `information_schema`, `mysql`,
+`performance_schema` or `sys`, which belong to the server itself.
 
 ---
 
