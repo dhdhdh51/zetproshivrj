@@ -182,6 +182,32 @@ Open `https://your-domain/config/config.php`. You want **404 or 403**. If the
 browser downloads a file or shows PHP code, the document root is still wrong —
 stop and fix it before entering any real data.
 
+### If the home page itself returns 404
+
+That rules out the rewrite rules — a missing `.htaccess` breaks the other URLs but
+leaves the home page working. It is one of these two, and you can tell which from
+a browser without needing a terminal. Open, in order:
+
+| Open this URL | It loads | What it means |
+| --- | --- | --- |
+| `https://your-domain/deploy/preflight.php` | runs | The document root is one level too high — it is on `public_html`, not `public_html/public`. **Also check `/config/config.php` immediately: it is probably downloadable right now.** |
+| `https://your-domain/dhdhdh51-zetpro-<sha>/deploy/preflight.php` | runs | The archive was never flattened. Move the contents of that folder up into `public_html`. |
+| neither loads, and the site is unreachable rather than 404 | — | The document root points at a directory that does not exist — usually `public_html/public` set while the files are still nested. |
+
+Verified behaviour of each layout:
+
+| Request | docRoot too high | Files still nested |
+| --- | --- | --- |
+| `/` | 404 | 404 |
+| `/deploy/preflight.php` | **200** | 404 |
+| `/<sha-folder>/deploy/preflight.php` | 404 | **200** |
+| `/config/config.local.php` | **200 — your database password** | 404 |
+
+Do not "fix" this by adding an `index.php` to `public_html` that includes
+`public/index.php`. It makes the home page work while leaving `config/` and
+`storage/` downloadable, because OpenLiteSpeed is not applying the `.htaccess`
+rules that would otherwise block them. Set the document root.
+
 ---
 
 ## 5. Create the database
