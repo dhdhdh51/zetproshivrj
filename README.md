@@ -116,7 +116,8 @@ php tests/test-reports.php   # the Field Visit Verification Reports (236 checks)
 ```
 
 The suites run against a real database and a real HTTP server — they start
-`php -S` themselves. `tests/http-smoke.php` also fails if any PHP notice or
+`php -S` themselves. They rebuild the database they are pointed at, so use
+`LRMS_DB_NAME=lrms_scratch` to keep them off anything you care about. `tests/http-smoke.php` also fails if any PHP notice or
 warning leaks into a page.
 
 ### Android
