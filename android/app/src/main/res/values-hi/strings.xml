@@ -121,4 +121,5 @@
     <string name="action_cancel">रद्द करें</string>
     <string name="action_save">सेव करें</string>
     <string name="action_retry">दोबारा कोशिश करें</string>
+    <string name="filter_all">सभी</string>
 </resources>

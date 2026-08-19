@@ -57,13 +57,20 @@ import `in`.lrms.field.ui.components.StatusChip
 import `in`.lrms.field.ui.components.Tone
 import `in`.lrms.field.util.Times
 
+/**
+ * Filter key to its label resource.
+ *
+ * Resource ids rather than resolved strings: a top-level val is built once, before
+ * any composition and before the chosen language is known, so a string captured
+ * here would keep the language the process started in.
+ */
 private val filters = listOf(
-    "all" to "All",
-    "pending" to stringResource(R.string.account_not_visited),
-    "visited" to stringResource(R.string.account_visited),
-    "ptp" to "PTP",
-    "krm_ots" to "KRM OTS",
-    "ckcc_od2" to "CKCC OD-2",
+    "all" to R.string.filter_all,
+    "pending" to R.string.account_not_visited,
+    "visited" to R.string.account_visited,
+    "ptp" to R.string.filter_ptp,
+    "krm_ots" to R.string.stream_krm_ots,
+    "ckcc_od2" to R.string.stream_ckcc,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,11 +108,11 @@ fun AccountsScreen(viewModel: AppViewModel, onOpenAccount: (Long) -> Unit) {
                     .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                filters.forEach { (key, label) ->
+                filters.forEach { (key, labelRes) ->
                     FilterChip(
                         selected = filter == key,
                         onClick = { viewModel.setFilter(key) },
-                        label = { Text(label) },
+                        label = { Text(stringResource(labelRes)) },
                     )
                 }
             }

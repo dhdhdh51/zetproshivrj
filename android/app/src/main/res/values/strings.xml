@@ -124,4 +124,6 @@
     <string name="action_cancel">Cancel</string>
     <string name="action_save">Save</string>
     <string name="action_retry">Retry</string>
+    <string name="filter_all">All</string>
+    <string name="filter_ptp">PTP</string>
 </resources>
