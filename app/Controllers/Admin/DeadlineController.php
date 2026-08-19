@@ -58,7 +58,7 @@ final class DeadlineController extends BaseController
     public function save(Request $request): void
     {
         $data = $this->validate($request, [
-            'report_deadline_time' => 'required|regex:/^([01]\d|2[0-3]):[0-5]\d$/',
+            'report_deadline_time' => ['required', 'regex:/^([01]\d|2[0-3]):[0-5]\d$/'],
             'allow_late_submission_requests' => 'nullable|boolean',
         ], [], '/admin/deadline');
 
