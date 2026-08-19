@@ -272,13 +272,34 @@ heading('Web exposure');
 if (!$cli) {
     $script = (string) ($_SERVER['SCRIPT_FILENAME'] ?? '');
 
-    if ($script !== '' && realpath(dirname($script)) === realpath($root . '/public')) {
+    // Is the application being served from a sub-folder of the document root?
+    // That means the archive was extracted without being flattened — the folder
+    // in the URL is the wrapper the archive created. Detected separately from a
+    // wrong document root, because the fix is different.
+    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $urlPrefix = $scriptName === '' ? '/' : dirname(dirname($scriptName));
+
+    if ($urlPrefix !== '/' && $urlPrefix !== '.' && $urlPrefix !== '' && $urlPrefix !== '\\') {
+        result(
+            'fail',
+            'the application is inside a sub-folder',
+            'served from ' . $urlPrefix . ' — the archive was never flattened'
+        );
+
+        echo "\n";
+        echo "         Move its contents up into public_html, hidden files included:\n\n";
+        echo "             cd /home/<your-domain>/public_html\n";
+        printf("             mv .%s/.[!.]* .%s/* . 2>/dev/null\n", $urlPrefix, $urlPrefix);
+        printf("             rmdir .%s\n\n", $urlPrefix);
+        echo "         Then confirm public_html/public/index.php exists, and that the\n";
+        echo "         document root is \$VH_ROOT/public_html/public.\n";
+    } elseif ($script !== '' && realpath(dirname($script)) === realpath($root . '/public')) {
         result('pass', 'running from inside public/', 'document root looks correct');
     } elseif ($script !== '' && realpath(dirname($script)) === realpath($root . '/deploy')) {
         result(
             'fail',
             'deploy/ is reachable from the web',
-            'the document root points at the application root, not public/ — fix this first'
+            'the document root is on public_html, not public_html/public — fix this first'
         );
     } else {
         result('warn', 'could not confirm the document root', 'check it points at public_html/public');
