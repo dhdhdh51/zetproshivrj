@@ -180,6 +180,37 @@ function pdf_tick_strokes(string $path): int
 
 
 /**
+ * Vector strokes drawn in one colour.
+ *
+ * The tick on a chosen box and the cross on one that was ruled out are drawn, not
+ * typed, so they cannot be found in the PDF's text. They are told apart by colour:
+ * a tick is the teal the boxes are drawn in, a cross is the muted grey. Filled and
+ * stroked rectangles use a different operator, so box outlines are not counted.
+ */
+function pdf_stroke_count(string $path, string $colour): int
+{
+    if (!is_file($path)) {
+        return 0;
+    }
+
+    $data = (string) file_get_contents($path);
+
+    // A PDF names colours as RGB fractions, so the hex has to be converted the same
+    // way PdfWriter::ink() does before it can be found in the content stream.
+    $rgb = sprintf(
+        '%.3F %.3F %.3F',
+        hexdec(substr($colour, 0, 2)) / 255,
+        hexdec(substr($colour, 2, 2)) / 255,
+        hexdec(substr($colour, 4, 2)) / 255
+    );
+
+    $pattern = '/' . preg_quote($rgb, '/') . ' RG [\d.]+ w [\d.]+ [\d.]+ m [\d.]+ [\d.]+ l S Q/';
+
+    return preg_match_all($pattern, $data) ?: 0;
+}
+
+
+/**
  * PDF text with all whitespace collapsed to single spaces.
  *
  * Long values wrap across lines in the PDF, so a value like a company name

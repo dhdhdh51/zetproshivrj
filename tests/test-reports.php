@@ -24,6 +24,7 @@ use App\Core\Auth;
 use App\Core\Database;
 use App\Services\CkccRenewals;
 use App\Services\Export\FieldVisitReport;
+use App\Services\Export\PdfWriter;
 use App\Services\Forms;
 use App\Services\KrmOts;
 use App\Services\Photos;
@@ -645,6 +646,86 @@ ok($unapproved, 'The test report is not yet approved');
 // Tick boxes are drawn, not typed.
 ok(pdf_tick_strokes($krmPdf['path']) > 0, 'Ticked boxes are drawn as vector marks');
 ok(!str_contains($krmText, '☒') && !str_contains($krmText, '☐'), 'No ballot-box characters are emitted as text');
+
+// What was chosen carries a tick, and what was offered and not chosen carries a
+// cross, so a reader is never left deciding whether an empty box means "no" or
+// "nobody asked". The two are drawn in different colours, which is how they are
+// counted here — a tick is two strokes and so is a cross.
+$tickStrokes = pdf_stroke_count($krmPdf['path'], '0e7c7b');
+$crossStrokes = pdf_stroke_count($krmPdf['path'], '6b7280');
+
+ok($tickStrokes > 0, sprintf('Chosen options are ticked (%d strokes)', $tickStrokes));
+equals(0, $tickStrokes % 2, 'Every tick is a complete two-stroke mark');
+ok($crossStrokes > 0, sprintf('Options ruled out are crossed (%d strokes)', $crossStrokes));
+
+// And the honest half of it, checked on the writer itself rather than through a whole
+// report, because a report ticks things no form field decided — the Case Type row comes
+// from the visit and the borrower's gender from the loan book, so "nothing is ticked"
+// is never true of a real page even when every question was skipped.
+//
+// A group nobody answered must carry no marks at all. Crossing it would print a "No"
+// against every option on the agent's behalf, and they said nothing.
+$probeMarks = static function (array $selected): array {
+    $probe = new PdfWriter('portrait');
+    $probe->addPage();
+    $probe->checkboxes(['Yes', 'No'], $selected, 3, 'Probe');
+
+    $file = tempnam(sys_get_temp_dir(), 'marks') . '.pdf';
+    $probe->save($file);
+
+    $marks = [
+        'ticks' => pdf_stroke_count($file, '0e7c7b'),
+        'crosses' => pdf_stroke_count($file, '6b7280'),
+    ];
+
+    @unlink($file);
+
+    return $marks;
+};
+
+$unanswered = $probeMarks([]);
+equals(0, $unanswered['ticks'], 'An unanswered group carries no tick');
+equals(0, $unanswered['crosses'], 'An unanswered group is not crossed through either');
+
+$answered = $probeMarks(['Yes']);
+equals(2, $answered['ticks'], 'The chosen option gets one two-stroke tick');
+equals(2, $answered['crosses'], 'The option ruled out gets one two-stroke cross');
+
+// The tick's shape, not just its stroke count. A PDF's y axis grows upward while the
+// writer positions everything downward from the top, so a tick is one sign error away
+// from being drawn upside down — and a mirrored tick still draws exactly two strokes,
+// which is why counting them proves nothing about what a reader sees.
+$shapeProbe = new PdfWriter('portrait');
+$shapeProbe->addPage();
+$shapeProbe->checkboxes(['Yes', 'No'], ['Yes'], 3, 'Shape');
+$shapeFile = tempnam(sys_get_temp_dir(), 'shape') . '.pdf';
+$shapeProbe->save($shapeFile);
+
+$teal = sprintf('%.3F %.3F %.3F', 14 / 255, 124 / 255, 123 / 255);
+$found = preg_match_all(
+    '/' . preg_quote($teal, '/') . ' RG [\d.]+ w ([\d.]+) ([\d.]+) m ([\d.]+) ([\d.]+) l S Q/',
+    (string) file_get_contents($shapeFile),
+    $strokes,
+    PREG_SET_ORDER
+);
+@unlink($shapeFile);
+
+equals(2, $found, 'The tick is two strokes');
+
+if ($found === 2) {
+    [$first, $second] = $strokes;
+    $startX = (float) $first[1];
+    $startY = (float) $first[2];
+    $lowX = (float) $first[3];
+    $lowY = (float) $first[4];
+    $endX = (float) $second[3];
+    $endY = (float) $second[4];
+
+    ok($startX < $lowX && $lowX < $endX, 'The tick travels left to right');
+    ok($startY > $lowY, 'It dips to a low point first');
+    ok($endY > $startY, 'And its tail finishes above where it began');
+    ok(($endY - $lowY) > ($startY - $lowY), 'The rising tail is the longer of the two strokes');
+}
 
 // A recovery visit must not be printable as a verification report, and vice
 // versa: they are different documents for different purposes.
