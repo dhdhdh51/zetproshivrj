@@ -70,6 +70,16 @@
                         <input type="number" id="min_inspection_photos" name="min_inspection_photos" min="0" max="10"
                                value="<?= (int) setting('min_inspection_photos', 1) ?>">
                     </div>
+                    <div class="field">
+                        <label for="sss_backdate_days">SSS backdating window (days)</label>
+                        <input type="number" id="sss_backdate_days" name="sss_backdate_days" min="1" max="365"
+                               value="<?= (int) setting('sss_backdate_days', 30) ?>">
+                        <div class="help">
+                            How far back the app may record scheme enrolments. It needs to be wider than a
+                            day: a supervisor out of signal reports the day they collected the figures, not
+                            the day the phone finally reached the server. Never allows a future date.
+                        </div>
+                    </div>
                 </div>
                 <div class="field">
                     <label for="payment_modes">Payment modes</label>

@@ -187,6 +187,8 @@ final class SystemController extends BaseController
         $field = [
             'min_visit_photos' => (string) max(0, (int) $request->input('min_visit_photos', 1)),
             'min_inspection_photos' => (string) max(0, (int) $request->input('min_inspection_photos', 1)),
+            // At least a day, or the app could never record anything at all.
+            'sss_backdate_days' => (string) max(1, (int) $request->input('sss_backdate_days', 30)),
             'watermark_photos' => $request->boolean('watermark_photos') ? '1' : '0',
             'payment_modes' => trim((string) $request->input('payment_modes', 'UPI,Bank Transfer,Cheque,Other')),
         ];
