@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Compose supplies the real theme; this styles the window around it. -->
-    <style name="Theme.LRMS" parent="android:Theme.Material.Light.NoActionBar">
+    <!--
+        Compose supplies the real theme; this styles the window around it.
+
+        The parent must stay an AppCompat theme. MainActivity is an AppCompatActivity so
+        that the language switch reaches it below Android 13, and an AppCompatActivity
+        throws at startup under a framework theme. It was android:Theme.Material before,
+        which is why the switch could not be fixed without touching this file too.
+    -->
+    <style name="Theme.LRMS" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:statusBarColor">@color/brand_dark</item>
         <item name="android:navigationBarColor">@color/brand_dark</item>
         <item name="android:windowBackground">#F4F6FA</item>

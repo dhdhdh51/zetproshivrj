@@ -4,8 +4,8 @@ import `in`.lrms.field.R
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.padding
@@ -53,7 +53,18 @@ import `in`.lrms.field.ui.screens.ProfileScreen
 import `in`.lrms.field.ui.screens.VisitScreen
 import `in`.lrms.field.ui.theme.LrmsTheme
 
-class MainActivity : ComponentActivity() {
+/**
+ * The one activity.
+ *
+ * AppCompatActivity, not ComponentActivity, and that is load-bearing. The app's language
+ * is switched with AppCompatDelegate.setApplicationLocales, which on API 33+ the platform
+ * applies everywhere — but below that it is appcompat's backport, and it reaches an
+ * activity only by wrapping the base context through AppCompat's delegate. A plain
+ * ComponentActivity never goes through it, so every screen stayed in English on any phone
+ * older than Android 13. That is most of the handsets this app is for, and it shipped that
+ * way: the strings were all translated and none of them appeared.
+ */
+class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
