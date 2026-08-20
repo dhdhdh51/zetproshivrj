@@ -661,7 +661,7 @@ class FieldRepository(
                     // Put everything back in the queue untouched.
                     resetSyncing(visits.map { it.uuid }, outbox.map { it.uuid })
 
-                    return@withContext SyncReport(offline = true, message = Localised.context(context).resources.getQuantityString(
+                    return@withContext SyncReport(offline = true, message = Localised.wrap(context).resources.getQuantityString(
                         R.plurals.msg_offline_waiting, items.size, items.size
                     ))
                 }
@@ -778,7 +778,7 @@ class FieldRepository(
                 duplicates = duplicates,
                 failed = failed,
                 offline = true,
-                message = Localised.context(context).resources.getQuantityString(
+                message = Localised.wrap(context).resources.getQuantityString(
                             R.plurals.msg_offline_pushed, pushed, pushed
                         ),
             )

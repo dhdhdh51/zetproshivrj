@@ -676,7 +676,6 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
             text = {
                 Text(
                     if (pendingVisits + pendingOutbox > 0) {
-                    if (pendingVisits + pendingOutbox > 0) {
                         pluralStringResource(
                             R.plurals.sign_out_queued_warning,
                             pendingVisits + pendingOutbox,

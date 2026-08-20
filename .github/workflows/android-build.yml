@@ -79,9 +79,16 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon :app:dependencies --configuration debugRuntimeClasspath > /dev/null
 
+      # Output is captured to a file as well as the log. A compile error here is the
+      # first thing that fails, and reading the runner's log needs admin rights on the
+      # repository, while an artifact does not — so a failure stays diagnosable by
+      # whoever is actually working on it.
       - name: Run unit tests
         working-directory: android
-        run: ./gradlew --no-daemon testDebugUnitTest
+        run: |
+          mkdir -p build-logs
+          set -o pipefail
+          ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee build-logs/unit-tests.log
 
       - name: Run Android lint
         working-directory: android
@@ -112,6 +119,7 @@ jobs:
         with:
           name: android-reports
           path: |
+            android/build-logs/**
             android/app/build/reports/tests/**
             android/app/build/reports/lint-results-*.html
             android/app/build/reports/lint-results-*.xml

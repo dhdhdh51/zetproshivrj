@@ -52,7 +52,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * composable resolved, and the two must not disagree about the language.
      */
     private fun message(@StringRes id: Int, vararg args: Any): String =
-        Localised.string(getApplication(), id, *args)
+        Localised.string(getApplication<Application>(), id, *args)
 
     /* ------------------------------------------------------------------ */
     /* Session                                                             */

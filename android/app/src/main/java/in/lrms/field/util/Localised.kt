@@ -28,7 +28,7 @@ import java.util.Locale
 object Localised {
 
     /** A context whose resources are in the app's chosen language. */
-    fun context(context: Context): Context {
+    fun wrap(context: Context): Context {
         val locales = AppCompatDelegate.getApplicationLocales()
 
         // Empty means "follow the phone", and the context already does.
@@ -49,5 +49,5 @@ object Localised {
     }
 
     fun string(context: Context, @StringRes id: Int, vararg args: Any): String =
-        context(context).getString(id, *args)
+        wrap(context).getString(id, *args)
 }
