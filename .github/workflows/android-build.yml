@@ -356,6 +356,58 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
+      # Hand the APK over through git, not the artifacts API.
+      #
+      # The signing key is not a repository secret, so a release APK is signed where the
+      # key is kept — and that environment can read this repository over git while the
+      # artifact download endpoint refuses it with HTTP 401. An artifact it cannot fetch
+      # is no use to it, so a build/** push also leaves the APK on a branch, which git
+      # can reach.
+      #
+      # The file is named for what it is. Without the signing secrets it carries
+      # Android's debug key: it cannot install over a release build and must not be
+      # handed to anyone. The branch is temporary and is deleted once the signed copy is
+      # published.
+      - name: Leave the APK on a branch to be signed
+        if: startsWith(github.ref, 'refs/heads/build/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.artifacts.outputs.version }}
+          RELEASE_KEY: ${{ steps.verify.outputs.release_key }}
+        run: |
+          if [[ "${RELEASE_KEY}" == "true" ]]; then
+            NAME="LRMS-${VERSION}-SIGNED.apk"
+          else
+            NAME="LRMS-${VERSION}-DEBUGKEY-DO-NOT-DISTRIBUTE.apk"
+          fi
+
+          BRANCH="staging/${VERSION}"
+          WORK="${RUNNER_TEMP}/staging"
+
+          rm -rf "$WORK"
+          mkdir -p "$WORK"
+          cp "dist/LRMS-${VERSION}-release.apk" "${WORK}/${NAME}"
+          cd "$WORK"
+
+          sha256sum "$NAME" > "${NAME}.sha256"
+          cat "${NAME}.sha256"
+
+          # An orphan history: this branch is a delivery mechanism, not part of the
+          # project's history, and force-pushing one commit keeps it that way.
+          git init -q
+          git checkout -q -b "$BRANCH"
+          git add .
+          git \
+            -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "APK for ${VERSION}, awaiting signature
+
+          Built by run ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA}.
+          Signed with the release key: ${RELEASE_KEY}."
+
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
+          echo "Left ${NAME} on branch ${BRANCH}."
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
