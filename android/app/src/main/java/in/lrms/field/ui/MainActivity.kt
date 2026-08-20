@@ -45,6 +45,7 @@ import `in`.lrms.field.ui.screens.AttendanceScreen
 import `in`.lrms.field.ui.screens.ChangePasswordScreen
 import `in`.lrms.field.ui.screens.DailyReportScreen
 import `in`.lrms.field.ui.screens.HomeScreen
+import `in`.lrms.field.ui.screens.SssScreen
 import `in`.lrms.field.ui.screens.LoginScreen
 import `in`.lrms.field.ui.screens.NotificationsScreen
 import `in`.lrms.field.ui.screens.OtpScreen
@@ -212,6 +213,7 @@ private fun SignedInApp(
                     onOpenAccounts = { navController.navigate("accounts") },
                     onOpenAttendance = { navController.navigate("attendance") },
                     onOpenReport = { navController.navigate("daily-report") },
+                    onOpenSss = { navController.navigate("sss") },
                     onOpenNotifications = { navController.navigate("notifications") },
                     onOpenVisit = { uuid -> navController.navigate("visit/$uuid") },
                 )
@@ -258,6 +260,10 @@ private fun SignedInApp(
 
             composable("daily-report") {
                 DailyReportScreen(viewModel, onBack = { navController.popBackStack() })
+            }
+
+            composable("sss") {
+                SssScreen(viewModel, onBack = { navController.popBackStack() })
             }
 
             composable("outbox") { OutboxScreen(viewModel) }

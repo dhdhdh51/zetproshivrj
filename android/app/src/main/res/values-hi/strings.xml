@@ -263,4 +263,32 @@
         <item quantity="one">ऑफ़लाइन — कनेक्शन टूटने से पहले %1$d आइटम भेजा।</item>
         <item quantity="other">ऑफ़लाइन — कनेक्शन टूटने से पहले %1$d आइटम भेजे।</item>
     </plurals>
+
+    <!-- सामाजिक सुरक्षा योजना नामांकन -->
+    <string name="home_sss">SSS नामांकन</string>
+    <string name="sss_title">SSS नामांकन</string>
+    <string name="sss_intro">आज आपने कितने लोगों का नामांकन किया। जिस योजना में कोई नामांकन नहीं हुआ, उसे खाली छोड़ दें।</string>
+    <string name="sss_apy">APY</string>
+    <string name="sss_apy_full">अटल पेंशन योजना</string>
+    <string name="sss_pmjjby">PMJJBY</string>
+    <string name="sss_pmjjby_full">प्रधानमंत्री जीवन ज्योति बीमा योजना</string>
+    <string name="sss_pmsby">PMSBY</string>
+    <string name="sss_pmsby_full">प्रधानमंत्री सुरक्षा बीमा योजना</string>
+    <string name="sss_pmjdy">PMJDY</string>
+    <string name="sss_pmjdy_full">प्रधानमंत्री जन धन योजना</string>
+    <string name="sss_remarks">टिप्पणी (वैकल्पिक)</string>
+    <string name="sss_total">कुल</string>
+    <string name="sss_today_total">आज</string>
+    <string name="sss_month_total">इस महीने</string>
+    <string name="sss_month_meta">महीने की शुरुआत से अब तक</string>
+    <string name="sss_already_recorded">आज के लिए दर्ज</string>
+    <string name="sss_status">स्थिति</string>
+    <string name="sss_state_queued">भेजा जाना बाकी है</string>
+    <string name="sss_state_sent">भेज दिया गया</string>
+    <string name="sss_submit">नामांकन सहेजें</string>
+    <string name="sss_submit_correction">सुधार सहेजें</string>
+    <string name="sss_over_limit">एक योजना में एक दिन में %1$d से अधिक नहीं हो सकते। कृपया संख्या जाँच लें।</string>
+    <string name="sss_queue_note">इस डिवाइस पर सहेजा गया और अगले सिंक पर भेज दिया जाएगा। उसी दिन के लिए दोबारा सहेजने पर संख्या जुड़ती नहीं, सुधर जाती है।</string>
+    <string name="sss_outbox_label">%1$s के SSS नामांकन — कुल %2$d</string>
+    <string name="msg_sss_queued">SSS नामांकन सहेजे गए: कुल %1$d।</string>
 </resources>

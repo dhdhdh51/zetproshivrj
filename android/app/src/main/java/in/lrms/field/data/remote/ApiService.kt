@@ -73,6 +73,13 @@ interface ApiService {
     @GET("attendance")
     suspend fun attendance(): Response<Envelope<Map<String, AttendanceDto?>>>
 
+    /**
+     * A day's SSS figures. Read only: the figures themselves go out through the outbox
+     * like every other offline-capable write, so there is no POST here.
+     */
+    @GET("sss")
+    suspend fun sss(@Query("date") date: String? = null): Response<Envelope<SssData>>
+
     @POST("attendance/check-in")
     suspend fun checkIn(@Body body: Map<String, Any?>): Response<Envelope<AttendanceEnvelopeData>>
 

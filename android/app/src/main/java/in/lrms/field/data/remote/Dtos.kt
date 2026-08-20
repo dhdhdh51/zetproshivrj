@@ -126,6 +126,36 @@ data class AttendanceDto(
 
 data class AttendanceEnvelopeData(val attendance: AttendanceDto?)
 
+/**
+ * A day's SSS figures as the server holds them.
+ *
+ * Every field has a default so a short response still parses — the counts default to zero
+ * because "none that day" is a real answer and the server sends it as such.
+ */
+data class SssEntryDto(
+    @Json(name = "enrolment_date") val enrolmentDate: String? = null,
+    @Json(name = "apy_count") val apyCount: Int = 0,
+    @Json(name = "pmjjby_count") val pmjjbyCount: Int = 0,
+    @Json(name = "pmsby_count") val pmsbyCount: Int = 0,
+    @Json(name = "pmjdy_count") val pmjdyCount: Int = 0,
+    val total: Int = 0,
+    val remarks: String? = null,
+    val source: String? = null,
+)
+
+data class SssMonthDto(
+    val days: Int = 0,
+    val total: Int = 0,
+)
+
+data class SssData(
+    val date: String? = null,
+    /** Null when nothing has been recorded for the day. */
+    val entry: SssEntryDto? = null,
+    @Json(name = "max_per_scheme") val maxPerScheme: Int = 999,
+    val month: SssMonthDto? = null,
+)
+
 data class SyncPullData(
     @Json(name = "synced_at") val syncedAt: String?,
     val accounts: List<AccountDto> = emptyList(),

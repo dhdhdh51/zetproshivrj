@@ -11,6 +11,7 @@ import `in`.lrms.field.data.local.AccountEntity
 import `in`.lrms.field.data.local.AttendanceEntity
 import `in`.lrms.field.data.local.NotificationEntity
 import `in`.lrms.field.data.local.OutboxEntity
+import `in`.lrms.field.data.local.SssEntity
 import `in`.lrms.field.data.local.VisitEntity
 import `in`.lrms.field.data.repo.FieldRepository
 import `in`.lrms.field.location.FieldLocation
@@ -247,6 +248,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val attendance: StateFlow<AttendanceEntity?> = repository.observeAttendance(Times.today())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Today's Social Security Scheme figures, whatever was last recorded on this device. */
+    val sssToday: StateFlow<SssEntity?> = repository.observeSss(Times.today())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val sssMonthTotal: StateFlow<Int> = repository.observeSssMonthTotal(Times.today())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /* ------------------------------------------------------------------ */
     /* Accounts                                                            */
@@ -527,6 +535,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repository.queueDailyReport(summary, lateReason)
             requestBackgroundSync()
             onDone(message(R.string.msg_report_queued))
+        }
+    }
+
+    /**
+     * Record or correct today's SSS enrolments.
+     *
+     * A blank box is a zero, because a scheme with no enrolments that day is a real answer
+     * and making somebody type four zeros to say "nothing" invites them to skip the screen
+     * altogether. Anything unreadable is also a zero rather than a refusal — the rest of
+     * the day's figures are worth keeping.
+     */
+    fun submitSss(
+        apy: String,
+        pmjjby: String,
+        pmsby: String,
+        pmjdy: String,
+        remarks: String,
+        onDone: (String) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val date = Times.today()
+            val counts = listOf(apy, pmjjby, pmsby, pmjdy).map { it.trim().toIntOrNull() ?: 0 }
+
+            repository.queueSss(
+                date = date,
+                apy = counts[0],
+                pmjjby = counts[1],
+                pmsby = counts[2],
+                pmjdy = counts[3],
+                remarks = remarks.trim().ifBlank { null },
+            )
+            requestBackgroundSync()
+            onDone(message(R.string.msg_sss_queued, counts.sum()))
         }
     }
 

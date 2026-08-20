@@ -190,6 +190,29 @@ data class AttendanceEntity(
     val syncState: String,
 )
 
+/**
+ * A day's Social Security Scheme enrolments, mirrored locally so the screen works
+ * offline and reopens on whatever was last typed.
+ *
+ * Keyed by date, and the uuid is kept with it. A supervisor who types four and then
+ * corrects it to five is describing one day, not two: reusing the uuid means the
+ * correction overwrites the still-pending outbox row instead of queueing a second one,
+ * and the server treats the day as the natural key for the same reason.
+ */
+@Entity(tableName = "sss_enrolments")
+data class SssEntity(
+    @PrimaryKey val date: String,
+    val uuid: String,
+    val apyCount: Int,
+    val pmjjbyCount: Int,
+    val pmsbyCount: Int,
+    val pmjdyCount: Int,
+    val remarks: String?,
+    val syncState: String,
+) {
+    val total: Int get() = apyCount + pmjjbyCount + pmsbyCount + pmjdyCount
+}
+
 object SyncState {
     const val PENDING = "pending"
     const val SYNCING = "syncing"
@@ -217,4 +240,5 @@ object OutboxType {
     const val ATTENDANCE_IN = "attendance_in"
     const val ATTENDANCE_OUT = "attendance_out"
     const val DAILY_REPORT = "daily_report"
+    const val SSS = "sss"
 }

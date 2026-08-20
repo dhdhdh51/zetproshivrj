@@ -16,8 +16,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         NotificationEntity::class,
         FormFieldEntity::class,
         AttendanceEntity::class,
+        SssEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun notifications(): NotificationDao
     abstract fun forms(): FormDao
     abstract fun attendance(): AttendanceDao
+    abstract fun sss(): SssDao
 
     companion object {
         @Volatile
@@ -40,7 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lrms-field.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     // Only for a database from an unknown build. Real schema
                     // changes get a migration above, because this database is not
                     // only a cache: it holds the outbox, and a supervisor who
@@ -120,5 +122,29 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("ALTER TABLE `visits` ADD COLUMN `submitAddress` TEXT")
         db.execSQL("ALTER TABLE `visits` ADD COLUMN `submitIsMock` INTEGER NOT NULL DEFAULT 0")
         db.execSQL("ALTER TABLE `visits` ADD COLUMN `submitCapturedAt` TEXT")
+    }
+}
+
+/**
+ * The Social Security Scheme table.
+ *
+ * CREATE TABLE, nothing else touched. Letting Room fall back to a destructive migration
+ * here would delete the outbox along with the schema, and the outbox is the only copy of
+ * a day's field work until a signal returns.
+ */
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `sss_enrolments` (" +
+                "`date` TEXT NOT NULL, " +
+                "`uuid` TEXT NOT NULL, " +
+                "`apyCount` INTEGER NOT NULL, " +
+                "`pmjjbyCount` INTEGER NOT NULL, " +
+                "`pmsbyCount` INTEGER NOT NULL, " +
+                "`pmjdyCount` INTEGER NOT NULL, " +
+                "`remarks` TEXT, " +
+                "`syncState` TEXT NOT NULL, " +
+                "PRIMARY KEY(`date`))",
+        )
     }
 }

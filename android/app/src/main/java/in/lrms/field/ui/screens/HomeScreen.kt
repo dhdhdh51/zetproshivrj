@@ -57,6 +57,7 @@ fun HomeScreen(
     onOpenAccounts: () -> Unit,
     onOpenAttendance: () -> Unit,
     onOpenReport: () -> Unit,
+    onOpenSss: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenVisit: (String) -> Unit,
 ) {
@@ -198,6 +199,12 @@ fun HomeScreen(
                             OutlinedButton(onClick = onOpenReport, modifier = Modifier.weight(1f)) {
                                 Text(stringResource(R.string.home_daily_report))
                             }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(onClick = onOpenSss, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.home_sss))
                         }
                     }
                 }

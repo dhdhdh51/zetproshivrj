@@ -12,6 +12,7 @@ import `in`.lrms.field.data.local.NotificationEntity
 import `in`.lrms.field.data.local.OutboxEntity
 import `in`.lrms.field.data.local.OutboxType
 import `in`.lrms.field.data.local.PhotoEntity
+import `in`.lrms.field.data.local.SssEntity
 import `in`.lrms.field.data.local.SyncState
 import `in`.lrms.field.data.local.VisitEntity
 import `in`.lrms.field.data.prefs.SessionStore
@@ -261,6 +262,12 @@ class FieldRepository(
         db.forms().observeForType(visitType)
 
     fun observeAttendance(date: String): Flow<AttendanceEntity?> = db.attendance().observe(date)
+
+    fun observeSss(date: String): Flow<SssEntity?> = db.sss().observe(date)
+
+    /** Month-to-date total for the month the given day falls in. */
+    fun observeSssMonthTotal(date: String): Flow<Int> =
+        db.sss().observeMonthTotal(date.take(7) + "%")
 
     suspend fun formFields(): List<FormFieldEntity> = withContext(Dispatchers.IO) { db.forms().all() }
 
@@ -555,6 +562,55 @@ class FieldRepository(
         )
     }
 
+    /**
+     * Record or correct a day's Social Security Scheme enrolments.
+     *
+     * Written locally first so the screen shows the figures whether or not there is a
+     * signal, then queued. The uuid is reused for the day if one already exists, so a
+     * supervisor who types four and corrects it to five while still offline replaces the
+     * queued entry rather than adding a second one — `queue()` upserts on the uuid, and
+     * the server treats (supervisor, day) as the natural key for the same reason.
+     */
+    suspend fun queueSss(
+        date: String,
+        apy: Int,
+        pmjjby: Int,
+        pmsby: Int,
+        pmjdy: Int,
+        remarks: String?,
+    ): Unit = withContext(Dispatchers.IO) {
+        val uuid = db.sss().find(date)?.uuid ?: newUuid()
+        val total = apy + pmjjby + pmsby + pmjdy
+
+        db.sss().upsert(
+            SssEntity(
+                date = date,
+                uuid = uuid,
+                apyCount = apy,
+                pmjjbyCount = pmjjby,
+                pmsbyCount = pmsby,
+                pmjdyCount = pmjdy,
+                remarks = remarks,
+                syncState = SyncState.PENDING,
+            ),
+        )
+
+        queue(
+            OutboxType.SSS,
+            null,
+            Localised.string(context, R.string.sss_outbox_label, date, total),
+            mapOf(
+                "uuid" to uuid,
+                "enrolment_date" to date,
+                "apy_count" to apy,
+                "pmjjby_count" to pmjjby,
+                "pmsby_count" to pmsby,
+                "pmjdy_count" to pmjdy,
+                "remarks" to remarks,
+            ),
+        )
+    }
+
     /* ------------------------------------------------------------------ */
     /* Notifications                                                       */
     /* ------------------------------------------------------------------ */
@@ -815,6 +871,41 @@ class FieldRepository(
             }
 
             else -> Unit
+        }
+
+        // 4. Refresh today's SSS figures from the server's view.
+        //
+        // Only when nothing is waiting to go out. The server is not authoritative here the
+        // way it is for attendance times: the phone can be holding figures a supervisor
+        // typed minutes ago that have not been pushed yet, and overwriting those with an
+        // older server row would silently undo their work.
+        val sssDate = Times.today()
+        val localSss = db.sss().find(sssDate)
+
+        if (localSss?.syncState != SyncState.PENDING) {
+            when (val result = ApiClient.call { api.sss(sssDate) }) {
+                is ApiResult.Success -> {
+                    // Keyed on the day that was asked for, not the day the response
+                    // reports, so a surprising answer cannot write a row under a date
+                    // nothing else on this screen is looking at.
+                    result.data.entry?.let { entry ->
+                        db.sss().upsert(
+                            SssEntity(
+                                date = sssDate,
+                                uuid = localSss?.uuid ?: newUuid(),
+                                apyCount = entry.apyCount,
+                                pmjjbyCount = entry.pmjjbyCount,
+                                pmsbyCount = entry.pmsbyCount,
+                                pmjdyCount = entry.pmjdyCount,
+                                remarks = entry.remarks,
+                                syncState = SyncState.SYNCED,
+                            ),
+                        )
+                    }
+                }
+
+                else -> Unit
+            }
         }
 
         // Housekeeping: drop synced rows older than a week.

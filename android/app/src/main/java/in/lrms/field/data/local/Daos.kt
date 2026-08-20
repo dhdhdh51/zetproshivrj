@@ -200,6 +200,30 @@ interface FormDao {
 }
 
 @Dao
+interface SssDao {
+    @Upsert
+    suspend fun upsert(entry: SssEntity)
+
+    @Query("SELECT * FROM sss_enrolments WHERE date = :date")
+    fun observe(date: String): Flow<SssEntity?>
+
+    @Query("SELECT * FROM sss_enrolments WHERE date = :date")
+    suspend fun find(date: String): SssEntity?
+
+    /**
+     * The running total for a month, for the screen's header.
+     *
+     * The caller passes the pattern (e.g. "2026-08%") rather than having it built here,
+     * so the query is a plain LIKE with no string concatenation for Room to interpret.
+     */
+    @Query(
+        "SELECT COALESCE(SUM(apyCount + pmjjbyCount + pmsbyCount + pmjdyCount), 0) " +
+            "FROM sss_enrolments WHERE date LIKE :monthPattern",
+    )
+    fun observeMonthTotal(monthPattern: String): Flow<Int>
+}
+
+@Dao
 interface AttendanceDao {
     @Upsert
     suspend fun upsert(attendance: AttendanceEntity)
