@@ -9,9 +9,21 @@ use App\Core\Database;
 use App\Core\HttpException;
 
 /**
- * Money collected in the field. Every row is idempotent on its client uuid and
- * keeps its full history — recoveries are never edited in place, they are
- * verified or rejected by an Admin/Supervisor.
+ * Repayments the borrower made to the bank, recorded by the BC Supervisor who
+ * followed them up.
+ *
+ * Not money the agent took, and no longer something the app records at all. The field
+ * work is the visit: the borrower pays the bank directly and this system's job is to
+ * report on the follow-up, not to handle a rupee of it.
+ *
+ * What still writes here is a build of the app older than that policy, flushing a
+ * payment it had already queued offline. Those are accepted and stored as reported —
+ * see FieldController::recovery for why refusing them would lose the record rather
+ * than prevent the payment. Rows already in this table stay: they are history, and the
+ * panel reports read them.
+ *
+ * Every row is idempotent on its client uuid and keeps its full history: recoveries
+ * are never edited in place, they are verified or rejected by an Admin/Supervisor.
  */
 final class Recoveries
 {
@@ -99,7 +111,7 @@ final class Recoveries
             $branchId,
             'Recovery recorded',
             sprintf(
-                '%s collected against %s (%s).',
+                '%s paid against %s (%s).',
                 money($amount),
                 $account['account_number'] ?? '',
                 $account['borrower_name'] ?? ''
@@ -197,17 +209,30 @@ final class Recoveries
         return date('Y-m-d', $timestamp);
     }
 
+    /**
+     * The payment mode, recorded as reported.
+     *
+     * A mode this system does not offer is kept verbatim rather than replaced. The
+     * fallback used to be the first entry of the allowed list, which was 'Cash' — so
+     * any mode the server did not recognise, including a typo or a value from an app
+     * version older than this one, was silently filed as a cash collection that never
+     * happened. In a repayment record that is not a tidy-up, it is an invention.
+     *
+     * An older app still installed in the field can therefore report the cash mode it
+     * used to offer, and it is stored as cash: what that phone said is the honest
+     * record, and a supervisor can see it and follow it up. What the server must not do
+     * is put words in the report's mouth in either direction.
+     */
     private static function mode(mixed $value): string
     {
         $mode = trim((string) ($value ?? ''));
-        $allowed = payment_modes();
 
-        foreach ($allowed as $candidate) {
+        foreach (payment_modes() as $candidate) {
             if (strcasecmp($candidate, $mode) === 0) {
                 return $candidate;
             }
         }
 
-        return $allowed[0] ?? 'Cash';
+        return $mode === '' ? 'Other' : mb_substr($mode, 0, 40);
     }
 }

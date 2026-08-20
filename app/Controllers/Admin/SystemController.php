@@ -188,7 +188,7 @@ final class SystemController extends BaseController
             'min_visit_photos' => (string) max(0, (int) $request->input('min_visit_photos', 1)),
             'min_inspection_photos' => (string) max(0, (int) $request->input('min_inspection_photos', 1)),
             'watermark_photos' => $request->boolean('watermark_photos') ? '1' : '0',
-            'payment_modes' => trim((string) $request->input('payment_modes', 'Cash,Bank Transfer,UPI,Cheque,Other')),
+            'payment_modes' => trim((string) $request->input('payment_modes', 'UPI,Bank Transfer,Cheque,Other')),
         ];
 
         $gps = [

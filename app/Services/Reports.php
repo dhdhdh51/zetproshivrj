@@ -61,7 +61,7 @@ final class Reports
             ],
             'recovery' => [
                 'name' => 'Recovery Report',
-                'description' => 'Amounts collected by date, mode, branch and supervisor.',
+                'description' => 'Amounts borrowers repaid, by date, mode, branch and supervisor.',
                 'icon' => 'rupee',
                 'group' => 'Money',
             ],

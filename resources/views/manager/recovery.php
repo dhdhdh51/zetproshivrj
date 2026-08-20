@@ -1,7 +1,7 @@
 <div class="page-head">
     <div class="grow">
         <h1>Recovery and PTP</h1>
-        <div class="subtitle">Branch collection position and the promises still open.</div>
+        <div class="subtitle">What borrowers repaid this period, and the promises still open.</div>
     </div>
     <div class="page-actions">
         <a class="btn btn-secondary" href="<?= e(url('/manager/reports/recovery')) ?>"><?= icon('download', '', 15) ?> Recovery report</a>
@@ -26,7 +26,7 @@
     <div class="card-body">
         <div class="stat-grid" style="margin:0">
             <div class="stat good">
-                <div class="label">Collected in period</div>
+                <div class="label">Repaid in period</div>
                 <div class="value sm"><?= e(money((float) ($summary['total'] ?? 0))) ?></div>
                 <div class="meta"><?= number_format((int) ($summary['entries'] ?? 0)) ?> entries</div>
             </div>
@@ -46,7 +46,7 @@
         <div class="card-head"><h2>Recovery by supervisor</h2></div>
         <div class="table-wrap">
             <table class="data compact">
-                <thead><tr><th>Supervisor</th><th class="center">Entries</th><th class="right">Collected</th></tr></thead>
+                <thead><tr><th>Supervisor</th><th class="center">Entries</th><th class="right">Repaid</th></tr></thead>
                 <tbody>
                     <?php foreach ($bySupervisor as $row): ?>
                         <tr>
@@ -67,7 +67,7 @@
         <div class="card-head"><h2>By payment mode</h2></div>
         <div class="table-wrap">
             <table class="data compact">
-                <thead><tr><th>Mode</th><th class="center">Entries</th><th class="right">Collected</th></tr></thead>
+                <thead><tr><th>Mode</th><th class="center">Entries</th><th class="right">Repaid</th></tr></thead>
                 <tbody>
                     <?php foreach ($byMode as $row): ?>
                         <tr>
@@ -77,7 +77,7 @@
                         </tr>
                     <?php endforeach; ?>
                     <?php if ($byMode === []): ?>
-                        <tr><td colspan="3" class="muted small">Nothing collected in this period.</td></tr>
+                        <tr><td colspan="3" class="muted small">Nothing repaid in this period.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

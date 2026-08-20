@@ -74,7 +74,7 @@
                 <div class="field">
                     <label for="payment_modes">Payment modes</label>
                     <input type="text" id="payment_modes" name="payment_modes"
-                           value="<?= e(setting('payment_modes', 'Cash,Bank Transfer,UPI,Cheque,Other')) ?>">
+                           value="<?= e(setting('payment_modes', 'UPI,Bank Transfer,Cheque,Other')) ?>">
                     <div class="help">Comma separated; offered when recording recovery.</div>
                 </div>
                 <div class="check">

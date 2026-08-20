@@ -494,6 +494,15 @@ final class PdfWriter
             $selected
         );
 
+        $anyTicked = false;
+
+        foreach ($options as $option) {
+            if (in_array(strtolower(trim($option)), $ticked, true)) {
+                $anyTicked = true;
+                break;
+            }
+        }
+
         $columns = max(1, $columns);
         $gutter = 4.0;
         $cellWidth = ($this->contentWidth() - ($gutter * ($columns - 1))) / $columns;
@@ -516,28 +525,21 @@ final class PdfWriter
             $this->rect($x, $this->y, $cellWidth, $cellHeight, self::ink(self::FILL_TICK), true);
 
             // The glyphs the template uses (U+2610 / U+2612) have no place in the
-            // standard PDF fonts, so the box is drawn. It also survives
+            // standard PDF fonts, so the marks are drawn. Drawn also survives
             // photocopying, which is what happens to these forms.
             $boxTop = $this->y + (($cellHeight - $box) / 2);
             $boxLeft = $x + 5.0;
             $this->rect($boxLeft, $boxTop, $box, $box, self::ink(self::INK_TEAL), false);
 
             if ($isTicked) {
-                $inset = 1.7;
-                $this->line(
-                    $boxLeft + $inset,
-                    $boxTop + $inset,
-                    $boxLeft + $box - $inset,
-                    $boxTop + $box - $inset,
-                    self::ink(self::INK_TEAL)
-                );
-                $this->line(
-                    $boxLeft + $inset,
-                    $boxTop + $box - $inset,
-                    $boxLeft + $box - $inset,
-                    $boxTop + $inset,
-                    self::ink(self::INK_TEAL)
-                );
+                $this->tickMark($boxLeft, $boxTop, $box, self::ink(self::INK_TEAL));
+            } elseif ($anyTicked) {
+                // A cross only where an answer was actually given. Crossing every box
+                // in a group nobody answered would print a "No" against every option
+                // on the reader's behalf — the agent said nothing, and a verification
+                // report that invents a negative is worse than one with a gap in it.
+                // An unanswered group therefore stays visibly unanswered.
+                $this->crossMark($boxLeft, $boxTop, $box, self::ink(self::INK_MUTED));
             }
 
             $font = $isTicked ? self::FONT_BOLD : self::FONT_REGULAR;
@@ -566,6 +568,47 @@ final class PdfWriter
     }
 
     /**
+     * The mark a chosen option carries.
+     *
+     * A tick, in two strokes: a short fall to the low point, then a longer rise. It
+     * used to be drawn as two crossing diagonals — an X — because that is the glyph
+     * the Word template uses for a chosen box. On a printed page an X in a box is read
+     * by most people as "not this", so the report was ambiguous about the one thing it
+     * exists to state. A tick for chosen and a cross for not chosen cannot be misread.
+     */
+    private function tickMark(float $left, float $top, float $size, string $colour): void
+    {
+        $this->line(
+            $left + ($size * 0.20),
+            $top + ($size * 0.52),
+            $left + ($size * 0.42),
+            $top + ($size * 0.76),
+            $colour
+        );
+        $this->line(
+            $left + ($size * 0.42),
+            $top + ($size * 0.76),
+            $left + ($size * 0.84),
+            $top + ($size * 0.22),
+            $colour
+        );
+    }
+
+    /**
+     * The mark an option that was offered and not chosen carries.
+     *
+     * Muted rather than the tick's colour, so a reader scanning the page sees what was
+     * answered first and what was ruled out second.
+     */
+    private function crossMark(float $left, float $top, float $size, string $colour): void
+    {
+        $inset = $size * 0.22;
+
+        $this->line($left + $inset, $top + $inset, $left + $size - $inset, $top + $size - $inset, $colour);
+        $this->line($left + $inset, $top + $size - $inset, $left + $size - $inset, $top + $inset, $colour);
+    }
+
+    /**
      * A bold sub-heading above a group, as the template puts "Case Type" or
      * "Gender" above its tick rows.
      */
@@ -579,8 +622,11 @@ final class PdfWriter
 
     /**
      * A Yes / No pair, which the printed form uses for most of section 6.
-     * A null value leaves both boxes empty, which is a real answer on a
-     * verification report: it means the question was not reached.
+     *
+     * Answered "yes" prints a tick against Yes and a cross against No, and the reverse.
+     * A null value leaves both boxes empty and uncrossed, which is a real answer on a
+     * verification report: it means the question was not reached, not that both answers
+     * are false.
      */
     public function yesNoRow(string $label, ?bool $value, int $columns = 3): void
     {

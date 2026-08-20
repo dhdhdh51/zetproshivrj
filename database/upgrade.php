@@ -184,12 +184,35 @@ $modifications = [
         "ENUM('equals','not_equals','in','contains','filled','empty') NULL",
         'contains',
     ],
+    // The Aadhaar slot the reference app has. Appended to the end of the ENUM on
+    // purpose: MySQL stores an ENUM as an integer index, so inserting a member
+    // mid-list would rebuild visit_photos and re-map values already stored.
+    [
+        'visit_photos',
+        'photo_type',
+        "ENUM('customer','house','shop','land','document','selfie','other','aadhaar') NOT NULL DEFAULT 'other'",
+        'aadhaar',
+    ],
     // The section 11 declaration is ~1,100 characters and must be shown verbatim.
     ['visit_form_fields', 'help_text', 'VARCHAR(2000) NULL', 'varchar(2000)'],
     ['inspection_form_fields', 'help_text', 'VARCHAR(2000) NULL', 'varchar(2000)'],
 ];
 
 /** Indexes worth adding for the new report filters. */
+/**
+ * Column defaults that changed. Checked against COLUMN_DEFAULT rather than
+ * COLUMN_TYPE, which is why these cannot live in $modifications: a type comparison
+ * cannot see a default, so the same ALTER would be re-applied on every run.
+ *
+ * @var array<int, array{0:string, 1:string, 2:string, 3:string}> $defaults
+ */
+$defaults = [
+    // A repayment row inserted without a mode used to claim a cash collection,
+    // because 'Cash' was the column default. Recovery follow-up is this company's
+    // work; taking money is not, and a default must not assert otherwise.
+    ['recoveries', 'payment_mode', "VARCHAR(40) NOT NULL DEFAULT 'Other'", 'Other'],
+];
+
 $indexes = [
     ['bc_supervisors', 'ix_bc_iibf', '(`iibf_number`)'],
     ['bc_supervisors', 'ix_bc_dra', '(`dra_id`)'],
@@ -224,6 +247,17 @@ function columnType(string $database, string $table, string $column): string
           WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :t AND COLUMN_NAME = :c',
         ['db' => $database, 't' => $table, 'c' => $column]
     );
+}
+
+function columnDefault(string $database, string $table, string $column): ?string
+{
+    $value = Database::scalar(
+        'SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :t AND COLUMN_NAME = :c',
+        ['db' => $database, 't' => $table, 'c' => $column]
+    );
+
+    return $value === null ? null : trim((string) $value, "'");
 }
 
 function indexExists(string $database, string $table, string $index): bool
@@ -311,6 +345,36 @@ foreach ($modifications as [$table, $column, $definition, $marker]) {
     }
 }
 
+/* Defaults ----------------------------------------------------------------- */
+
+foreach ($defaults as [$table, $column, $definition, $expected]) {
+    if (!columnExists($database, $table, $column)) {
+        continue;
+    }
+
+    if (columnDefault($database, $table, $column) === $expected) {
+        $skipped++;
+        continue;
+    }
+
+    $sql = sprintf('ALTER TABLE `%s` MODIFY COLUMN `%s` %s', $table, $column, $definition);
+
+    if ($dryRun) {
+        printf("  ~  %s\n", $sql);
+        $applied++;
+        continue;
+    }
+
+    try {
+        $pdo->exec($sql);
+        printf("  ~  %s.%s default is now %s\n", $table, $column, $expected);
+        $applied++;
+    } catch (Throwable $e) {
+        printf("  !! %s.%s default failed: %s\n", $table, $column, $e->getMessage());
+        $failed++;
+    }
+}
+
 /* Indexes ------------------------------------------------------------------ */
 
 foreach ($indexes as [$table, $index, $definition]) {
@@ -334,6 +398,108 @@ foreach ($indexes as [$table, $index, $definition]) {
     } catch (Throwable $e) {
         printf("  !! %s.%s failed: %s\n", $table, $index, $e->getMessage());
         $failed++;
+    }
+}
+
+/* Form fields ------------------------------------------------------------- */
+
+// Questions added to a form after it was installed. seed.php only builds a form
+// that does not exist yet, so on a live database — where the KRM OTS and CKCC OD-2
+// forms were installed months ago and carry real answers — a new question would
+// never appear. Matched on field_key within the form, so running this twice adds
+// nothing, and no existing row is touched.
+//
+// @var array<int, array{0:string, 1:string, 2:string, 3:string, 4:?string, 5:?string, 6:?array{0:string,1:string,2:string}}>
+$formFields = [
+    // Picking "Other" for occupation asks which, the way the reference app does.
+    // Placed immediately after the dropdown it depends on.
+    [
+        'krm_ots', 'occupation_other', 'Which other occupation', 'text', null, 'occupation',
+        ['occupation', 'equals', 'Other'],
+    ],
+    [
+        'ckcc_od2', 'occupation_other', 'Which other occupation', 'text', null, 'occupation',
+        ['occupation', 'equals', 'Other'],
+    ],
+];
+
+if (tableExists($database, 'visit_forms') && tableExists($database, 'visit_form_fields')) {
+    foreach ($formFields as [$visitType, $key, $label, $type, $options, $afterKey, $condition]) {
+        $forms = $pdo->prepare(
+            'SELECT id FROM visit_forms WHERE visit_type = :type'
+        );
+        $forms->execute(['type' => $visitType]);
+
+        foreach ($forms->fetchAll(PDO::FETCH_COLUMN) as $formId) {
+            $existing = $pdo->prepare(
+                'SELECT id FROM visit_form_fields WHERE form_id = :form AND field_key = :key LIMIT 1'
+            );
+            $existing->execute(['form' => $formId, 'key' => $key]);
+
+            if ($existing->fetchColumn() !== false) {
+                $skipped++;
+                continue;
+            }
+
+            // Sits just after the question it hangs off, so the form still reads in
+            // order. Falls to the end when that question is not on this form.
+            $after = $pdo->prepare(
+                'SELECT sort_order FROM visit_form_fields WHERE form_id = :form AND field_key = :key LIMIT 1'
+            );
+            $after->execute(['form' => $formId, 'key' => $afterKey]);
+            $afterOrder = $after->fetchColumn();
+
+            $sortOrder = $afterOrder === false
+                ? (int) $pdo->query(
+                    sprintf('SELECT COALESCE(MAX(sort_order), 0) + 10 FROM visit_form_fields WHERE form_id = %d', (int) $formId)
+                )->fetchColumn()
+                : (int) $afterOrder + 1;
+
+            if ($dryRun) {
+                printf("  +  visit_form_fields.%s on form #%d (%s)\n", $key, (int) $formId, $visitType);
+                $applied++;
+                continue;
+            }
+
+            try {
+                $conditionId = null;
+
+                if ($condition !== null) {
+                    $parent = $pdo->prepare(
+                        'SELECT id FROM visit_form_fields WHERE form_id = :form AND field_key = :key LIMIT 1'
+                    );
+                    $parent->execute(['form' => $formId, 'key' => $condition[0]]);
+                    $found = $parent->fetchColumn();
+                    $conditionId = $found === false ? null : (int) $found;
+                }
+
+                $insert = $pdo->prepare(
+                    'INSERT INTO visit_form_fields
+                        (form_id, field_key, label, field_type, options, is_required, sort_order, is_active,
+                         condition_field_id, condition_operator, condition_value, created_at, updated_at)
+                     VALUES
+                        (:form, :key, :label, :type, :options, 0, :sort_order, 1,
+                         :condition_field_id, :condition_operator, :condition_value, NOW(), NOW())'
+                );
+                $insert->execute([
+                    'form' => $formId,
+                    'key' => $key,
+                    'label' => $label,
+                    'type' => $type,
+                    'options' => $options,
+                    'sort_order' => $sortOrder,
+                    'condition_field_id' => $conditionId,
+                    'condition_operator' => $conditionId === null ? null : $condition[1],
+                    'condition_value' => $conditionId === null ? null : $condition[2],
+                ]);
+
+                printf("  +  visit_form_fields.%s added to form #%d (%s)\n", $key, (int) $formId, $visitType);
+                $applied++;
+            } catch (Throwable $e) {
+                printf("  !! visit_form_fields.%s on form #%d failed: %s\n", $key, (int) $formId, $e->getMessage());
+                $failed++;
+            }
+        }
     }
 }
 

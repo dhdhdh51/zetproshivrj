@@ -298,6 +298,16 @@ final class FieldController extends ApiController
 
     /**
      * POST /api/v1/recoveries
+     *
+     * Legacy. No supported build of the app posts here: the field work is the visit,
+     * and money never passes through an agent — the borrower pays the bank.
+     *
+     * Still accepted, because an app older than that can be holding an unsynced
+     * payment in its outbox, and outbox entries are pushed with the type they were
+     * written with. Refusing them would not undo a payment somebody already made; it
+     * would only lose the record of it and leave the entry failing on the phone
+     * forever. Accepted, stored as reported, and visible in the panel is what lets a
+     * supervisor see it and act.
      */
     public function recovery(Request $request): void
     {
