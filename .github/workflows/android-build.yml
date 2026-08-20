@@ -36,6 +36,10 @@ concurrency:
 
 env:
   JAVA_VERSION: '17'
+  # The D2 release certificate, the same fingerprint printed in KEYSTORE-SETUP.md and
+  # on every published release. Checked after signing, so a build cannot be handed out
+  # under a key that could not update the app already installed.
+  EXPECTED_CERT_SHA256: '8bb48d4ef31a3504c40d7268a8d2bd3da6b06c19ad5004340354f15c6a324355'
   ANDROID_COMPILE_SDK: '35'
   ANDROID_BUILD_TOOLS: '35.0.0'
 
@@ -255,13 +259,42 @@ jobs:
           ./gradlew "${ARGS[@]}" assembleRelease bundleRelease lintRelease
 
       - name: Verify the release build is signed
+        id: verify
         working-directory: android
         run: |
           APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
           BUILD_TOOLS="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS}"
 
           echo "Verifying $APK"
-          "${BUILD_TOOLS}/apksigner" verify --verbose "$APK"
+          "${BUILD_TOOLS}/apksigner" verify --verbose --print-certs "$APK" | tee "${RUNNER_TEMP}/verify.txt"
+
+          DIGEST=$(grep -ioE 'certificate SHA-256 digest: [0-9a-f]{64}' "${RUNNER_TEMP}/verify.txt" \
+            | awk '{print tolower($NF)}' | sort -u | head -1)
+
+          echo "cert=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Signed by ${DIGEST}"
+
+          # Naming the expected certificate is what makes "signed" mean something. An
+          # APK carrying a different one cannot install over the copy already on a
+          # handset, so publishing it would strand every agent in the field.
+          if [[ "${DIGEST}" == "${EXPECTED_CERT_SHA256}" ]]; then
+            echo "release_key=true" >> "$GITHUB_OUTPUT"
+            echo "This is the D2 release certificate."
+          else
+            echo "release_key=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Not the D2 release certificate — this build cannot update an installed app."
+          fi
+
+      # A tag is a release someone hands out. Whatever signed it, it must be the key
+      # the app is already published under.
+      - name: Refuse to publish a tag signed with the wrong key
+        if: startsWith(github.ref, 'refs/tags/v') && steps.verify.outputs.release_key != 'true'
+        run: |
+          echo "::error::This tag is signed by ${{ steps.verify.outputs.cert }},"
+          echo "not the D2 release key ${EXPECTED_CERT_SHA256}."
+          echo "Add the KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD"
+          echo "secrets (see KEYSTORE-SETUP.md) and re-run the tag."
+          exit 1
 
       - name: Name the artifacts
         id: artifacts
@@ -311,6 +344,47 @@ jobs:
             dist/LRMS-*-checksums.txt
           retention-days: 90
           if-no-files-found: warn
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.artifacts.outputs.version }}
+        run: |
+          NOTES_FILE="${RUNNER_TEMP}/release-notes.md"
+          APK="dist/LRMS-${VERSION}-release.apk"
+          SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+
+          {
+            echo "## LRMS Field ${VERSION}"
+            echo
+            echo "Android application for BC Supervisor field operations."
+            echo
+            echo "**Download \`LRMS-${VERSION}-release.apk\`** below and open it on the phone."
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Certificate SHA-256 | \`${{ steps.verify.outputs.cert }}\` |"
+            echo "| File SHA-256 | \`${SHA}\` |"
+            echo
+            echo "The certificate was checked against the D2 release key before this was"
+            echo "published, so it installs over any earlier build without uninstalling."
+            echo
+            echo "| Artifact | Purpose |"
+            echo "| --- | --- |"
+            echo "| \`LRMS-${VERSION}-release.apk\` | Direct install / sideload |"
+            echo "| \`LRMS-${VERSION}-release.aab\` | Play Console upload |"
+            echo "| \`LRMS-${VERSION}-checksums.txt\` | SHA-256 checksums |"
+            echo
+            echo "Built from \`${GITHUB_SHA}\` by run [#${GITHUB_RUN_NUMBER}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
+          } > "$NOTES_FILE"
+
+          gh release create "${GITHUB_REF#refs/tags/}" \
+            --title "LRMS Field ${VERSION}" \
+            --notes-file "$NOTES_FILE" \
+            "dist/LRMS-${VERSION}-release.apk" \
+            "dist/LRMS-${VERSION}-release.aab" \
+            "dist/LRMS-${VERSION}-checksums.txt"
 
       # Always runs, including when an earlier step failed, so a decoded keystore
       # is never left behind on the runner.
