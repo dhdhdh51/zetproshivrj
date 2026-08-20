@@ -2,12 +2,18 @@ name: Android build
 
 # Triggers
 #   push to main        → verify, then build signed release artifacts
+#   push to build/X.Y.Z → verify, then build release artifacts named for that version
 #   pull request        → verify only (tests, lint, debug build)
 #   tag v*              → verify, build, and publish a GitHub Release
 #   manual              → Actions ▸ Android build ▸ Run workflow
 on:
   push:
-    branches: [main]
+    # build/** exists for the case this project is actually in: the signing key is not a
+    # repository secret, so a release APK has to be built here and signed wherever the
+    # key is kept. Pushing build/1.5.3 produces release artifacts named for that version
+    # without publishing anything, which a tag would. Nothing is released from these
+    # branches, and they are meant to be deleted once the artifact has been collected.
+    branches: [main, 'build/**']
     tags: ['v*']
     paths:
       - 'android/**'
@@ -169,6 +175,9 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION_NAME="${GITHUB_REF#refs/tags/v}"
+          elif [[ "${GITHUB_REF}" == refs/heads/build/* ]]; then
+            # The branch names the version, so the artifact is never guessed at.
+            VERSION_NAME="${GITHUB_REF#refs/heads/build/}"
           elif [[ -n "${{ inputs.version_name }}" ]]; then
             VERSION_NAME="${{ inputs.version_name }}"
           else
