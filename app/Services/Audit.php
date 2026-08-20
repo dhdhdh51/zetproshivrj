@@ -73,6 +73,7 @@ final class Audit
     public const TARGET_CHANGED = 'target_changed';
     public const DEADLINE_CHANGED = 'deadline_changed';
     public const SETTINGS_CHANGED = 'settings_changed';
+    public const SCHEMA_UPGRADED = 'schema_upgraded';
     public const LATE_SUBMISSION_REQUESTED = 'late_submission_requested';
     public const LATE_SUBMISSION_APPROVED = 'late_submission_approved';
     public const LATE_SUBMISSION_REJECTED = 'late_submission_rejected';

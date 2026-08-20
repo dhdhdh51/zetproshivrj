@@ -57,6 +57,25 @@
         </div>
 
         <div class="card">
+            <div class="card-head"><h2>Updating this site</h2></div>
+            <div class="card-body">
+                <p class="muted">
+                    After uploading a newer version of the application, the database needs the
+                    tables and columns that version added. This does it from the browser, adds only
+                    what is missing and deletes nothing.
+                </p>
+                <p class="muted">
+                    <strong>Do not delete the files and run <code>install.php</code> again.</strong>
+                    The installer builds an empty system and drops every table first — every loan
+                    account, visit and photograph on this site goes with them.
+                </p>
+                <a class="btn btn-secondary" href="<?= e(url('/admin/settings/upgrade')) ?>">
+                    <?= icon('database', '', 15) ?> Update the database
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
             <div class="card-head"><h2>Field evidence</h2></div>
             <div class="card-body">
                 <div class="form-grid">

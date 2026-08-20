@@ -1,6 +1,9 @@
-#!/usr/bin/env php
 <?php
 
+// No shebang. The file is not executable and is always invoked as
+// `php database/upgrade.php`, but a shebang counts as output when the file is included —
+// which pushed declare(strict_types=1) off the first line and made the panel's update
+// button fatal instead of running.
 declare(strict_types=1);
 
 // LRMS in-place schema upgrade.
@@ -22,22 +25,36 @@ declare(strict_types=1);
 // (sections 11 and 12) and the per-stream final status (section 13) — plus the
 // BC Supervisor identity fields from the BC creation screen.
 
-if (PHP_SAPI !== 'cli') {
+// The panel can run this too, because the hosting this is deployed on often has no
+// terminal at all. That route defines LRMS_UPGRADE_IN_APP and has already checked that
+// the caller is a signed-in Admin. Reached any other way over HTTP it still refuses:
+// a URL that can alter the schema is not something to leave open.
+if (PHP_SAPI !== 'cli' && !defined('LRMS_UPGRADE_IN_APP')) {
     http_response_code(403);
     exit("This script may only be run from the command line.\n");
 }
 
-require __DIR__ . '/../app/bootstrap.php';
+// require_once, not require: when the panel runs this the application is already booted,
+// and bootstrap.php defines constants and registers handlers that must not run twice.
+require_once __DIR__ . '/../app/bootstrap.php';
 
 use App\Core\Config;
 use App\Core\Database;
 use App\Core\Settings;
 
-$dryRun = in_array('--dry-run', array_slice($argv, 1), true);
+$dryRun = defined('LRMS_UPGRADE_DRY_RUN')
+    ? (bool) constant('LRMS_UPGRADE_DRY_RUN')
+    : in_array('--dry-run', array_slice($argv ?? [], 1), true);
 $database = (string) Config::get('database.database');
 
 if (!Database::isConnected()) {
-    fwrite(STDERR, 'Database unavailable: ' . (string) Database::lastError() . "\n");
+    $problem = 'Database unavailable: ' . (string) Database::lastError();
+
+    if (PHP_SAPI !== 'cli') {
+        throw new RuntimeException($problem);
+    }
+
+    fwrite(STDERR, $problem . "\n");
     exit(1);
 }
 
@@ -656,13 +673,21 @@ printf(
     $failed
 );
 
-if ($failed > 0) {
-    exit(1);
-}
-
-if (!$dryRun && $applied > 0) {
+if (!$dryRun && $applied > 0 && PHP_SAPI === 'cli') {
     echo "\nRe-run database/seed.php to install the KRM OTS and CKCC OD-2 report forms:\n";
     echo "  php database/migrate.php --seed\n";
 }
 
-exit(0);
+// The caller reads these when this file was included rather than run.
+$GLOBALS['lrms_upgrade_result'] = [
+    'applied' => $applied,
+    'skipped' => $skipped,
+    'failed' => $failed,
+    'dry_run' => $dryRun,
+];
+
+// Only a command line gets an exit status. Included, the page still has a response to
+// finish writing.
+if (PHP_SAPI === 'cli') {
+    exit($failed > 0 ? 1 : 0);
+}

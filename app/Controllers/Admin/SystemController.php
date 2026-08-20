@@ -168,6 +168,109 @@ final class SystemController extends BaseController
         ]);
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Database update                                                     */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Bring an installed database up to the current schema, from the browser.
+     *
+     * This exists because the hosting this is deployed on often has no terminal, and the
+     * only alternative a person finds on their own is to delete the files and re-run the
+     * installer — which drops every table. An update has to be reachable without a command
+     * line, or it will be done the destructive way instead.
+     *
+     * The work itself is database/upgrade.php, unchanged and shared with the command line:
+     * it adds only what is missing, checks INFORMATION_SCHEMA before every step, and never
+     * drops a column or rewrites a row. Two entry points, one script, so the browser route
+     * cannot drift into doing something the tested one does not.
+     */
+    public function upgrade(Request $request): void
+    {
+        $this->page('admin.upgrade', [
+            'title' => 'Update the database',
+            'output' => null,
+            'result' => null,
+            'dryRun' => true,
+        ]);
+    }
+
+    public function runUpgrade(Request $request): void
+    {
+        $dryRun = (string) $request->input('mode', 'preview') !== 'apply';
+
+        [$output, $result] = $this->applyUpgrade($dryRun);
+
+        if (!$dryRun) {
+            // Settings arrive with features and are only read through a default until the
+            // row exists, so a new one cannot be edited on the settings screen until it is
+            // seeded. Idempotent: it inserts what is missing and leaves chosen values alone.
+            require_once BASE_PATH . '/database/seed.php';
+
+            if (function_exists('lrms_seed_settings')) {
+                lrms_seed_settings();
+            }
+
+            Audit::log(Audit::SCHEMA_UPGRADED, [
+                'entity_type' => 'database',
+                'description' => sprintf(
+                    'Database update run from the panel: %d change(s) applied, %d already present, %d failed.',
+                    (int) ($result['applied'] ?? 0),
+                    (int) ($result['skipped'] ?? 0),
+                    (int) ($result['failed'] ?? 0)
+                ),
+                'new' => $result,
+            ]);
+
+            if ((int) ($result['failed'] ?? 0) > 0) {
+                $this->error('The update finished with failures. Read the log below before continuing.');
+            } else {
+                $this->success(sprintf('Database updated: %d change(s) applied.', (int) ($result['applied'] ?? 0)));
+            }
+        }
+
+        $this->page('admin.upgrade', [
+            'title' => 'Update the database',
+            'output' => $output,
+            'result' => $result,
+            'dryRun' => $dryRun,
+        ]);
+    }
+
+    /**
+     * Runs the upgrade script in-process and captures what it printed.
+     *
+     * @return array{0: string, 1: array<string, mixed>|null}
+     */
+    private function applyUpgrade(bool $dryRun): array
+    {
+        // upgrade.php refuses to run over HTTP unless this is defined, which is the point:
+        // the middleware on this route has already established a signed-in Admin.
+        if (!defined('LRMS_UPGRADE_IN_APP')) {
+            define('LRMS_UPGRADE_IN_APP', true);
+        }
+
+        if (!defined('LRMS_UPGRADE_DRY_RUN')) {
+            define('LRMS_UPGRADE_DRY_RUN', $dryRun);
+        }
+
+        ob_start();
+
+        try {
+            require BASE_PATH . '/database/upgrade.php';
+        } catch (\Throwable $e) {
+            ob_end_clean();
+            $this->abort(500, 'The update could not run: ' . $e->getMessage());
+        }
+
+        $output = (string) ob_get_clean();
+
+        /** @var array<string, mixed>|null $result */
+        $result = $GLOBALS['lrms_upgrade_result'] ?? null;
+
+        return [$output, $result];
+    }
+
     public function saveSettings(Request $request): void
     {
         $before = Settings::all();

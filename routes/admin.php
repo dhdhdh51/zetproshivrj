@@ -163,4 +163,6 @@ $router->group(['prefix' => 'admin', 'middleware' => ['admin', 'password']], sta
     $router->get('/audit', [SystemController::class, 'audit']);
     $router->get('/settings', [SystemController::class, 'settings']);
     $router->post('/settings', [SystemController::class, 'saveSettings']);
+    $router->get('/settings/upgrade', [SystemController::class, 'upgrade']);
+    $router->post('/settings/upgrade', [SystemController::class, 'runUpgrade']);
 });
