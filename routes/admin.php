@@ -18,6 +18,7 @@ use App\Controllers\Admin\DeadlineController;
 use App\Controllers\Admin\FormBuilderController;
 use App\Controllers\Admin\ImportController;
 use App\Controllers\Admin\InspectionController;
+use App\Controllers\Admin\SssController;
 use App\Controllers\Admin\ReportController;
 use App\Controllers\Admin\StaffController;
 use App\Controllers\Admin\SystemController;
@@ -100,6 +101,13 @@ $router->group(['prefix' => 'admin', 'middleware' => ['admin', 'password']], sta
     $router->get('/visits/{id:\d+}/pdf', [VisitController::class, 'pdf']);
     $router->post('/visits/{id:\d+}/approve', [VisitController::class, 'approve']);
     $router->post('/visits/{id:\d+}/reject', [VisitController::class, 'reject']);
+
+    /* ---------------------------------------- Social Security Scheme enrolments */
+    $router->get('/sss', [SssController::class, 'index']);
+    $router->get('/sss/create', [SssController::class, 'create']);
+    $router->post('/sss', [SssController::class, 'store']);
+    $router->get('/sss/{id:\d+}/edit', [SssController::class, 'edit']);
+    $router->post('/sss/{id:\d+}', [SssController::class, 'update']);
 
     /* ------------------------------------------ BC Supervisor inspections (TYPE B) */
     $router->get('/inspections', [InspectionController::class, 'index']);

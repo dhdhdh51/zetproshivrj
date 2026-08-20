@@ -972,6 +972,118 @@ ok(
 );
 
 /* -------------------------------------------------------------------------- */
+section('Social Security Scheme enrolments');
+/* -------------------------------------------------------------------------- */
+
+$sssBefore = api('GET', '/api/v1/sss');
+equals(200, $sssBefore['status'], 'GET /sss succeeds');
+// array_key_exists rather than ??, which cannot tell a null value from a missing key —
+// and the endpoint promising the key is part of what is being checked.
+$sssBeforeData = $sssBefore['json']['data'] ?? [];
+ok(
+    array_key_exists('entry', $sssBeforeData) && $sssBeforeData['entry'] === null,
+    'A day with no figures reports nothing rather than zeros'
+);
+equals(4, count($sssBefore['json']['data']['schemes'] ?? []), 'The four schemes come down with the form');
+ok(
+    ($sssBefore['json']['data']['scheme_names']['pmjjby_count'] ?? '') !== '',
+    'Each abbreviation carries its full name, because PMJJBY and PMSBY differ by two letters'
+);
+
+$sssPost = api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 4,
+    'pmjjby_count' => 2,
+    // Blank rather than zero: the app sends an empty box for a scheme with no enrolments.
+    'pmsby_count' => '',
+    'pmjdy_count' => 6,
+    'remarks' => 'Camp at the panchayat office.',
+]);
+equals(201, $sssPost['status'], 'Recording a day of enrolments succeeds');
+equals(12, $sssPost['json']['data']['total'] ?? 0, 'The blank scheme counted as none, not as a refusal');
+
+// The same day again. This is the case that matters: the outbox retries, and a day that
+// was added to instead of rewritten would inflate every total built on it.
+$sssAgain = api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 5,
+    'pmjjby_count' => 0,
+    'pmsby_count' => 0,
+    'pmjdy_count' => 0,
+]);
+equals(200, $sssAgain['status'], 'Reporting the same day again is a correction, not a new day');
+equals(
+    1,
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ),
+    'Only one enrolment row exists for today'
+);
+equals(
+    5,
+    (int) Database::scalar(
+        'SELECT apy_count FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ),
+    'The correction replaced the figure rather than adding to it'
+);
+
+$sssAfter = api('GET', '/api/v1/sss');
+equals(5, (int) ($sssAfter['json']['data']['entry']['apy_count'] ?? 0), 'The screen reopens on the figures already recorded');
+ok(($sssAfter['json']['data']['month']['total'] ?? 0) >= 5, 'The month-to-date total comes down with the day');
+
+$sssAbsurd = api('POST', '/api/v1/sss', ['apy_count' => 1000]);
+equals(422, $sssAbsurd['status'], 'An absurd figure is refused rather than stored');
+
+$sssFuture = api('POST', '/api/v1/sss', ['enrolment_date' => date('Y-m-d', strtotime('+1 day')), 'apy_count' => 1]);
+equals(422, $sssFuture['status'], 'A day that has not happened yet cannot have enrolments');
+
+// Queued offline, then delivered twice — the whole point of the day being a natural key.
+$sssBatch = [
+    'batch_uuid' => uuid(),
+    'app_version' => '1.0.0-test',
+    'network_type' => 'mobile',
+    'items' => [
+        [
+            'type' => 'sss',
+            'uuid' => uuid(),
+            'payload' => [
+                'enrolment_date' => date('Y-m-d', strtotime('-2 days')),
+                'apy_count' => 1,
+                'pmjjby_count' => 3,
+                'pmsby_count' => 2,
+                'pmjdy_count' => 0,
+            ],
+        ],
+    ],
+];
+
+$sssPush = api('POST', '/api/v1/sync/push', $sssBatch);
+equals(200, $sssPush['status'], 'A queued day of enrolments syncs');
+equals(1, $sssPush['json']['data']['accepted'] ?? 0, 'The queued day was accepted');
+
+$sssReplay = api('POST', '/api/v1/sync/push', $sssBatch);
+equals(1, $sssReplay['json']['data']['duplicates'] ?? 0, 'Replaying the queue reports the day as already recorded');
+equals(
+    1,
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => date('Y-m-d', strtotime('-2 days'))]
+    ),
+    'Replaying the queue did not double the day'
+);
+equals(
+    6,
+    (int) Database::scalar(
+        'SELECT apy_count + pmjjby_count + pmsby_count + pmjdy_count FROM sss_enrolments
+          WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => date('Y-m-d', strtotime('-2 days'))]
+    ),
+    'The queued figures survived the round trip intact'
+);
+
+/* -------------------------------------------------------------------------- */
 section('Offline sync push');
 /* -------------------------------------------------------------------------- */
 

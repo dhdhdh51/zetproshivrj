@@ -83,6 +83,12 @@ final class Reports
                 'icon' => 'clock',
                 'group' => 'Supervision',
             ],
+            'sss' => [
+                'name' => 'SSS Enrolment Report',
+                'description' => 'Social Security Scheme sign-ups per supervisor per day: APY, PMJJBY, PMSBY and PMJDY.',
+                'icon' => 'shield',
+                'group' => 'Supervision',
+            ],
             'gps' => [
                 'name' => 'GPS Report',
                 'description' => 'Captured coordinates, accuracy and server-side validation results.',
@@ -166,6 +172,7 @@ final class Reports
             'ptp' => array_merge($common, ['status']),
             'followup' => array_merge($common, ['status', 'action']),
             'attendance' => array_merge($common, ['status']),
+            'sss' => array_merge($common, ['source']),
             'gps' => array_merge($common, ['gps_invalid_only']),
             'photo' => array_merge($common, ['photo_type']),
             'target' => ['from', 'to', 'branch_id', 'bc_supervisor_id', 'period'],
@@ -365,6 +372,7 @@ final class Reports
             'ptp' => self::ptp($filters),
             'followup' => self::followup($filters),
             'attendance' => self::attendance($filters),
+            'sss' => self::sss($filters),
             'gps' => self::gps($filters),
             'photo' => self::photo($filters),
             'target' => self::target($filters),
@@ -1057,6 +1065,67 @@ final class Reports
                 ['key' => 'recovered', 'label' => 'Recovery', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
                 ['key' => 'status', 'label' => 'Status', 'type' => 'enum', 'align' => 'center', 'weight' => 0.8],
                 ['key' => 'check_in_address', 'label' => 'Check-in location', 'weight' => 1.8],
+            ],
+        ];
+    }
+
+    /**
+     * SSS enrolments per supervisor per day.
+     *
+     * The four scheme columns are written out rather than looped because a report column
+     * carries a label, a type and a print weight that the column name alone cannot supply.
+     */
+    private static function sss(array $filters): array
+    {
+        [$scope, $params] = self::scope('e', $filters);
+        $range = self::dateRange($filters);
+        $params += ['from' => $range['from'], 'to' => $range['to']];
+
+        $where = [$scope, 'e.enrolment_date BETWEEN :from AND :to'];
+
+        if (!empty($filters['bc_supervisor_id'])) {
+            $where[] = 'e.bc_supervisor_id = :bc';
+            $params['bc'] = (int) $filters['bc_supervisor_id'];
+        }
+
+        $source = self::enumFilter($filters, 'source', ['app', 'panel']);
+
+        if ($source !== null) {
+            $where[] = 'e.source = :source';
+            $params['source'] = $source;
+        }
+
+        if (!empty($filters['search'])) {
+            $where[] = '(u.name LIKE :search OR s.bc_code LIKE :search OR e.remarks LIKE :search)';
+            $params['search'] = '%' . trim((string) $filters['search']) . '%';
+        }
+
+        $sql = 'SELECT e.id, e.enrolment_date, e.apy_count, e.pmjjby_count, e.pmsby_count, e.pmjdy_count,
+                       (e.apy_count + e.pmjjby_count + e.pmsby_count + e.pmjdy_count) AS total,
+                       e.source, e.remarks,
+                       u.name AS supervisor_name, s.bc_code, b.name AS branch_name
+                  FROM sss_enrolments e
+                  JOIN bc_supervisors s ON s.id = e.bc_supervisor_id
+                  JOIN users u ON u.id = s.user_id
+                  JOIN branches b ON b.id = e.branch_id
+                 WHERE ' . implode(' AND ', $where)
+            . ' ORDER BY e.enrolment_date DESC, u.name ASC';
+
+        return [
+            'sql' => $sql,
+            'params' => $params,
+            'columns' => [
+                ['key' => 'enrolment_date', 'label' => 'Date', 'type' => 'date', 'weight' => 0.9],
+                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.3],
+                ['key' => 'bc_code', 'label' => 'BC Code', 'weight' => 0.8],
+                ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
+                ['key' => 'apy_count', 'label' => 'APY', 'type' => 'count', 'align' => 'right', 'weight' => 0.6],
+                ['key' => 'pmjjby_count', 'label' => 'PMJJBY', 'type' => 'count', 'align' => 'right', 'weight' => 0.7],
+                ['key' => 'pmsby_count', 'label' => 'PMSBY', 'type' => 'count', 'align' => 'right', 'weight' => 0.7],
+                ['key' => 'pmjdy_count', 'label' => 'PMJDY', 'type' => 'count', 'align' => 'right', 'weight' => 0.7],
+                ['key' => 'total', 'label' => 'Total', 'type' => 'count', 'align' => 'right', 'weight' => 0.7],
+                ['key' => 'source', 'label' => 'Source', 'type' => 'enum', 'align' => 'center', 'weight' => 0.7],
+                ['key' => 'remarks', 'label' => 'Remarks', 'weight' => 1.6],
             ],
         ];
     }

@@ -803,6 +803,71 @@ foreach (['krm_ots', 'ckcc_od2', 'customer_visit'] as $slug) {
 }
 
 /* -------------------------------------------------------------------------- */
+section('The SSS enrolment report prints the figures');
+/* -------------------------------------------------------------------------- */
+
+// Same reasoning as the loop above: a report with no rows never exercises the
+// row-rendering path, and this one has four count columns and an enum to print.
+$sssSupervisor = Database::selectOne(
+    'SELECT s.id, u.name FROM bc_supervisors s JOIN users u ON u.id = s.user_id
+      WHERE s.branch_id IS NOT NULL ORDER BY s.id LIMIT 1'
+);
+
+if ($sssSupervisor === null) {
+    ok(false, 'Need a BC Supervisor with a branch for the SSS report test');
+} else {
+    $sssDate = date('Y-m-d', strtotime('-4 days'));
+
+    // A day is a natural key, so start from a known state rather than from whatever a
+    // previous run left behind.
+    Database::delete(
+        'sss_enrolments',
+        'bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $sssSupervisor['id'], 'date' => $sssDate]
+    );
+
+    \App\Services\Sss::record((int) $sssSupervisor['id'], [
+        'enrolment_date' => $sssDate,
+        'apy_count' => 6,
+        'pmjjby_count' => 3,
+        'pmsby_count' => 2,
+        'pmjdy_count' => 9,
+        'remarks' => 'Enrolment camp at the panchayat office.',
+    ], 'app');
+
+    $sssFilters = ['from' => $sssDate, 'to' => $sssDate];
+    $sssReport = \App\Services\Reports::run('sss', $sssFilters);
+    $sssRows = $sssReport['rows'] ?? [];
+
+    ok(count($sssRows) > 0, sprintf('SSS report returns %d row(s) to render', count($sssRows)));
+    equals(20, (int) ($sssRows[0]['total'] ?? 0), 'The report totals the four schemes per day');
+
+    $sssColumnKeys = array_column($sssReport['columns'], 'key');
+
+    foreach (['enrolment_date', 'supervisor_name', 'bc_code', 'branch_name',
+        'apy_count', 'pmjjby_count', 'pmsby_count', 'pmjdy_count', 'total', 'source'] as $key) {
+        ok(in_array($key, $sssColumnKeys, true), 'SSS report has a "' . $key . '" column');
+    }
+
+    $sssExport = \App\Services\Reports::export('sss', $sssFilters, 'pdf');
+    $sssPdf = storage_path((string) $sssExport['file_path']);
+    $sssText = pdf_text($sssPdf);
+
+    equals('completed', (string) $sssExport['status'], 'SSS report export completed');
+    ok(is_file($sssPdf) && filesize($sssPdf) > 1000, 'SSS report exported to PDF');
+    ok($sssText !== '', 'SSS PDF contains printable text');
+    ok(str_contains($sssText, 'PMJJBY'), 'The printed report names the schemes, not just column letters');
+    ok(
+        str_contains($sssText, (string) $sssSupervisor['name']),
+        'The printed report names the supervisor the figures belong to'
+    );
+    ok(
+        str_contains($sssText, '20') && str_contains($sssText, '9'),
+        'The printed report shows the figures, not just headings'
+    );
+}
+
+/* -------------------------------------------------------------------------- */
 section('The registers expose the new fields as columns and filters');
 /* -------------------------------------------------------------------------- */
 

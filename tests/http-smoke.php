@@ -307,6 +307,8 @@ $screens = [
     '/admin/inspections' => 'BC inspections',
     '/admin/inspections/create' => 'Start inspection (chooser)',
     '/admin/inspections/register' => 'Inspection register',
+    '/admin/sss' => 'SSS enrolments',
+    '/admin/sss/create' => 'Record SSS enrolments',
     // Sidebar shortcuts that redirect into the reports; listed so a broken
     // redirect is caught here rather than by someone clicking the nav.
     '/admin/krm-ots' => 'KRM OTS shortcut',
@@ -327,6 +329,148 @@ $screens = [
 
 foreach ($screens as $path => $label) {
     page($path, $label);
+}
+
+/* -------------------------------------------------------------------------- */
+section('SSS enrolments can be recorded and corrected from the panel');
+/* -------------------------------------------------------------------------- */
+
+$sssSupervisor = Database::selectOne(
+    'SELECT s.id, u.name FROM bc_supervisors s JOIN users u ON u.id = s.user_id
+      WHERE s.branch_id IS NOT NULL ORDER BY s.id LIMIT 1'
+);
+
+if ($sssSupervisor === null) {
+    ok(false, 'Need a BC Supervisor with a branch for the SSS panel test');
+} else {
+    $sssSupervisorId = (int) $sssSupervisor['id'];
+    // Far enough back that nothing else in the suite has written these days.
+    $sssDate = date('Y-m-d', strtotime('-5 days'));
+    $sssAbsurdDate = date('Y-m-d', strtotime('-6 days'));
+
+    // Start from a known state. A day is a natural key, so re-running the suite against
+    // a database that already has these days would otherwise be testing yesterday's run.
+    Database::delete(
+        'sss_enrolments',
+        'bc_supervisor_id = :bc AND enrolment_date IN (:a, :b)',
+        ['bc' => $sssSupervisorId, 'a' => $sssDate, 'b' => $sssAbsurdDate]
+    );
+
+    $sssForm = page('/admin/sss/create', 'SSS record form');
+    ok(str_contains($sssForm, 'PMJJBY'), 'The form asks for all four schemes by name');
+    ok(
+        str_contains($sssForm, 'Pradhan Mantri Suraksha Bima Yojana'),
+        'Each abbreviation is spelled out, because PMJJBY and PMSBY are one letter apart'
+    );
+
+    $sssCreate = request($base . '/admin/sss', [
+        'post' => [
+            '_token' => csrfToken($sssForm),
+            'bc_supervisor_id' => $sssSupervisorId,
+            'enrolment_date' => $sssDate,
+            'apy_count' => 3,
+            'pmjjby_count' => 2,
+            // Left blank on purpose: a scheme with no enrolments is not typed as a zero.
+            'pmsby_count' => '',
+            'pmjdy_count' => 4,
+            'remarks' => 'Recorded from the panel during the smoke test.',
+        ],
+    ]);
+
+    equals(200, $sssCreate['status'], 'Recording enrolments from the panel succeeds');
+
+    $sssRow = Database::selectOne(
+        'SELECT * FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => $sssSupervisorId, 'date' => $sssDate]
+    );
+
+    ok($sssRow !== null, 'The panel entry was stored');
+    equals(0, (int) ($sssRow['pmsby_count'] ?? -1), 'The blank scheme was stored as none');
+    equals(4, (int) ($sssRow['pmjdy_count'] ?? 0), 'The typed figures were stored');
+    equals('panel', (string) ($sssRow['source'] ?? ''), 'The entry records that it came from the panel, not a handset');
+    ok((int) ($sssRow['recorded_by'] ?? 0) > 0, 'The entry records who typed it');
+
+    // Recording the same day again must not silently overwrite what is already there —
+    // it hands the user the correction screen so overwriting is a deliberate act.
+    $sssDuplicate = request($base . '/admin/sss', [
+        'post' => [
+            '_token' => csrfToken($sssForm),
+            'bc_supervisor_id' => $sssSupervisorId,
+            'enrolment_date' => $sssDate,
+            'apy_count' => 99,
+        ],
+    ]);
+
+    ok(
+        str_contains($sssDuplicate['body'], 'Correct SSS enrolments'),
+        'Recording a day that already has figures opens the correction screen instead'
+    );
+    equals(
+        3,
+        (int) Database::scalar(
+            'SELECT apy_count FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+            ['bc' => $sssSupervisorId, 'date' => $sssDate]
+        ),
+        'The second attempt did not quietly overwrite the figures already recorded'
+    );
+    equals(
+        1,
+        (int) Database::scalar(
+            'SELECT COUNT(*) FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+            ['bc' => $sssSupervisorId, 'date' => $sssDate]
+        ),
+        'The second attempt did not create a second row for the day'
+    );
+
+    $sssEditPage = page('/admin/sss/' . (int) $sssRow['id'] . '/edit', 'SSS correction form');
+    ok(
+        !str_contains($sssEditPage, 'name="enrolment_date"'),
+        'The date is frozen on the correction screen — a day belongs to one supervisor'
+    );
+
+    $sssUpdate = request($base . '/admin/sss/' . (int) $sssRow['id'], [
+        'post' => [
+            '_token' => csrfToken($sssEditPage),
+            'apy_count' => 7,
+            'pmjjby_count' => 0,
+            'pmsby_count' => 1,
+            'pmjdy_count' => 0,
+            'remarks' => 'Corrected after checking the register.',
+        ],
+    ]);
+
+    equals(200, $sssUpdate['status'], 'Correcting a day succeeds');
+    equals(
+        8,
+        (int) Database::scalar(
+            'SELECT apy_count + pmjjby_count + pmsby_count + pmjdy_count FROM sss_enrolments
+              WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+            ['bc' => $sssSupervisorId, 'date' => $sssDate]
+        ),
+        'The correction replaced the whole day rather than merging into it'
+    );
+
+    $sssList = page('/admin/sss?from=' . $sssDate . '&to=' . $sssDate, 'SSS list for the recorded day');
+    ok(str_contains($sssList, 'Total enrolments'), 'The list shows the totals strip');
+    ok(str_contains($sssList, (string) $sssSupervisor['name']), 'The list names the supervisor the day belongs to');
+
+    // An absurd figure is a typing mistake, and the form should say so rather than store it.
+    $sssAbsurd = request($base . '/admin/sss', [
+        'post' => [
+            '_token' => csrfToken($sssForm),
+            'bc_supervisor_id' => $sssSupervisorId,
+            'enrolment_date' => $sssAbsurdDate,
+            'apy_count' => 5000,
+        ],
+    ]);
+
+    ok(
+        (int) Database::scalar(
+            'SELECT COUNT(*) FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+            ['bc' => $sssSupervisorId, 'date' => $sssAbsurdDate]
+        ) === 0,
+        'An absurd figure is refused rather than stored'
+    );
 }
 
 /* -------------------------------------------------------------------------- */

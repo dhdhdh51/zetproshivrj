@@ -1045,6 +1045,53 @@ CREATE TABLE `attendance` (
   CONSTRAINT `fk_attendance_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Social Security Scheme enrolments the BC Supervisor completed at the BC point.
+--
+-- Separate from visits because these are not field work: an enrolment happens over the
+-- counter at the outlet, not at a borrower's door, so it has no account, no GPS fix and
+-- no photographs.
+--
+-- One row per supervisor per day, corrected in place rather than appended. That is what
+-- the unique key on the pair is for: the app queues the day's figures offline and may
+-- deliver them more than once, and a doubled figure would inflate every total and target
+-- built on top of it. A retry rewrites the day instead.
+DROP TABLE IF EXISTS `sss_enrolments`;
+CREATE TABLE `sss_enrolments` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `uuid`             CHAR(36) NOT NULL,
+  `bc_supervisor_id` BIGINT UNSIGNED NOT NULL,
+  -- Copied from the supervisor when the row is written, never taken from the client. A
+  -- supervisor who moves branch must not drag last month's figures across with them.
+  `branch_id`        BIGINT UNSIGNED NOT NULL,
+  `enrolment_date`   DATE NOT NULL,
+
+  -- The four schemes the printed form asks for. SMALLINT because a day's count at one
+  -- outlet is a handful; the services cap each at 999 anyway.
+  `apy_count`        SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjjby_count`     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmsby_count`      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjdy_count`      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+
+  `remarks`          VARCHAR(500) NULL,
+  -- Where the figures came from, and who last touched them. Without this a correction
+  -- typed by an Admin is indistinguishable from what the supervisor reported, which is
+  -- exactly the thing somebody queries when a total looks wrong.
+  `source`           ENUM('app','panel') NOT NULL DEFAULT 'app',
+  `recorded_by`      BIGINT UNSIGNED NULL,
+  `device_id`        BIGINT UNSIGNED NULL,
+  `created_at`       DATETIME NULL,
+  `updated_at`       DATETIME NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_sss_uuid` (`uuid`),
+  UNIQUE KEY `uq_sss_day` (`bc_supervisor_id`, `enrolment_date`),
+  KEY `ix_sss_branch_date` (`branch_id`, `enrolment_date`),
+  KEY `ix_sss_date` (`enrolment_date`),
+  CONSTRAINT `fk_sss_bc` FOREIGN KEY (`bc_supervisor_id`) REFERENCES `bc_supervisors` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sss_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_sss_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_sss_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DROP TABLE IF EXISTS `targets`;
 CREATE TABLE `targets` (
   `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

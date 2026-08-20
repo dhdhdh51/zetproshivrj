@@ -14,6 +14,7 @@ use App\Services\Notify;
 use App\Services\Photos;
 use App\Services\Promises;
 use App\Services\Recoveries;
+use App\Services\Sss;
 use App\Services\Visits;
 
 /**
@@ -440,6 +441,86 @@ final class FieldController extends ApiController
                 ['bc' => $supervisorId]
             ),
         ]);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Social Security Scheme enrolments                                  */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The figures for one day, plus recent history and the month so far.
+     *
+     * The app opens this screen on a day that may already have figures — either because
+     * the supervisor is correcting them or because they were typed on another device — so
+     * the current values come down with the form.
+     */
+    public function sss(Request $request): void
+    {
+        $supervisorId = $this->supervisorId();
+        $date = $this->sssDate($request->input('date'));
+
+        $this->ok([
+            'date' => $date,
+            'entry' => Sss::forDate($supervisorId, $date),
+            'schemes' => Sss::schemes(),
+            'scheme_names' => Sss::schemeNames(),
+            'max_per_scheme' => Sss::MAX_PER_SCHEME,
+            // Month to date, so the supervisor can see the running figure they are
+            // measured on without waiting for a report to be run in the panel.
+            'month' => Sss::summary(date('Y-m-01', strtotime($date)), $date, $supervisorId),
+            'history' => Database::select(
+                'SELECT enrolment_date, apy_count, pmjjby_count, pmsby_count, pmjdy_count,
+                        (apy_count + pmjjby_count + pmsby_count + pmjdy_count) AS total,
+                        remarks, source
+                   FROM sss_enrolments WHERE bc_supervisor_id = :bc
+                  ORDER BY enrolment_date DESC LIMIT 30',
+                ['bc' => $supervisorId]
+            ),
+        ]);
+    }
+
+    /**
+     * Record or correct a day's figures.
+     *
+     * Posting the same day twice rewrites it rather than adding to it, so the offline
+     * outbox can retry safely.
+     */
+    public function recordSss(Request $request): void
+    {
+        $supervisor = $this->supervisor();
+
+        $result = Sss::record(
+            (int) $supervisor['id'],
+            $request->all(),
+            'app',
+            $this->deviceId()
+        );
+
+        $this->ok([
+            'sss' => Sss::forDate((int) $supervisor['id'], (string) ($result['date'] ?? today())),
+            'total' => $result['total'],
+        ], $result['created'] ? 201 : 200);
+    }
+
+    /**
+     * The date a read is asking about. Unreadable is refused rather than quietly turned
+     * into today, because a supervisor shown the wrong day's figures would correct them.
+     */
+    private function sssDate(mixed $value): string
+    {
+        $raw = trim((string) ($value ?? ''));
+
+        if ($raw === '') {
+            return today();
+        }
+
+        $timestamp = strtotime($raw);
+
+        if ($timestamp === false) {
+            throw new \App\Core\HttpException(422, 'That is not a date the system can read.');
+        }
+
+        return date('Y-m-d', $timestamp);
     }
 
     /* ------------------------------------------------------------------ */

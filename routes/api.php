@@ -80,6 +80,10 @@ $router->group(['prefix' => 'api/v1'], static function ($router): void {
         $router->post('/attendance/check-in', [FieldController::class, 'checkIn']);
         $router->post('/attendance/check-out', [FieldController::class, 'checkOut']);
 
+        /* Social Security Scheme enrolments */
+        $router->get('/sss', [FieldController::class, 'sss']);
+        $router->post('/sss', [FieldController::class, 'recordSss']);
+
         /* Deadline and the daily report */
         $router->get('/deadline', [FieldController::class, 'deadline']);
         $router->post('/reports/daily', [FieldController::class, 'submitDailyReport']);
