@@ -291,4 +291,23 @@
     <string name="sss_queue_note">इस डिवाइस पर सहेजा गया और अगले सिंक पर भेज दिया जाएगा। उसी दिन के लिए दोबारा सहेजने पर संख्या जुड़ती नहीं, सुधर जाती है।</string>
     <string name="sss_outbox_label">%1$s के SSS नामांकन — कुल %2$d</string>
     <string name="msg_sss_queued">SSS नामांकन सहेजे गए: कुल %1$d।</string>
+
+    <!-- व्यवस्थापक का तय किया लक्ष्य, और उसके सामने आज का दिन। यहाँ से कुछ भी बदला नहीं जा सकता। -->
+    <string name="sss_target_heading">आज का लक्ष्य और प्रगति</string>
+    <string name="sss_target_today">आज का लक्ष्य</string>
+    <string name="sss_achievement">हुआ</string>
+    <string name="sss_percent">प्रतिशत</string>
+    <string name="sss_gap">बाकी</string>
+    <string name="sss_target_month_heading">इस महीने अब तक</string>
+    <string name="sss_target_month">अब तक का लक्ष्य</string>
+    <string name="sss_target_working_days">%1$d कार्य दिवस के हिसाब से। रविवार और छुट्टियाँ आपके खाते में नहीं गिनी जातीं।</string>
+    <string name="sss_target_stale">पिछली बार मिले आंकड़े। ताज़ा करने के लिए सिंक करें।</string>
+    <string name="sss_no_target">आपके लिए अभी कोई लक्ष्य तय नहीं हुआ है। अपने नामांकन दर्ज करते रहें — सब सुरक्षित हैं।</string>
+
+    <!-- जमा हो चुका है, और अब क्या करें। -->
+    <string name="sss_locked">आप ये आंकड़े पहले ही जमा कर चुके हैं, इसलिए इन्हें यहाँ से बदला नहीं जा सकता। कोई आंकड़ा गलत हो तो अपने व्यवस्थापक से दिन दोबारा खोलने के लिए कहें।</string>
+    <string name="sss_reopened">आपके व्यवस्थापक ने यह दिन दोबारा खोल दिया है। आंकड़े ठीक करके एक बार फिर जमा करें।</string>
+    <string name="sss_state_sending">भेजा जा रहा है</string>
+    <string name="sss_state_retrying">अभी नहीं भेजा गया — दोबारा कोशिश होगी</string>
+    <string name="sss_state_rejected">सर्वर ने स्वीकार नहीं किया</string>
 </resources>

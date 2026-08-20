@@ -221,6 +221,17 @@ interface SssDao {
             "FROM sss_enrolments WHERE date LIKE :monthPattern",
     )
     fun observeMonthTotal(monthPattern: String): Flow<Int>
+
+    /**
+     * Record how the last push of this day went.
+     *
+     * Keyed on the uuid, which is the same uuid the outbox row carries, so the day and the
+     * queue entry cannot end up telling the supervisor different stories. `status` is not
+     * touched: only the server decides whether a day is closed, and it says so on the next
+     * pull.
+     */
+    @Query("UPDATE sss_enrolments SET syncState = :state, syncMessage = :message WHERE uuid = :uuid")
+    suspend fun markSync(uuid: String, state: String, message: String?)
 }
 
 @Dao

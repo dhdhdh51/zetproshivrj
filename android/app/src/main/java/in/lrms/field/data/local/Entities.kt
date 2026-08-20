@@ -209,8 +209,39 @@ data class SssEntity(
     val pmjdyCount: Int,
     val remarks: String?,
     val syncState: String,
+    /**
+     * What the server says about the day: submitted, or handed back by an Admin.
+     *
+     * Defaults to submitted because that is what a day this device has just typed will
+     * become the moment it arrives — and because a row written by an older build was
+     * submitted too.
+     */
+    val status: String = SssStatus.SUBMITTED,
+    /** Why the server refused the last attempt, so the screen can say so. */
+    val syncMessage: String? = null,
 ) {
     val total: Int get() = apyCount + pmjjbyCount + pmsbyCount + pmjdyCount
+
+    /**
+     * Can the supervisor still change this day?
+     *
+     * Not while the server holds it as submitted. A day still waiting in the outbox is
+     * fair game — nobody has accepted it yet, so correcting it before it goes is the same
+     * as typing it slower.
+     */
+    val locked: Boolean
+        get() = status == SssStatus.SUBMITTED &&
+            syncState != SyncState.PENDING &&
+            syncState != SyncState.DRAFT
+
+    /** The Admin handed this day back; one more submission is allowed. */
+    val reopened: Boolean get() = status == SssStatus.REOPENED
+}
+
+/** Mirrors the server's `sss_enrolments.status` enum. */
+object SssStatus {
+    const val SUBMITTED = "submitted"
+    const val REOPENED = "reopened"
 }
 
 object SyncState {

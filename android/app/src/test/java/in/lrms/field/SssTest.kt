@@ -158,7 +158,7 @@ class SssTest {
     fun `the Room table is created by a migration, not by wiping the database`() {
         val database = source("src/main/java/in/lrms/field/data/local/AppDatabase.kt")
 
-        assertTrue("the database version must be bumped for the new table", database.contains("version = 5"))
+        assertTrue("the database version must be bumped for the new table", database.contains("version = 6"))
         assertTrue("a 4 to 5 migration must exist", database.contains("Migration(4, 5)"))
         assertTrue(
             "the migration must be registered, or Room falls back to destroying the outbox",
@@ -167,6 +167,83 @@ class SssTest {
         assertTrue(
             "the migration must create the table rather than drop anything",
             database.substringAfter("Migration(4, 5)").contains("CREATE TABLE IF NOT EXISTS `sss_enrolments`"),
+        )
+    }
+
+    @Test
+    fun `the submit lock arrives by migration, without touching the outbox`() {
+        val database = source("src/main/java/in/lrms/field/data/local/AppDatabase.kt")
+
+        assertTrue("a 5 to 6 migration must exist", database.contains("Migration(5, 6)"))
+        assertTrue(
+            "the migration must be registered, or Room falls back to destroying the outbox",
+            database.contains("MIGRATION_5_6"),
+        )
+
+        val migration = database.substringAfter("Migration(5, 6)")
+
+        assertTrue(
+            "the lock state must be added as a column",
+            migration.contains("ADD COLUMN `status`"),
+        )
+        assertTrue(
+            "the refusal reason must be added as a column, or the screen cannot explain itself",
+            migration.contains("ADD COLUMN `syncMessage`"),
+        )
+        assertTrue(
+            "days already in the table were reported, so they must default to submitted",
+            migration.contains("DEFAULT 'submitted'"),
+        )
+        assertTrue(
+            "a migration that drops anything would take the outbox with it",
+            !migration.substringBefore("private val").contains("DROP"),
+        )
+    }
+
+    @Test
+    fun `a submitted day is closed to the app but a redelivery is not refused`() {
+        val service = serverSource("app/Services/Sss.php")
+
+        assertTrue(
+            "changing a submitted day must be refused with a conflict, not quietly accepted",
+            service.contains("HttpException(409"),
+        )
+        assertTrue(
+            "the refusal is shown to the supervisor verbatim, so it must say what to do",
+            service.contains("re-open"),
+        )
+        assertTrue(
+            "the outbox delivers at least once, so identical figures arriving twice must pass",
+            service.contains("sameFigures"),
+        )
+    }
+
+    @Test
+    fun `the app has no way to send a target, a percentage or a gap`() {
+        val api = source("src/main/java/in/lrms/field/data/remote/ApiService.kt")
+
+        // The target belongs to the Admin. It reaches the handset and stops there: if no
+        // request can carry one, no supervisor can move the bar they are measured against,
+        // and that is a stronger guarantee than a disabled input.
+        assertTrue(
+            "there must be no endpoint that sends a target from the app",
+            !api.contains("target"),
+        )
+    }
+
+    @Test
+    fun `the SSS screen tells the supervisor when the server refused the day`() {
+        val screen = source("src/main/java/in/lrms/field/ui/screens/SssScreen.kt")
+
+        assertTrue(
+            "a refused day must show why, not sit reading as sent",
+            screen.contains("syncMessage"),
+        )
+        assertTrue("a locked day must say so", screen.contains("sss_locked"))
+        assertTrue("a re-opened day must say so", screen.contains("sss_reopened"))
+        assertTrue(
+            "every sync state must be named, including rejected",
+            screen.contains("sss_state_rejected"),
         )
     }
 

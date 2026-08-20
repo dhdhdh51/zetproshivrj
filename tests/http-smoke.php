@@ -458,7 +458,11 @@ if ($sssSupervisor === null) {
     );
 
     $sssList = page('/admin/sss?from=' . $sssDate . '&to=' . $sssDate, 'SSS list for the recorded day');
-    ok(str_contains($sssList, 'Total enrolments'), 'The list shows the totals strip');
+    ok(str_contains($sssList, 'Achievement'), 'The list shows the totals strip');
+    // The strip is a comparison now, not a count: the figures only mean something next to
+    // the target the Admin set, so both halves have to be on the screen.
+    ok(str_contains($sssList, 'Target'), 'The list shows the target the figures are measured against');
+    ok(str_contains($sssList, 'Gap'), 'The list shows the gap left to close');
     ok(str_contains($sssList, (string) $sssSupervisor['name']), 'The list names the supervisor the day belongs to');
 
     // An absurd figure is a typing mistake, and the form should say so rather than store it.
@@ -478,6 +482,144 @@ if ($sssSupervisor === null) {
         ) === 0,
         'An absurd figure is refused rather than stored'
     );
+}
+
+/* -------------------------------------------------------------------------- */
+section('SSS targets are the Admin\'s, and a submitted day only reopens for an Admin');
+/* -------------------------------------------------------------------------- */
+
+$targetSupervisor = Database::selectOne(
+    'SELECT s.id, u.name FROM bc_supervisors s JOIN users u ON u.id = s.user_id
+      WHERE s.branch_id IS NOT NULL ORDER BY s.id LIMIT 1'
+);
+
+if ($targetSupervisor === null) {
+    ok(false, 'Need a BC Supervisor with a branch for the SSS target test');
+} else {
+    $targetSupervisorId = (int) $targetSupervisor['id'];
+    $targetMonth = date('Y-m-01');
+    // Its own day, so this section is not reading what the section above wrote.
+    $reopenDate = date('Y-m-d', strtotime('-8 days'));
+
+    Database::delete('sss_targets', 'bc_supervisor_id = :bc', ['bc' => $targetSupervisorId]);
+    Database::delete(
+        'sss_enrolments',
+        'bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => $targetSupervisorId, 'date' => $reopenDate]
+    );
+
+    $targetForm = page('/admin/sss-targets', 'SSS targets screen');
+    ok(
+        str_contains($targetForm, 'per working day') || str_contains($targetForm, 'a day'),
+        'The screen says the figure is a daily one, not a monthly total'
+    );
+    ok(str_contains($targetForm, 'name="apy_target"'), 'The screen asks for a target per scheme');
+
+    $targetSave = request($base . '/admin/sss-targets', [
+        'post' => [
+            '_token' => csrfToken($targetForm),
+            'month' => $targetMonth,
+            'bc_supervisor_ids' => [$targetSupervisorId],
+            'apy_target' => 2,
+            'pmjjby_target' => 3,
+            'pmsby_target' => 1,
+            'pmjdy_target' => 4,
+            'notes' => 'Set by the smoke test.',
+        ],
+    ]);
+
+    equals(200, $targetSave['status'], 'Saving an SSS target succeeds');
+
+    $storedTarget = Database::selectOne(
+        'SELECT * FROM sss_targets WHERE bc_supervisor_id = :bc AND target_month = :month',
+        ['bc' => $targetSupervisorId, 'month' => $targetMonth]
+    );
+
+    ok($storedTarget !== null, 'The target was stored against the month');
+
+    if ($storedTarget !== null) {
+        equals(2, (int) $storedTarget['apy_target'], 'The APY target is the daily figure as typed');
+        equals(4, (int) $storedTarget['pmjdy_target'], 'Each scheme keeps its own target');
+
+        // A target nobody was told about is not a target.
+        ok(
+            (int) Database::scalar(
+                "SELECT COUNT(*) FROM notifications WHERE related_type = 'sss_target'"
+            ) > 0,
+            'The supervisor is told what is expected of them'
+        );
+    }
+
+    // The register has to show the comparison, not just the figures.
+    $registerPage = page(
+        '/admin/sss?period=mtd&bc_supervisor_id=' . $targetSupervisorId,
+        'SSS register filtered to one supervisor'
+    );
+    ok(str_contains($registerPage, 'Target vs achievement'), 'The register compares target with achievement');
+    ok(str_contains($registerPage, 'Open as report'), 'The register offers the printable ranking');
+
+    // The lock: a day is submitted the moment it exists, and only an Admin reopens it.
+    $reopenForm = page('/admin/sss/create', 'SSS record form for the re-open test');
+    request($base . '/admin/sss', [
+        'post' => [
+            '_token' => csrfToken($reopenForm),
+            'bc_supervisor_id' => $targetSupervisorId,
+            'enrolment_date' => $reopenDate,
+            'apy_count' => 1,
+            'pmjjby_count' => 1,
+            'pmsby_count' => 0,
+            'pmjdy_count' => 0,
+        ],
+    ]);
+
+    $reopenRow = Database::selectOne(
+        'SELECT * FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => $targetSupervisorId, 'date' => $reopenDate]
+    );
+
+    if ($reopenRow === null) {
+        ok(false, 'Need a recorded day to re-open');
+    } else {
+        equals('submitted', (string) $reopenRow['status'], 'A recorded day starts closed to the app');
+        ok(!empty($reopenRow['submitted_at']), 'The day carries when it was submitted');
+
+        $listWithRow = page(
+            '/admin/sss?from=' . $reopenDate . '&to=' . $reopenDate,
+            'SSS list showing the day to re-open'
+        );
+        ok(str_contains($listWithRow, 'Submitted'), 'The list shows a day as submitted');
+        ok(
+            str_contains($listWithRow, '/reopen'),
+            'The list offers the Admin a way to hand the day back'
+        );
+
+        $reopened = request($base . '/admin/sss/' . (int) $reopenRow['id'] . '/reopen', [
+            'post' => ['_token' => csrfToken($listWithRow)],
+        ]);
+
+        equals(200, $reopened['status'], 'Re-opening a day succeeds');
+        equals(
+            'reopened',
+            (string) Database::scalar(
+                'SELECT status FROM sss_enrolments WHERE id = :id',
+                ['id' => (int) $reopenRow['id']]
+            ),
+            'The day is open for the supervisor again'
+        );
+        ok(
+            (int) Database::scalar(
+                "SELECT COUNT(*) FROM audit_logs WHERE action = 'sss_reopened' AND entity_id = :id",
+                ['id' => (int) $reopenRow['id']]
+            ) > 0,
+            'The re-open is in the audit log, because a figure that changed after it was reported is a question somebody asks'
+        );
+
+        // Two Admins on the same screen is not an error.
+        $reopenedTwice = request($base . '/admin/sss/' . (int) $reopenRow['id'] . '/reopen', [
+            'post' => ['_token' => csrfToken($listWithRow)],
+        ]);
+        equals(200, $reopenedTwice['status'], 'Re-opening an already open day is not an error');
+    }
 }
 
 /* -------------------------------------------------------------------------- */

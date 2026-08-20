@@ -1002,8 +1002,9 @@ $sssPost = api('POST', '/api/v1/sss', [
 equals(201, $sssPost['status'], 'Recording a day of enrolments succeeds');
 equals(12, $sssPost['json']['data']['total'] ?? 0, 'The blank scheme counted as none, not as a refusal');
 
-// The same day again. This is the case that matters: the outbox retries, and a day that
-// was added to instead of rewritten would inflate every total built on it.
+// The same day again, saying something different. Submitted figures are what the target
+// register is measured on, so the handset cannot move them: an Admin has to hand the day
+// back first. Before this rule existed the second report simply overwrote the first.
 $sssAgain = api('POST', '/api/v1/sss', [
     'uuid' => uuid(),
     'apy_count' => 5,
@@ -1011,7 +1012,19 @@ $sssAgain = api('POST', '/api/v1/sss', [
     'pmsby_count' => 0,
     'pmjdy_count' => 0,
 ]);
-equals(200, $sssAgain['status'], 'Reporting the same day again is a correction, not a new day');
+equals(409, $sssAgain['status'], 'Changing a day the app already submitted is refused');
+ok(
+    str_contains(strtolower((string) ($sssAgain['json']['message'] ?? '')), 're-open'),
+    'The refusal tells the supervisor how to get the day back'
+);
+equals(
+    4,
+    (int) Database::scalar(
+        'SELECT apy_count FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ),
+    'The refused change left the figures exactly as they were'
+);
 equals(
     1,
     (int) Database::scalar(
@@ -1020,6 +1033,43 @@ equals(
     ),
     'Only one enrolment row exists for today'
 );
+
+// The outbox delivers at least once, not exactly once. The same figures arriving a second
+// time is a redelivery, not an edit, and must not be reported to the supervisor as an
+// error — that would strand a queue entry that was never wrong.
+$sssRedelivered = api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 4,
+    'pmjjby_count' => 2,
+    'pmsby_count' => '',
+    'pmjdy_count' => 6,
+    'remarks' => 'Camp at the panchayat office.',
+]);
+equals(200, $sssRedelivered['status'], 'Re-delivering the identical figures is accepted, not refused');
+equals(
+    4,
+    (int) Database::scalar(
+        'SELECT apy_count FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ),
+    'The redelivery left the day as it was'
+);
+
+// An Admin hands the day back. That buys exactly one more submission.
+$sssRowId = (int) Database::scalar(
+    'SELECT id FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+    ['bc' => (int) $supervisor['id'], 'date' => today()]
+);
+ok(\App\Services\Sss::reopen($sssRowId) !== null, 'An Admin can re-open a submitted day');
+
+$sssCorrected = api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 5,
+    'pmjjby_count' => 0,
+    'pmsby_count' => 0,
+    'pmjdy_count' => 0,
+]);
+equals(200, $sssCorrected['status'], 'After a re-open the app may correct the day');
 equals(
     5,
     (int) Database::scalar(
@@ -1028,6 +1078,9 @@ equals(
     ),
     'The correction replaced the figure rather than adding to it'
 );
+
+$sssLockedAgain = api('POST', '/api/v1/sss', ['uuid' => uuid(), 'apy_count' => 9]);
+equals(409, $sssLockedAgain['status'], 'Submitting after a re-open closes the day again');
 
 $sssAfter = api('GET', '/api/v1/sss');
 equals(5, (int) ($sssAfter['json']['data']['entry']['apy_count'] ?? 0), 'The screen reopens on the figures already recorded');
@@ -1081,6 +1134,74 @@ equals(
         ['bc' => (int) $supervisor['id'], 'date' => date('Y-m-d', strtotime('-2 days'))]
     ),
     'The queued figures survived the round trip intact'
+);
+
+// The target the Admin set, as the handset sees it. The app renders these figures and can
+// produce none of them itself, which is what makes the target the Admin's alone.
+\App\Services\Sss::saveTarget((int) $supervisor['id'], today(), [
+    'apy_target' => 2,
+    'pmjjby_target' => 3,
+    'pmsby_target' => 1,
+    'pmjdy_target' => 4,
+]);
+
+$sssProgress = api('GET', '/api/v1/sss');
+$progress = $sssProgress['json']['data']['progress'] ?? [];
+
+ok($progress !== [], 'The day comes down with the target beside it');
+ok(($progress['target_set'] ?? false) === true, 'The handset is told a target exists');
+equals(10, (int) ($progress['per_day_total'] ?? 0), 'The daily target is the sum of the four schemes');
+
+// A day off carries no target, so a Sunday reads 0 of 0 rather than as a shortfall.
+$sssWorkingToday = \App\Services\Sss::workingDaysBetween(today(), today()) > 0;
+equals(
+    $sssWorkingToday ? 10 : 0,
+    (int) ($progress['day']['target'] ?? -1),
+    $sssWorkingToday ? "Today's target is the daily figure" : 'A non-working day carries no target'
+);
+
+$sssTodayTotal = (int) Database::scalar(
+    'SELECT apy_count + pmjjby_count + pmsby_count + pmjdy_count FROM sss_enrolments
+      WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+    ['bc' => (int) $supervisor['id'], 'date' => today()]
+);
+
+equals($sssTodayTotal, (int) ($progress['day']['achievement'] ?? -1), 'Achievement is what was actually reported');
+equals(
+    max(0, ($sssWorkingToday ? 10 : 0) - $sssTodayTotal),
+    (int) ($progress['day']['gap'] ?? -1),
+    'The gap is the target less the achievement, never negative'
+);
+ok(
+    ($progress['month_to_date']['working_days'] ?? 0) > 0,
+    'Month to date counts working days, so Sundays are not a shortfall'
+);
+equals(
+    (int) ($progress['month_to_date']['working_days'] ?? 0) * 10,
+    (int) ($progress['month_to_date']['target'] ?? -1),
+    'The month-to-date target is the daily figure times the working days so far'
+);
+
+// The handset has no way to set its own target. Sent anyway, the keys are ignored: there is
+// no column for them on an enrolment, and nothing reads them.
+api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 5,
+    'pmjjby_count' => 0,
+    'pmsby_count' => 0,
+    'pmjdy_count' => 0,
+    'apy_target' => 99,
+    'percent' => 100,
+    'gap' => 0,
+]);
+
+equals(
+    2,
+    (int) Database::scalar(
+        'SELECT apy_target FROM sss_targets WHERE bc_supervisor_id = :bc AND target_month = :month',
+        ['bc' => (int) $supervisor['id'], 'month' => date('Y-m-01')]
+    ),
+    'A target sent up from the app is ignored — only the Admin sets one'
 );
 
 /* -------------------------------------------------------------------------- */

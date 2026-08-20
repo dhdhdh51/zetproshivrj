@@ -594,4 +594,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         secondsRemaining = session.deadlineSecondsRemaining(),
         locked = session.deadlineLocked() || session.deadlineSecondsRemaining() == 0L,
     )
+
+    /**
+     * The Admin's SSS target as this handset last heard it.
+     *
+     * Read from the cache rather than the network, like the deadline: the screen has to open
+     * in a village with no signal and still say what is expected. Nothing here can be set
+     * from the app — there is no method to change a target, because there is no request that
+     * would carry one.
+     */
+    data class SssTargetState(
+        val date: String,
+        val targetSet: Boolean,
+        val dayTarget: Int,
+        val monthTarget: Int,
+        val monthWorkingDays: Int,
+    ) {
+        /** Cached for another day, so it is shown as a last-known figure rather than today's. */
+        val stale: Boolean get() = date.isNotBlank() && date != Times.today()
+    }
+
+    fun sssTargetState(): SssTargetState = SssTargetState(
+        date = session.sssTargetDate(),
+        targetSet = session.sssTargetSet(),
+        dayTarget = session.sssDayTarget(),
+        monthTarget = session.sssMonthTarget(),
+        monthWorkingDays = session.sssMonthWorkingDays(),
+    )
 }

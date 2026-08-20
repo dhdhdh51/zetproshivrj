@@ -88,7 +88,24 @@ fun SssScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
     }
 
+    // Re-read when the day's row changes, which is when a sync has just been through and
+    // the cached target may be newer. Not a flow: the target is a small cached scalar, like
+    // the report deadline, and the screen has to open with no signal.
+    val target = remember(today?.syncState, today?.status, today?.date) { viewModel.sssTargetState() }
+
+    val locked = today?.locked == true
+    val rejected = today?.syncState == SyncState.REJECTED || today?.syncState == SyncState.FAILED
+
     val typedTotal = listOf(apy, pmjjby, pmsby, pmjdy).sumOf { it.trim().toIntOrNull() ?: 0 }
+
+    // The comparison updates as the figures are typed, so the supervisor sees where the day
+    // stands before committing to it. Integer percentages on purpose: this is a progress
+    // figure on a cheap handset, not an accounting one, and a decimal point buys nothing.
+    val achievedToday = if (locked) (today?.total ?: 0) else typedTotal
+    val dayGap = (target.dayTarget - achievedToday).coerceAtLeast(0)
+    val dayPercent = if (target.dayTarget > 0) achievedToday * 100 / target.dayTarget else null
+    val monthGap = (target.monthTarget - monthTotal).coerceAtLeast(0)
+    val monthPercent = if (target.monthTarget > 0) monthTotal * 100 / target.monthTarget else null
     val overLimit = listOf(apy, pmjjby, pmsby, pmjdy).any { (it.trim().toIntOrNull() ?: 0) > MAX_PER_SCHEME }
     val anythingTyped = listOf(apy, pmjjby, pmsby, pmjdy).any { it.isNotBlank() }
 
@@ -121,6 +138,18 @@ fun SssScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 InlineNotice(stringResource(R.string.sss_over_limit, MAX_PER_SCHEME), Tone.DANGER)
             }
 
+            // Why the server would not take the last attempt. Without this the day sits
+            // reading "waiting to be sent" for ever and the reason is buried in the outbox.
+            if (rejected && !today?.syncMessage.isNullOrBlank()) {
+                InlineNotice(today!!.syncMessage!!, Tone.DANGER)
+            }
+
+            if (locked) {
+                InlineNotice(stringResource(R.string.sss_locked), Tone.WARNING)
+            } else if (today?.reopened == true) {
+                InlineNotice(stringResource(R.string.sss_reopened), Tone.INFO)
+            }
+
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile(
                     label = stringResource(R.string.sss_today_total),
@@ -135,6 +164,64 @@ fun SssScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     meta = stringResource(R.string.sss_month_meta),
                     modifier = Modifier.weight(1f),
                 )
+            }
+
+            // The Admin's target and how the day stands against it. Read only in the
+            // strongest sense: there is no request in this app that can carry a target, a
+            // percentage or a gap, so none of these figures can be argued with from here.
+            if (target.targetSet) {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            stringResource(R.string.sss_target_heading),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        DetailRow(stringResource(R.string.sss_target_today), target.dayTarget.toString())
+                        DetailRow(stringResource(R.string.sss_achievement), achievedToday.toString())
+                        DetailRow(
+                            stringResource(R.string.sss_percent),
+                            dayPercent?.let { "$it%" } ?: "—",
+                        )
+                        DetailRow(stringResource(R.string.sss_gap), dayGap.toString())
+
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            stringResource(R.string.sss_target_month_heading),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        DetailRow(stringResource(R.string.sss_target_month), target.monthTarget.toString())
+                        DetailRow(stringResource(R.string.sss_achievement), monthTotal.toString())
+                        DetailRow(
+                            stringResource(R.string.sss_percent),
+                            monthPercent?.let { "$it%" } ?: "—",
+                        )
+                        DetailRow(stringResource(R.string.sss_gap), monthGap.toString())
+
+                        if (target.monthWorkingDays > 0) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                stringResource(R.string.sss_target_working_days, target.monthWorkingDays),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        if (target.stale) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                stringResource(R.string.sss_target_stale),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            } else {
+                InlineNotice(stringResource(R.string.sss_no_target), Tone.INFO)
             }
 
             if (today != null) {
@@ -154,10 +241,15 @@ fun SssScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         DetailRow(
                             stringResource(R.string.sss_status),
                             stringResource(
-                                if (today!!.syncState == SyncState.PENDING) {
-                                    R.string.sss_state_queued
-                                } else {
-                                    R.string.sss_state_sent
+                                // Every state named. This used to be a two-way choice, which
+                                // reported a refused day as "Sent" — the one state where the
+                                // supervisor most needs to be told otherwise.
+                                when (today!!.syncState) {
+                                    SyncState.PENDING -> R.string.sss_state_queued
+                                    SyncState.SYNCING -> R.string.sss_state_sending
+                                    SyncState.FAILED -> R.string.sss_state_retrying
+                                    SyncState.REJECTED -> R.string.sss_state_rejected
+                                    else -> R.string.sss_state_sent
                                 },
                             ),
                         )
@@ -165,69 +257,78 @@ fun SssScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 }
             }
 
-            Text(
-                stringResource(R.string.sss_intro),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            SchemeField(
-                value = apy,
-                onValueChange = { apy = it },
-                label = stringResource(R.string.sss_apy),
-                help = stringResource(R.string.sss_apy_full),
-            )
-            SchemeField(
-                value = pmjjby,
-                onValueChange = { pmjjby = it },
-                label = stringResource(R.string.sss_pmjjby),
-                help = stringResource(R.string.sss_pmjjby_full),
-            )
-            SchemeField(
-                value = pmsby,
-                onValueChange = { pmsby = it },
-                label = stringResource(R.string.sss_pmsby),
-                help = stringResource(R.string.sss_pmsby_full),
-            )
-            SchemeField(
-                value = pmjdy,
-                onValueChange = { pmjdy = it },
-                label = stringResource(R.string.sss_pmjdy),
-                help = stringResource(R.string.sss_pmjdy_full),
-            )
-
-            OutlinedTextField(
-                value = remarks,
-                onValueChange = { remarks = it },
-                label = { Text(stringResource(R.string.sss_remarks)) },
-                minLines = 2,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Button(
-                onClick = {
-                    viewModel.submitSss(apy, pmjjby, pmsby, pmjdy, remarks) { note ->
-                        message = note
-                    }
-                },
-                // Nothing typed at all is not a submission, and a figure over the cap is a
-                // typing slip the server would reject outright — better to stop it here
-                // than to leave a rejected row sitting in the outbox.
-                enabled = anythingTyped && !overLimit,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
+            // A closed day composes no inputs at all, rather than showing disabled boxes.
+            // The same choice the attendance screen makes once the day is finished: a field
+            // you cannot use is a question about why you cannot use it.
+            if (!locked) {
                 Text(
-                    stringResource(
-                        if (today == null) R.string.sss_submit else R.string.sss_submit_correction,
-                    ),
+                    stringResource(R.string.sss_intro),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                SchemeField(
+                    value = apy,
+                    onValueChange = { apy = it },
+                    label = stringResource(R.string.sss_apy),
+                    help = stringResource(R.string.sss_apy_full),
+                )
+                SchemeField(
+                    value = pmjjby,
+                    onValueChange = { pmjjby = it },
+                    label = stringResource(R.string.sss_pmjjby),
+                    help = stringResource(R.string.sss_pmjjby_full),
+                )
+                SchemeField(
+                    value = pmsby,
+                    onValueChange = { pmsby = it },
+                    label = stringResource(R.string.sss_pmsby),
+                    help = stringResource(R.string.sss_pmsby_full),
+                )
+                SchemeField(
+                    value = pmjdy,
+                    onValueChange = { pmjdy = it },
+                    label = stringResource(R.string.sss_pmjdy),
+                    help = stringResource(R.string.sss_pmjdy_full),
+                )
+
+                OutlinedTextField(
+                    value = remarks,
+                    onValueChange = { remarks = it },
+                    label = { Text(stringResource(R.string.sss_remarks)) },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Button(
+                    onClick = {
+                        viewModel.submitSss(apy, pmjjby, pmsby, pmjdy, remarks) { note ->
+                            message = note
+                        }
+                    },
+                    // Nothing typed at all is not a submission, and a figure over the cap is
+                    // a typing slip the server would reject outright — better to stop it
+                    // here than to leave a rejected row sitting in the outbox.
+                    enabled = anythingTyped && !overLimit,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        stringResource(
+                            if (today == null) {
+                                R.string.sss_submit
+                            } else {
+                                R.string.sss_submit_correction
+                            },
+                        ),
+                    )
+                }
+
+                Text(
+                    stringResource(R.string.sss_queue_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-
-            Text(
-                stringResource(R.string.sss_queue_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

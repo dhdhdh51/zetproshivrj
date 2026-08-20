@@ -98,6 +98,7 @@ return [
     'nav.krm_ots' => 'KRM OTS',
     'nav.ckcc' => 'CKCC OD-2',
     'nav.sss' => 'SSS नामांकन',
+    'nav.sss_targets' => 'SSS लक्ष्य',
     'nav.branches' => 'शाखाएँ',
     'nav.branch_managers' => 'शाखा प्रबंधक',
     'nav.bc_supervisors' => 'बीसी सुपरवाइज़र',

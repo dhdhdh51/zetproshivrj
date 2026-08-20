@@ -522,6 +522,24 @@ if (!function_exists('badge')) {
     }
 }
 
+if (!function_exists('badge_for_percent')) {
+    /**
+     * Badge class for an achievement percentage.
+     *
+     * The thresholds are here rather than in a view so the target screens, the SSS register
+     * and anything added later colour the same number the same way. Green from 100, amber
+     * from 75 — a supervisor three quarters of the way through is behind, not failing.
+     */
+    function badge_for_percent(float $percent): string
+    {
+        return match (true) {
+            $percent >= 100.0 => 'badge-success',
+            $percent >= 75.0 => 'badge-warning',
+            default => 'badge-danger',
+        };
+    }
+}
+
 if (!function_exists('nav_active')) {
     function nav_active(string $prefix): string
     {

@@ -141,11 +141,41 @@ data class SssEntryDto(
     val total: Int = 0,
     val remarks: String? = null,
     val source: String? = null,
+    /**
+     * submitted | reopened.
+     *
+     * Defaults to submitted rather than null: a server old enough not to send this field is
+     * a server with no lock, where every day it knows about was reported and closed.
+     */
+    val status: String = "submitted",
 )
 
 data class SssMonthDto(
     val days: Int = 0,
     val total: Int = 0,
+)
+
+/**
+ * One side of the comparison — a day, or the month so far.
+ *
+ * The percentage and the gap are worked out on the server and sent down finished. The app
+ * does not recompute them: two implementations of the same arithmetic is two answers to the
+ * same question, and the supervisor is measured on one of them.
+ */
+data class SssStandingDto(
+    val target: Int = 0,
+    val achievement: Int = 0,
+    val percent: Double = 0.0,
+    val gap: Int = 0,
+    @Json(name = "working_days") val workingDays: Int = 0,
+)
+
+/** The Admin's target and how the day and the month are going against it. */
+data class SssProgressDto(
+    @Json(name = "target_set") val targetSet: Boolean = false,
+    @Json(name = "per_day_total") val perDayTotal: Int = 0,
+    val day: SssStandingDto? = null,
+    @Json(name = "month_to_date") val monthToDate: SssStandingDto? = null,
 )
 
 data class SssData(
@@ -154,6 +184,8 @@ data class SssData(
     val entry: SssEntryDto? = null,
     @Json(name = "max_per_scheme") val maxPerScheme: Int = 999,
     val month: SssMonthDto? = null,
+    /** Null from a server that predates targets; the screen then shows figures alone. */
+    val progress: SssProgressDto? = null,
 )
 
 data class SyncPullData(

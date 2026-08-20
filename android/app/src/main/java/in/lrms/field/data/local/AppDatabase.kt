@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AttendanceEntity::class,
         SssEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -42,7 +42,13 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lrms-field.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                    )
                     // Only for a database from an unknown build. Real schema
                     // changes get a migration above, because this database is not
                     // only a cache: it holds the outbox, and a supervisor who
@@ -146,5 +152,27 @@ private val MIGRATION_4_5 = object : Migration(4, 5) {
                 "`syncState` TEXT NOT NULL, " +
                 "PRIMARY KEY(`date`))",
         )
+    }
+}
+
+/**
+ * A day's figures now carry whether the server has closed them, and why it refused if it
+ * did. Two ADD COLUMNs, nothing else touched.
+ *
+ * `status` defaults to submitted: every row already in this table was reported, and a
+ * default of anything else would present a supervisor's own history back to them as
+ * unfinished work.
+ *
+ * The Admin's target is deliberately not here. It belongs to a month rather than to a day,
+ * and a day with nothing typed into it yet has no row at all — a supervisor opening the
+ * screen before they have enrolled anybody still needs to see what is expected of them, so
+ * the target is cached in SessionStore instead.
+ */
+private val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE `sss_enrolments` ADD COLUMN `status` TEXT NOT NULL DEFAULT 'submitted'",
+        )
+        db.execSQL("ALTER TABLE `sss_enrolments` ADD COLUMN `syncMessage` TEXT")
     }
 }

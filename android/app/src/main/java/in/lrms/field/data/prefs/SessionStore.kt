@@ -137,6 +137,41 @@ class SessionStore(context: Context) {
         return (storedSeconds - elapsedSinceSync).coerceAtLeast(0L)
     }
 
+    /**
+     * The Admin's SSS target, cached so the screen still shows what is expected with no
+     * signal.
+     *
+     * Kept here rather than beside the day's figures because a day nobody has enrolled
+     * anybody on has no row to hang it from, and that is exactly the moment a supervisor
+     * wants to know the number. Stamped with the date it was fetched for so a stale target
+     * from last week is recognisable as stale rather than shown as today's.
+     */
+    fun saveSssTarget(
+        date: String,
+        targetSet: Boolean,
+        dayTarget: Int,
+        monthTarget: Int,
+        monthWorkingDays: Int,
+    ) {
+        prefs.edit()
+            .putString(KEY_SSS_TARGET_DATE, date)
+            .putBoolean(KEY_SSS_TARGET_SET, targetSet)
+            .putInt(KEY_SSS_TARGET_DAY, dayTarget)
+            .putInt(KEY_SSS_TARGET_MONTH, monthTarget)
+            .putInt(KEY_SSS_TARGET_WORKING_DAYS, monthWorkingDays)
+            .apply()
+    }
+
+    fun sssTargetDate(): String = prefs.getString(KEY_SSS_TARGET_DATE, "") ?: ""
+
+    fun sssTargetSet(): Boolean = prefs.getBoolean(KEY_SSS_TARGET_SET, false)
+
+    fun sssDayTarget(): Int = prefs.getInt(KEY_SSS_TARGET_DAY, 0)
+
+    fun sssMonthTarget(): Int = prefs.getInt(KEY_SSS_TARGET_MONTH, 0)
+
+    fun sssMonthWorkingDays(): Int = prefs.getInt(KEY_SSS_TARGET_WORKING_DAYS, 0)
+
     /** Keeps the device id so a re-install is recognised, clears everything else. */
     /**
      * The chosen app language as a BCP-47 tag, or "" to follow the phone.
@@ -181,6 +216,11 @@ class SessionStore(context: Context) {
         const val KEY_DEADLINE_LOCKED = "deadline_locked"
         const val KEY_SERVER_TIME = "server_time"
         const val KEY_LANGUAGE = "language_tag"
+        const val KEY_SSS_TARGET_DATE = "sss_target_date"
+        const val KEY_SSS_TARGET_SET = "sss_target_set"
+        const val KEY_SSS_TARGET_DAY = "sss_target_day"
+        const val KEY_SSS_TARGET_MONTH = "sss_target_month"
+        const val KEY_SSS_TARGET_WORKING_DAYS = "sss_target_working_days"
     }
 }
 

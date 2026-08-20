@@ -1077,6 +1077,24 @@ CREATE TABLE `sss_enrolments` (
   -- typed by an Admin is indistinguishable from what the supervisor reported, which is
   -- exactly the thing somebody queries when a total looks wrong.
   `source`           ENUM('app','panel') NOT NULL DEFAULT 'app',
+
+  -- Once the supervisor submits a day it is theirs no longer: the figures feed a target
+  -- register the branch is measured on, so a quiet edit afterwards would move a number
+  -- somebody has already reported upwards. Only an Admin can hand the day back, which
+  -- sets `reopened` and lets exactly one more submission in.
+  --
+  -- `submitted` is the DEFAULT rather than a 'draft' state because every row that exists
+  -- before this column did was reported, and a default of anything else would present the
+  -- whole history as unfinished. There is deliberately no draft here at all: the app holds
+  -- what is being typed on the handset and only sends it on Submit, so a draft would be a
+  -- server row nobody asked for.
+  `status`           ENUM('submitted','reopened') NOT NULL DEFAULT 'submitted',
+  `submitted_at`     DATETIME NULL,
+  -- No foreign key on `reopened_by`, matching `targets`.`created_by`: upgrade.php can add
+  -- a column but has no pass that can add a constraint, and a fresh install carrying a key
+  -- an upgraded database could never get is the drift the two files exist to prevent.
+  `reopened_by`      BIGINT UNSIGNED NULL,
+  `reopened_at`      DATETIME NULL,
   `recorded_by`      BIGINT UNSIGNED NULL,
   `device_id`        BIGINT UNSIGNED NULL,
   `created_at`       DATETIME NULL,
@@ -1086,10 +1104,49 @@ CREATE TABLE `sss_enrolments` (
   UNIQUE KEY `uq_sss_day` (`bc_supervisor_id`, `enrolment_date`),
   KEY `ix_sss_branch_date` (`branch_id`, `enrolment_date`),
   KEY `ix_sss_date` (`enrolment_date`),
+  KEY `ix_sss_status` (`status`),
   CONSTRAINT `fk_sss_bc` FOREIGN KEY (`bc_supervisor_id`) REFERENCES `bc_supervisors` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_sss_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_sss_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_sss_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What the Admin expects per BC Supervisor per scheme, against which the enrolments above
+-- are measured. Separate from `targets` (visits and recovery) on purpose: that table is
+-- scoped and period-shaped, and overloading it would have meant one row meaning "this
+-- month's total" in one column and "per day" in the next.
+--
+-- ONE ROW PER SUPERVISOR PER MONTH, AND THE FIGURE IS PER WORKING DAY
+--
+-- The Admin sets a daily number because that is how the work is actually handed out ("two
+-- APY a day"). Everything longer is derived: month to date is the daily figure times the
+-- working days already gone, the month is the daily figure times all of its working days.
+-- Storing the derived totals instead would leave them wrong the moment the working-day
+-- settings changed, and storing a row per day would mean thirty rows to set one target.
+DROP TABLE IF EXISTS `sss_targets`;
+CREATE TABLE `sss_targets` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `bc_supervisor_id` BIGINT UNSIGNED NOT NULL,
+  -- Always the first of the month. The service normalises it, so a target set from any
+  -- date in a month lands on one row rather than creating a second for the 15th.
+  `target_month`     DATE NOT NULL,
+
+  -- Per working day, per scheme. SMALLINT for the same reason the counts are: a day's
+  -- expectation at one outlet is a handful.
+  `apy_target`       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjjby_target`    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmsby_target`     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjdy_target`     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+
+  `notes`            VARCHAR(255) NULL,
+  -- No foreign key, matching `targets`.`created_by`; see the note on `reopened_by` above.
+  `created_by`       BIGINT UNSIGNED NULL,
+  `created_at`       DATETIME NULL,
+  `updated_at`       DATETIME NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_sss_target_month` (`bc_supervisor_id`, `target_month`),
+  KEY `ix_sss_targets_month` (`target_month`),
+  CONSTRAINT `fk_sss_target_bc` FOREIGN KEY (`bc_supervisor_id`) REFERENCES `bc_supervisors` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `targets`;

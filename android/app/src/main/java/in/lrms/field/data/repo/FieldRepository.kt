@@ -13,6 +13,7 @@ import `in`.lrms.field.data.local.OutboxEntity
 import `in`.lrms.field.data.local.OutboxType
 import `in`.lrms.field.data.local.PhotoEntity
 import `in`.lrms.field.data.local.SssEntity
+import `in`.lrms.field.data.local.SssStatus
 import `in`.lrms.field.data.local.SyncState
 import `in`.lrms.field.data.local.VisitEntity
 import `in`.lrms.field.data.prefs.SessionStore
@@ -579,7 +580,8 @@ class FieldRepository(
         pmjdy: Int,
         remarks: String?,
     ): Unit = withContext(Dispatchers.IO) {
-        val uuid = db.sss().find(date)?.uuid ?: newUuid()
+        val existing = db.sss().find(date)
+        val uuid = existing?.uuid ?: newUuid()
         val total = apy + pmjjby + pmsby + pmjdy
 
         db.sss().upsert(
@@ -592,6 +594,13 @@ class FieldRepository(
                 pmjdyCount = pmjdy,
                 remarks = remarks,
                 syncState = SyncState.PENDING,
+                // Whatever the server last said about the day is carried across. If an
+                // Admin re-opened it, this is the submission that re-opening bought, and
+                // losing the state here would lock the fields again while the correction
+                // was still sitting in the queue.
+                status = existing?.status ?: SssStatus.SUBMITTED,
+                // A fresh attempt carries no complaint from the last one.
+                syncMessage = null,
             ),
         )
 
@@ -703,6 +712,16 @@ class FieldRepository(
                             }
                         } else {
                             db.outbox().markSync(uuid, state, outcome.message, now)
+
+                            // An SSS day carries its outcome onto the day itself, not only
+                            // onto the queue row. Without this the supervisor sees "waiting
+                            // to be sent" on the SSS screen for ever after a refusal, and
+                            // the only place the reason appears is the outbox list — which
+                            // is not where they are looking when they wonder why their
+                            // correction did nothing.
+                            if (outcome.type == OutboxType.SSS) {
+                                db.sss().markSync(uuid, state, outcome.message)
+                            }
                         }
                     }
 
@@ -899,7 +918,25 @@ class FieldRepository(
                                 pmjdyCount = entry.pmjdyCount,
                                 remarks = entry.remarks,
                                 syncState = SyncState.SYNCED,
+                                // The server decides whether the day is closed. An Admin
+                                // re-opening it is the only way the fields unlock, so this
+                                // is the field the whole lock hangs on.
+                                status = entry.status,
+                                syncMessage = null,
                             ),
+                        )
+                    }
+
+                    // The Admin's target, cached against the day it was fetched for. Saved
+                    // whether or not the day has figures yet: a supervisor who has enrolled
+                    // nobody so far is exactly who needs to see the number.
+                    result.data.progress?.let { progress ->
+                        session.saveSssTarget(
+                            date = sssDate,
+                            targetSet = progress.targetSet,
+                            dayTarget = progress.day?.target ?: 0,
+                            monthTarget = progress.monthToDate?.target ?: 0,
+                            monthWorkingDays = progress.monthToDate?.workingDays ?: 0,
                         )
                     }
                 }

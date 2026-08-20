@@ -300,4 +300,23 @@
     <string name="sss_queue_note">Saved on this device and sent at the next sync. Saving again for the same day corrects it rather than adding to it.</string>
     <string name="sss_outbox_label">SSS enrolments for %1$s — %2$d in total</string>
     <string name="msg_sss_queued">SSS enrolments saved: %1$d in total.</string>
+
+    <!-- The target the Admin set, and the day against it. None of this can be set here. -->
+    <string name="sss_target_heading">Today against your target</string>
+    <string name="sss_target_today">Target for today</string>
+    <string name="sss_achievement">Done</string>
+    <string name="sss_percent">Achieved</string>
+    <string name="sss_gap">Still to do</string>
+    <string name="sss_target_month_heading">This month so far</string>
+    <string name="sss_target_month">Target so far</string>
+    <string name="sss_target_working_days">Counted over %1$d working day(s). Sundays and holidays are not counted against you.</string>
+    <string name="sss_target_stale">Last received figures. Sync to bring them up to date.</string>
+    <string name="sss_no_target">No target has been set for you yet. Keep recording your enrolments — they are all saved.</string>
+
+    <!-- Submitted, and what to do about it. -->
+    <string name="sss_locked">You have already submitted these figures, so they cannot be changed here. Ask your Admin to re-open the day if a figure is wrong.</string>
+    <string name="sss_reopened">Your Admin has re-opened this day. Correct the figures and submit them once more.</string>
+    <string name="sss_state_sending">Sending</string>
+    <string name="sss_state_retrying">Not sent yet — will try again</string>
+    <string name="sss_state_rejected">Not accepted by the server</string>
 </resources>

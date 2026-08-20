@@ -64,6 +64,9 @@ $badges = $navBadges ?? [];
                 <a class="<?= nav_active('/admin/sss') ?>" href="<?= e(url('/admin/sss')) ?>">
                     <?= icon('shield') ?> <?= et('nav.sss') ?>
                 </a>
+                <a class="<?= nav_active('/admin/sss-targets') ?>" href="<?= e(url('/admin/sss-targets')) ?>">
+                    <?= icon('target') ?> <?= et('nav.sss_targets') ?>
+                </a>
 
                 <div class="nav-section"><?= et('nav.section.organisation') ?></div>
                 <a class="<?= nav_active('/admin/branches') ?>" href="<?= e(url('/admin/branches')) ?>">
