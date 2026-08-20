@@ -210,115 +210,65 @@ final class RecordExport
      *
      * @return array{path:string, file_name:string}
      */
+    /**
+     * The BC Supervisor inspection, printed in the format the client issued.
+     *
+     * Driven by the form definition rather than a hardcoded list of the 27 items. Three
+     * things fall out of that and all of them matter: an inspection recorded before the
+     * format changed prints the questions it was actually answered against, a question
+     * the Admin adds in the form builder appears here without anyone editing this file,
+     * and an item left blank still prints — the page is a form somebody signs, so a gap
+     * has to be visible as a gap rather than silently absent.
+     *
+     * Walking the definition is what makes the blanks possible: Forms::values() returns
+     * only the answers that exist, so a report built from those alone would quietly drop
+     * every unanswered item and every section heading.
+     */
     public static function inspectionPdf(int $inspectionId): array
     {
         $detail = Inspections::detail($inspectionId);
         $inspection = $detail['inspection'];
 
+        // Forms::values() hands back a list; the walk below needs to look answers up.
+        $answers = [];
+
+        foreach ($detail['answers'] as $row) {
+            $answers[(string) $row['field_key']] = (string) $row['value'];
+        }
+
         $pdf = new PdfWriter('portrait');
-        $pdf->header(
-            'BC Supervisor Inspection Report',
+        $pdf->documentHeader(
             org_name(),
+            'BC Supervisor Inspection',
             [
-                sprintf('Inspection reference: %s', $inspection['uuid']),
+                sprintf('Reference: %s', $inspection['uuid']),
                 sprintf(
-                    'Inspector: %s   •   BC Supervisor: %s (%s)   •   Branch: %s',
-                    $inspection['inspector_name'],
+                    'BC Supervisor: %s (%s)   •   Branch: %s',
                     $inspection['supervisor_name'],
                     $inspection['bc_code'],
                     $inspection['branch_name']
                 ),
-                'Purpose: verification of BC Supervisor field work. This is not a customer recovery visit.',
             ]
         );
 
-        $pdf->heading('Inspection');
         $pdf->keyValues([
             'Inspection date' => format_date((string) $inspection['inspection_date']),
-            'Started at' => format_datetime($inspection['started_at']),
+            'Inspected by' => (string) $inspection['inspector_name'],
             'Submitted at' => format_datetime($inspection['submitted_at']),
             'Result' => inspection_result_label($inspection['result']),
-            'Follow-up required' => (int) $inspection['followup_required'] === 1 ? 'Yes' : 'No',
             'Status' => enum_label((string) $inspection['status']),
-            'Inspector GPS verified' => (int) $inspection['gps_verified'] === 1 ? 'Yes' : 'No',
-            'Photographs' => (string) (int) $inspection['photo_count'],
             'Form used' => (string) $inspection['form_name'],
         ]);
 
-        if ($inspection['account_number'] !== null) {
-            $pdf->heading('Account inspected');
-            $pdf->keyValues([
-                'Account number' => (string) $inspection['account_number'],
-                'CIF' => (string) $inspection['cif'],
-                'Borrower' => (string) $inspection['borrower_name'],
-                'Father / guardian' => (string) $inspection['father_name'],
-                'Village' => (string) $inspection['village'],
-                'Loan type' => (string) $inspection['loan_type'],
-                'Outstanding' => money((float) $inspection['outstanding']),
-                'Overdue' => money((float) $inspection['overdue']),
-            ]);
-        }
+        $fields = $inspection['form_id'] === null
+            ? []
+            : Forms::fields(Forms::KIND_INSPECTION, (int) $inspection['form_id']);
 
-        if ($inspection['visit_id'] !== null) {
-            $distance = null;
+        self::inspectionItems($pdf, $fields, $answers);
 
-            foreach ($detail['gps'] as $point) {
-                if ($point['distance_to_visit_metres'] !== null) {
-                    $distance = (float) $point['distance_to_visit_metres'];
-                    break;
-                }
-            }
-
-            $pdf->heading('BC Supervisor visit being verified');
-            $pdf->keyValues([
-                'Visit date' => format_date((string) $inspection['visit_date']),
-                'Visit submitted' => format_datetime($inspection['visit_submitted_at']),
-                'Reported visit status' => visit_status_label($inspection['visit_status']),
-                'Photographs on the visit' => (string) (int) $inspection['visit_photo_count'],
-                'Distance between inspector and visit point' => $distance === null
-                    ? 'Not comparable'
-                    : number_format($distance, 0) . ' m',
-                'Visit remarks' => (string) $inspection['visit_remarks'],
-            ]);
-        }
-
-        if ($detail['answers'] !== []) {
-            $pdf->heading('Inspection questionnaire');
-            $pdf->table(
-                ['Question', 'Answer'],
-                array_map(
-                    static fn (array $row): array => [(string) ($row['label'] ?: $row['field_key']), (string) $row['value']],
-                    $detail['answers']
-                ),
-                [1.4, 0.8]
-            );
-        }
-
-        $pdf->heading('Inspector remarks');
-        $pdf->paragraph((string) ($inspection['remarks'] ?: 'No remarks recorded.'));
-
-        if ($detail['gps'] !== []) {
-            $pdf->heading('Inspector GPS');
-            $pdf->table(
-                ['Event', 'Latitude', 'Longitude', 'Accuracy', 'Distance to visit', 'Captured', 'Valid'],
-                array_map(static fn (array $point): array => [
-                    enum_label((string) $point['event']),
-                    number_format((float) $point['latitude'], 6),
-                    number_format((float) $point['longitude'], 6),
-                    $point['accuracy'] === null ? '-' : number_format((float) $point['accuracy'], 0) . ' m',
-                    $point['distance_to_visit_metres'] === null
-                        ? '-'
-                        : number_format((float) $point['distance_to_visit_metres'], 0) . ' m',
-                    format_datetime($point['captured_at']),
-                    (int) $point['is_valid'] === 1 ? 'Yes' : 'No',
-                ], $detail['gps']),
-                [0.7, 0.9, 0.9, 0.6, 0.9, 1.1, 0.5],
-                ['left', 'right', 'right', 'right', 'right', 'left', 'center']
-            );
-        }
-
+        /* Item 23's photographs, and anything the BC Supervisor's own visit carried. */
         if ($detail['photos'] !== []) {
-            $pdf->heading('Inspection photographs');
+            $pdf->heading('Photographs at the BC point');
             $pdf->imageGrid(array_map(static fn (array $photo): array => [
                 'path' => storage_path((string) $photo['file_path']),
                 'caption' => sprintf(
@@ -341,10 +291,50 @@ final class RecordExport
             ], $detail['visit_photos']), 3);
         }
 
-        self::signatures($pdf, [
-            'Inspector signature' => $inspection['inspector_signature'],
-            'BC Supervisor signature' => $inspection['bc_signature'],
-        ]);
+        /* The inspector's own remarks, kept separate from item 22 and item 27. */
+        $pdf->heading('Inspector remarks');
+        $pdf->paragraph((string) ($inspection['remarks'] ?: 'No remarks recorded.'));
+
+        /*
+         * Where the inspector was standing. Not on the printed form, but the report is
+         * the record of an inspection somebody signs their name to, and the position it
+         * was filed from is part of that.
+         */
+        if ($detail['gps'] !== []) {
+            $pdf->heading('Inspector position');
+            $pdf->table(
+                ['Event', 'Latitude', 'Longitude', 'Accuracy', 'Captured', 'Valid'],
+                array_map(static fn (array $point): array => [
+                    enum_label((string) $point['event']),
+                    number_format((float) $point['latitude'], 6),
+                    number_format((float) $point['longitude'], 6),
+                    $point['accuracy'] === null ? '-' : number_format((float) $point['accuracy'], 0) . ' m',
+                    format_datetime($point['captured_at']),
+                    (int) $point['is_valid'] === 1 ? 'Yes' : 'No',
+                ], $detail['gps']),
+                [0.7, 0.9, 0.9, 0.6, 1.1, 0.5],
+                ['left', 'right', 'right', 'right', 'left', 'center']
+            );
+        }
+
+        /*
+         * Item 26. Ruled lines, because the form is signed by hand on the printed copy —
+         * the same reason the field visit report stopped trying to capture a signature.
+         */
+        $pdf->heading('26. Signature of the visiting official');
+        $pdf->signatureLines(['Visiting official', 'Date']);
+
+        // From the letterhead of the form the client issued, so a printed copy carries
+        // the office it belongs to rather than looking like a document of our own.
+        $pdf->noticeBox(
+            'eef2f8',
+            [
+                '9, Arera Hills, Jail Road, Bhopal.  Telephone: 0755-2552023.  '
+                . 'Email: fibhopzo@centralbank.co.in',
+                'Toll free helpline: 1800 233 4035',
+            ],
+            'Central Bank of India — Financial Inclusion, Bhopal Zonal Office'
+        );
 
         $fileName = sprintf(
             'inspection-report-%s-%s.pdf',
@@ -358,13 +348,178 @@ final class RecordExport
             'entity_type' => 'inspection',
             'entity_id' => $inspectionId,
             'description' => sprintf(
-                'BC Supervisor Inspection Report PDF generated for %s (%s).',
+                'BC Supervisor Inspection PDF generated for %s (%s).',
                 $inspection['supervisor_name'],
                 $inspection['bc_code']
             ),
         ]);
 
         return ['path' => $path, 'file_name' => $fileName];
+    }
+
+    /**
+     * Print the form's items in the order they appear on the paper.
+     *
+     * Consecutive plain answers are collected and printed as one block rather than a row
+     * at a time, which is what keeps the page looking like the two-column table the form
+     * actually is instead of a ladder of single rows.
+     *
+     * @param array<int, array<string, mixed>> $fields
+     * @param array<string, string> $answers
+     */
+    private static function inspectionItems(PdfWriter $pdf, array $fields, array $answers): void
+    {
+        /** @var array<string, string> $pending */
+        $pending = [];
+
+        $flush = static function () use ($pdf, &$pending): void {
+            if ($pending !== []) {
+                $pdf->keyValues($pending);
+                $pending = [];
+            }
+        };
+
+        foreach ($fields as $field) {
+            $key = (string) $field['field_key'];
+            $type = (string) $field['field_type'];
+            $label = (string) ($field['label'] ?: $key);
+            $value = trim($answers[$key] ?? '');
+            $options = is_array($field['option_list'] ?? null) ? $field['option_list'] : [];
+
+            switch ($type) {
+                case 'section':
+                    $flush();
+
+                    // Section labels carry their item numbers — "1-6. Business
+                    // Correspondent Agent" — so the band shows the same numbering the
+                    // inspector is reading off the paper.
+                    [$number, $title] = self::splitItemNumber($label);
+                    $pdf->sectionBand($number, $title);
+
+                    if (!empty($field['help_text'])) {
+                        $pdf->paragraph((string) $field['help_text']);
+                    }
+
+                    break;
+
+                case 'yes_no':
+                    $flush();
+                    $pdf->yesNoRow($label, self::boolFromAnswer($value));
+
+                    break;
+
+                case 'checkbox':
+                    $flush();
+                    $pdf->checkboxes(
+                        $options,
+                        $value === '' ? [] : array_map('trim', explode(',', $value)),
+                        3,
+                        $label
+                    );
+
+                    break;
+
+                case 'dropdown':
+                case 'radio':
+                    $flush();
+
+                    // Printed as a tick row rather than a line of text: the form offers a
+                    // fixed set of words and shows which one was chosen.
+                    if ($options !== []) {
+                        $pdf->checkboxes($options, $value === '' ? [] : [$value], 4, $label);
+                    } else {
+                        $pdf->keyValues([$label => $value]);
+                    }
+
+                    break;
+
+                case 'textarea':
+                case 'remarks':
+                    $flush();
+                    $pdf->fieldLabel($label);
+
+                    if ($value === '') {
+                        // Ruled space, so an unanswered box can be written on by hand.
+                        $pdf->writingBox();
+                    } else {
+                        $pdf->paragraph($value);
+                    }
+
+                    break;
+
+                case 'photo':
+                    $flush();
+
+                    // The photographs themselves are printed further down, but the item
+                    // keeps its place in the sequence: a page that runs 22, 24 sends
+                    // whoever is reading it against the paper looking for what is missing.
+                    $pdf->fieldLabel($label);
+                    $pdf->paragraph($value === '' ? 'None attached.' : $value . ', shown below.');
+
+                    break;
+
+                case 'gps':
+                case 'signature':
+                    // Recorded elsewhere on the report, not as a row of text.
+                    break;
+
+                default:
+                    $pending[$label] = self::inspectionValue($type, $value);
+            }
+        }
+
+        $flush();
+    }
+
+    /**
+     * A stored answer as it should read on paper.
+     *
+     * A date comes out of the database as 2019-06-01 and a decimal as 4250.5, neither of
+     * which is how the figure was written on the form. Decimals are grouped to two places
+     * rather than run through money(): the form builder can put a decimal field anywhere,
+     * and a percentage printed with a rupee sign in front of it would be worse than an
+     * unformatted one.
+     */
+    private static function inspectionValue(string $type, string $value): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        return match ($type) {
+            'date' => format_date($value),
+            'decimal' => number_format((float) $value, 2),
+            default => $value,
+        };
+    }
+
+    /**
+     * Split "1-6. Business Correspondent Agent" into its number and its title.
+     *
+     * @return array{0:string, 1:string}
+     */
+    private static function splitItemNumber(string $label): array
+    {
+        if (preg_match('/^([0-9]+(?:\s*-\s*[0-9]+)?)\.\s*(.+)$/', $label, $matches) === 1) {
+            return [trim($matches[1]), trim($matches[2])];
+        }
+
+        return ['', $label];
+    }
+
+    /**
+     * A stored Yes / No answer as a boolean, or null when the question was not answered.
+     *
+     * Null matters: it prints as an unticked pair rather than as a No, so the report does
+     * not answer on the inspector's behalf.
+     */
+    private static function boolFromAnswer(string $value): ?bool
+    {
+        return match (strtolower(trim($value))) {
+            'yes', '1', 'true' => true,
+            'no', '0', 'false' => false,
+            default => null,
+        };
     }
 
     /**

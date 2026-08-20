@@ -210,13 +210,33 @@
         return;
       }
 
-      var input = source.querySelector('input:checked, select, textarea, input[type=text], input[type=number], input[type=date]');
-      var value = input ? String(input.value || '').toLowerCase() : '';
+      // Every ticked box, not just the first. A checkbox group's answer is the
+      // comma joined list of what is ticked, which is what the server compares
+      // against and what the contains operator below needs — reading a single
+      // input meant a group with three ticks reported only the earliest of them.
+      var ticked = source.querySelectorAll('input[type=checkbox]:checked');
+      var value;
+
+      if (ticked.length > 0) {
+        value = Array.prototype.map.call(ticked, function (box) {
+          return String(box.value || '').trim();
+        }).join(', ').toLowerCase();
+      } else {
+        var input = source.querySelector('input:checked, select, textarea, input[type=text], input[type=number], input[type=date]');
+        value = input ? String(input.value || '').toLowerCase() : '';
+      }
+
+      var items = value.split(',').map(function (v) { return v.trim(); });
       var visible;
 
       switch (operator) {
         case 'not_equals': visible = value !== expected; break;
         case 'in': visible = expected.split(',').map(function (v) { return v.trim(); }).indexOf(value) !== -1; break;
+        // One of the ticked values, compared per item so "Other" does not match
+        // "Other Land Record". The server has had this since the visit forms
+        // needed it; this file said it mirrored the server and did not, so an
+        // "Other document" box stayed hidden in the panel however it was ticked.
+        case 'contains': visible = items.indexOf(expected) !== -1; break;
         case 'filled': visible = value !== ''; break;
         case 'empty': visible = value === ''; break;
         default: visible = value === expected;
