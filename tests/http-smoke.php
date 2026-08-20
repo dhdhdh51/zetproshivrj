@@ -450,6 +450,13 @@ if ($sssSupervisor === null) {
         'The correction replaced the whole day rather than merging into it'
     );
 
+    // The backdating window is a setting because the app is offline-first. A setting an
+    // Admin cannot reach is a constant with extra steps, so the screen has to offer it.
+    ok(
+        str_contains(page('/admin/settings', 'Settings screen'), 'name="sss_backdate_days"'),
+        'The SSS backdating window can be changed from the settings screen'
+    );
+
     $sssList = page('/admin/sss?from=' . $sssDate . '&to=' . $sssDate, 'SSS list for the recorded day');
     ok(str_contains($sssList, 'Total enrolments'), 'The list shows the totals strip');
     ok(str_contains($sssList, (string) $sssSupervisor['name']), 'The list names the supervisor the day belongs to');
