@@ -31,7 +31,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -86,8 +85,14 @@ class MainActivity : ComponentActivity() {
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
+/**
+ * The start destination, named once because the bottom bar has to treat it
+ * differently from every other tab. See the Home tab's onClick below.
+ */
+private const val HOME_ROUTE = "home"
+
 private val tabs = listOf(
-    Tab("home", "Home", Icons.Filled.Home),
+    Tab(HOME_ROUTE, "Home", Icons.Filled.Home),
     Tab("accounts", "Accounts", Icons.Filled.AccountBalance),
     Tab("attendance", "Attendance", Icons.AutoMirrored.Filled.Assignment),
     Tab("outbox", "Sync", Icons.Filled.Sync),
@@ -135,10 +140,35 @@ private fun SignedInApp(
                     NavigationBarItem(
                         selected = selected,
                         onClick = {
-                            navController.navigate(tab.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+                            if (tab.route == HOME_ROUTE) {
+                                // Home is the start destination, so reaching it is a
+                                // pop, not a push.
+                                //
+                                // It used to navigate to it with the same options as
+                                // every other tab, and the Home button did nothing as
+                                // a result. popUpTo(home) { saveState = true } saves
+                                // the popped stack under the popUpTo destination's own
+                                // id — home's — and the navigate that followed asked
+                                // for restoreState, so the controller restored the
+                                // stack it had just saved and put the agent straight
+                                // back on the tab they were trying to leave. Every
+                                // other tab escaped it only because its id is not the
+                                // one the state was filed under.
+                                if (!navController.popBackStack(HOME_ROUTE, inclusive = false)) {
+                                    // Nothing to pop back to, so put home there.
+                                    // Belt and braces: a Home button that silently
+                                    // does nothing is the bug being fixed here.
+                                    navController.navigate(HOME_ROUTE) { launchSingleTop = true }
+                                }
+                            } else {
+                                // No saveState/restoreState: every tab here is a
+                                // single screen reading from the local database, not a
+                                // nested graph with a stack worth preserving, so the
+                                // machinery bought nothing and cost the bug above.
+                                navController.navigate(tab.route) {
+                                    popUpTo(HOME_ROUTE)
+                                    launchSingleTop = true
+                                }
                             }
                         },
                         icon = {
@@ -158,7 +188,7 @@ private fun SignedInApp(
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = "home",
+            startDestination = HOME_ROUTE,
             modifier = Modifier.padding(padding),
         ) {
             composable("home") {
@@ -201,8 +231,8 @@ private fun SignedInApp(
                     viewModel = viewModel,
                     visitUuid = uuid,
                     onDone = {
-                        navController.navigate("home") {
-                            popUpTo("home") { inclusive = true }
+                        navController.navigate(HOME_ROUTE) {
+                            popUpTo(HOME_ROUTE) { inclusive = true }
                         }
                     },
                     onBack = { navController.popBackStack() },

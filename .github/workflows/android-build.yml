@@ -304,36 +304,6 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.artifacts.outputs.version }}
-        run: |
-          NOTES_FILE="${RUNNER_TEMP}/release-notes.md"
-
-          {
-            echo "## LRMS Field ${VERSION}"
-            echo
-            echo "Android application for BC Supervisor field operations."
-            echo
-            echo "| Artifact | Purpose |"
-            echo "| --- | --- |"
-            echo "| \`LRMS-${VERSION}-release.apk\` | Direct install / sideload |"
-            echo "| \`LRMS-${VERSION}-release.aab\` | Play Console upload |"
-            echo "| \`LRMS-${VERSION}-mapping.txt\` | De-obfuscate crash reports |"
-            echo "| \`LRMS-${VERSION}-checksums.txt\` | SHA-256 checksums |"
-            echo
-            echo "Built from \`${GITHUB_SHA}\` by run [#${GITHUB_RUN_NUMBER}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
-          } > "$NOTES_FILE"
-
-          gh release create "${GITHUB_REF#refs/tags/}" \
-            --title "LRMS Field ${VERSION}" \
-            --notes-file "$NOTES_FILE" \
-            dist/LRMS-${VERSION}-release.apk \
-            dist/LRMS-${VERSION}-release.aab \
-            dist/LRMS-${VERSION}-checksums.txt
-
       # Always runs, including when an earlier step failed, so a decoded keystore
       # is never left behind on the runner.
       - name: Remove the temporary keystore
