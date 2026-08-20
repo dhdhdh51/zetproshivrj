@@ -31,6 +31,7 @@ require __DIR__ . '/../app/bootstrap.php';
 
 use App\Core\Config;
 use App\Core\Database;
+use App\Core\Settings;
 
 $dryRun = in_array('--dry-run', array_slice($argv, 1), true);
 $database = (string) Config::get('database.database');
@@ -499,6 +500,84 @@ if (tableExists($database, 'visit_forms') && tableExists($database, 'visit_form_
                 printf("  !! visit_form_fields.%s on form #%d failed: %s\n", $key, (int) $formId, $e->getMessage());
                 $failed++;
             }
+        }
+    }
+}
+
+/* Inspection form ---------------------------------------------------------- */
+
+// The Admin's inspection of a BC Supervisor was replaced with the format the client
+// issued: 27 numbered items about the BC outlet itself, in place of eleven questions
+// about whether one customer visit had been done properly.
+//
+// seed.php only builds a form when none is installed, so on a live database — where the
+// old form is the default and inspections are already recorded against it — the new one
+// would never appear. It is installed here as another version, and the old form and its
+// fields are left exactly as they are: an inspection points at the form it was filled in
+// on, and Forms::fields() selects by form id, so a record from last month keeps printing
+// the questions it was actually answered against. Nothing is deleted.
+//
+// The field list is required from seed.php rather than repeated here. That file is only
+// function declarations — lrms_seed() is called by migrate.php, not on include — so there
+// is one definition of this form and no way for the two installers to drift apart.
+if (tableExists($database, 'inspection_forms') && tableExists($database, 'inspection_form_fields')) {
+    require_once __DIR__ . '/seed.php';
+
+    // Matched on a field key only the new form has, not on the form's name, so renaming
+    // it in the panel cannot cause a second copy to be installed on the next run.
+    $installed = (int) Database::scalar(
+        'SELECT COUNT(*) FROM inspection_form_fields WHERE field_key = :key',
+        ['key' => 'bca_name']
+    );
+
+    $inspectionFields = lrms_inspection_fields();
+
+    if ($installed > 0) {
+        $skipped++;
+    } elseif ($dryRun) {
+        printf(
+            "  +  inspection_forms: BC Supervisor inspection, %d fields, and the default moves to it\n",
+            count($inspectionFields)
+        );
+        $applied++;
+    } else {
+        try {
+            $version = 1 + (int) Database::scalar('SELECT COALESCE(MAX(version), 0) FROM inspection_forms');
+
+            $formId = Database::insert('inspection_forms', [
+                'name' => 'BC Supervisor Inspection',
+                'description' => 'TYPE B: the Admin/Supervisor inspection of a BC outlet and its agent.',
+                'version' => $version,
+                'is_active' => 1,
+                'is_default' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            lrms_insert_inspection_fields($formId, $inspectionFields);
+
+            Database::update(
+                'inspection_forms',
+                ['is_default' => 0, 'updated_at' => now()],
+                'id <> :id',
+                ['id' => $formId]
+            );
+
+            // Forms::defaultForm() reads this setting before it looks at is_default, so
+            // the switch is not finished without it — the old form would keep being
+            // served no matter which row is flagged.
+            Settings::set('default_inspection_form_id', (string) $formId, 'forms');
+
+            printf(
+                "  +  inspection_forms: BC Supervisor inspection #%d v%d with %d fields, now the default\n",
+                $formId,
+                $version,
+                count($inspectionFields)
+            );
+            $applied++;
+        } catch (Throwable $e) {
+            printf("  !! inspection_forms: %s\n", $e->getMessage());
+            $failed++;
         }
     }
 }

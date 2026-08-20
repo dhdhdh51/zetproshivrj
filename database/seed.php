@@ -587,8 +587,30 @@ function lrms_seed_ckcc_form(): int
     return $formId;
 }
 
+/**
+ * TYPE B — the Admin's inspection of a BC Supervisor, in the format the client issued.
+ *
+ * This replaces an eleven-question form that asked whether the BC Supervisor had done a
+ * particular customer visit properly. That is not what the Bank's form is for: this one
+ * inspects the BC outlet itself — who the agent is, whether they are certified and hold an
+ * appointment letter, what is on the walls, how many transactions ran yesterday, which of
+ * the 39 services are offered, which registers and equipment exist, what the agent earned
+ * over three months, and what the villagers say about them. A visit-quality checklist
+ * cannot answer any of that, so the questions are replaced rather than extended.
+ *
+ * Field types follow the paper. Y/N where the form prints "(Y/N)", the four-point grade at
+ * item 24 because the form names those four words, and free text everywhere the form leaves
+ * the box open — inventing a dropdown there would force an inspector to pick from options
+ * the Bank never wrote.
+ *
+ * Item numbers are kept in the labels. The inspector is holding the printed form, and a
+ * question they cannot find on it is a question they will answer wrongly.
+ */
 function lrms_seed_inspection_form(): int
 {
+    // A live database already has the previous form as its default, with real inspections
+    // recorded against it. Installing this one there is database/upgrade.php's job, which
+    // adds it as a new version instead of rewriting the old one.
     $existing = Database::selectOne('SELECT id FROM inspection_forms WHERE is_default = 1 LIMIT 1');
 
     if ($existing !== null) {
@@ -596,35 +618,141 @@ function lrms_seed_inspection_form(): int
     }
 
     $formId = Database::insert('inspection_forms', [
-        'name' => 'BC Supervisor Field Work Inspection',
-        'description' => 'Default TYPE B form: Admin/Supervisor verification that the BC Supervisor performed the allocated field work correctly.',
-        'version' => 1,
+        'name' => 'BC Supervisor Inspection',
+        'description' => 'TYPE B: the Admin/Supervisor inspection of a BC outlet and its agent.',
+        'version' => 2,
         'is_active' => 1,
         'is_default' => 1,
         'created_at' => now(),
         'updated_at' => now(),
     ]);
 
-    $fields = [
-        ['bc_visited_customer', 'Did the BC Supervisor visit the customer?', 'yes_no', 0, null, null],
-        ['customer_available', 'Was the customer available?', 'yes_no', 0, null, null],
-        ['customer_contacted', 'Was the customer contacted?', 'yes_no', 0, null, null],
-        ['location_correct', 'Was the location correct?', 'yes_no', 0, null, 'Compare with the address on the account.'],
-        ['gps_verified', 'Was the visit GPS verified?', 'yes_no', 0, null, 'The system shows the distance between your point and the BC Supervisor point.'],
-        ['photos_taken', 'Were the required photographs taken?', 'yes_no', 0, null, null],
-        ['information_correct', 'Was the information recorded correctly?', 'yes_no', 0, null, null],
-        ['recovery_recorded_correctly', 'Was recovery / promise information correctly recorded?', 'yes_no', 0, null, null],
-        ['customer_confirmation', 'What did the customer confirm?', 'dropdown', 0,
-            "Confirmed the visit\nDenied the visit\nCould not recall\nCustomer not available", null],
-        ['followup_required', 'Is follow-up required?', 'yes_no', 0, null, null],
-        ['inspector_remarks', 'Inspector remarks', 'remarks', 0, null, null],
+    lrms_insert_inspection_fields($formId, lrms_inspection_fields());
+
+    echo "  inspection_forms: BC Supervisor inspection #{$formId} with "
+        . count(lrms_inspection_fields()) . " fields\n";
+
+    return $formId;
+}
+
+/**
+ * The 27 items of the printed form.
+ *
+ * @return array<int, array{0:string, 1:string, 2:string, 3:int, 4:?string, 5:?string, 6?:array{0:string,1:string,2:string}}>
+ */
+function lrms_inspection_fields(): array
+{
+    return [
+        /* 1-6. Who the agent is ------------------------------------------------ */
+        ['bca_section', '1-6. Business Correspondent Agent', 'section', 0, null, null],
+        ['bca_name', '1. Name of Business Correspondent Agent (BCA)', 'text', 0, null, null],
+        ['branch_name', '2. Branch name', 'text', 0, null, null],
+        ['cbc_name', '3. Name of CBC (Corporate Business Correspondent)', 'text', 0, null, null],
+        ['bca_qualification', '4. Qualification of the BCA', 'text', 0, null, null],
+        ['bca_age', '5. Age', 'number', 0, null, null],
+        ['bca_address_contact', '6. Address with contact number', 'textarea', 0, null, null],
+
+        /* 7-12. Appointment, identity and the area worked ---------------------- */
+        ['appointment_section', '7-12. Appointment, identity and area', 'section', 0, null, null],
+        ['iibf_certified', '7. BC certification (IIBF)', 'yes_no', 0, null, null],
+        ['iibf_certificate_no', 'IIBF certificate number', 'text', 0, null, null,
+            ['iibf_certified', 'equals', 'Yes']],
+        ['bc_working_since', '8. Working at this BC outlet since', 'date', 0, null, null],
+        ['appointment_letter', '9. Appointment letter from the Bank / CBC', 'yes_no', 0, null, null],
+        ['identity_card', '10. Identity card available', 'yes_no', 0, null, null],
+        ['coordinator_contact', '11. District Coordinator / BC Supervisor, with contact number', 'text', 0, null, null],
+        ['ssa_name', '12. SSA / Non-SSA', 'text', 0, null, null],
+        ['villages_covered', 'Number of villages covered', 'number', 0, null, null],
+
+        /* 13. What is on display at the outlet --------------------------------- */
+        ['outlet_section', '13. Boards and display at the BC point', 'section', 0, null, null],
+        ['board_available', '13. Board of the CBC / Bank available', 'yes_no', 0, null, null],
+        ['dos_donts_board', "Do's and Don'ts board displayed", 'yes_no', 0, null, null,
+            ['board_available', 'equals', 'Yes']],
+        ['services_list_displayed', 'List of services offered at the BC point displayed', 'yes_no', 0, null, null,
+            ['board_available', 'equals', 'Yes']],
+        ['sign_board', 'Sign board at the BC point', 'yes_no', 0, null, null,
+            ['board_available', 'equals', 'Yes']],
+        ['board_bank_name', 'Bank name shown', 'text', 0, null, null,
+            ['board_available', 'equals', 'Yes']],
+        ['board_link_branch', 'Link branch name shown', 'text', 0, null, null,
+            ['board_available', 'equals', 'Yes']],
+        ['board_branch_contact', 'Branch contact number shown', 'text', 0, null, null,
+            ['board_available', 'equals', 'Yes']],
+        ['outlet_working_hours', 'Business / working hours of the BC outlet', 'text', 0, null, null,
+            ['board_available', 'equals', 'Yes']],
+
+        /* 14-16. The business the outlet actually does ------------------------- */
+        ['business_section', '14-16. Business at the outlet', 'section', 0, null, null],
+        ['transactions_previous_day', '14. Number of transactions on the previous day', 'number', 0, null, null],
+        ['transaction_types', 'Kinds of transaction', 'checkbox', 0,
+            "Cash Deposit\nCash Payment\nFund Transfer\nBalance Enquiry\nOther", null],
+        ['transactions_improvement', 'If fewer than 50, how it will be improved', 'textarea', 0, null,
+            'The form asks this only when the previous day was below 50.'],
+        ['services_provided_count', '15. Services provided at the BC point, out of the 39', 'number', 0, null, null],
+        ['services_provided_list', 'Which services', 'textarea', 0, null, null],
+        ['sss_awareness', "16. BC awareness of Social Security Schemes and the Bank's products", 'textarea', 0, null, null],
+
+        /* 17-18. Registers and equipment --------------------------------------- */
+        ['facilities_section', '17-18. Mandatory registers and equipment', 'section', 0, null, null],
+        ['complaint_register', '17. Complaint box / complaint register', 'yes_no', 0, null, null],
+        ['transactions_register', 'Transactions register', 'yes_no', 0, null, null],
+        ['visit_register', 'Visit register', 'yes_no', 0, null, null],
+        ['other_register', 'Other register', 'text', 0, null, null],
+        ['equipment_available', '18. Equipment available', 'checkbox', 0,
+            "Laptop / Desktop\nBiometric device\nPIN pad device\nReceipt generating machine\nPrinter", null],
+
+        /* 19. What the agent earned ------------------------------------------- */
+        ['remuneration_section', '19. Remuneration earned over the last three months', 'section', 0, null, null],
+        ['remuneration_month_1', 'First month', 'text', 0, null, null],
+        ['remuneration_amount_1', 'Earned in the first month', 'decimal', 0, null, null],
+        ['remuneration_month_2', 'Second month', 'text', 0, null, null],
+        ['remuneration_amount_2', 'Earned in the second month', 'decimal', 0, null, null],
+        ['remuneration_month_3', 'Third month', 'text', 0, null, null],
+        ['remuneration_amount_3', 'Earned in the third month', 'decimal', 0, null, null],
+
+        /* 20-24. What the inspector found ------------------------------------- */
+        ['findings_section', '20-24. Findings', 'section', 0, null, null],
+        ['villager_feedback', '20. Feedback from villagers about the BC service', 'textarea', 0, null,
+            'The form asks for at least one account holder\'s details.'],
+        ['working_in_allotted_location', '21. The BC is working in the allotted location', 'yes_no', 0, null, null],
+        ['actual_location', 'If not, where are they working', 'text', 0, null, null,
+            ['working_in_allotted_location', 'equals', 'No']],
+        ['other_information', '22. Other information, if any', 'textarea', 0, null, null],
+        ['photo', '23. Photographs / selfie at the BC point', 'photo', 0, null,
+            'Uploaded on this screen. Each one is stamped with your position and the time.'],
+        ['observation', '24. Observation', 'dropdown', 0,
+            "Excellent\nGood\nSatisfactory\nPoor", null],
+
+        /* 25-27. Who did the inspection --------------------------------------- */
+        ['official_section', '25-27. Visiting official', 'section', 0, null, null],
+        ['visiting_official', '25. Name and contact number of the visiting official', 'text', 0, null, null],
+        ['signature_section', '26. Signature of the visiting official', 'section', 0, null,
+            'Signed by hand on the printed copy, so the report prints ruled lines for the '
+            . 'signature and the date rather than capturing one here.'],
+        // The printed form asks for "Other Information (if any)" twice, at 22 and again at
+        // 27. Both are kept so the report matches the paper an inspector signs.
+        ['other_information_final', '27. Other information, if any', 'textarea', 0, null, null],
     ];
+}
 
-    $order = 0;
+/**
+ * Insert an inspection form's fields, resolving conditional visibility once every field
+ * has an id. Mirrors lrms_insert_form_fields, which does the same for a visit form.
+ *
+ * @param array<int, array<mixed>> $fields
+ * @return array<string, int> field key => id
+ */
+function lrms_insert_inspection_fields(int $formId, array $fields): array
+{
     $ids = [];
+    $conditions = [];
+    $order = 0;
 
-    foreach ($fields as [$key, $label, $type, $required, $options, $help]) {
+    foreach ($fields as $field) {
+        [$key, $label, $type, $required, $options, $help] = $field;
         $order += 10;
+
         $ids[$key] = Database::insert('inspection_form_fields', [
             'form_id' => $formId,
             'field_key' => $key,
@@ -638,18 +766,26 @@ function lrms_seed_inspection_form(): int
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        if (isset($field[6]) && is_array($field[6])) {
+            $conditions[$key] = $field[6];
+        }
     }
 
-    Database::update('inspection_form_fields', [
-        'condition_field_id' => $ids['bc_visited_customer'],
-        'condition_operator' => 'equals',
-        'condition_value' => 'Yes',
-        'updated_at' => now(),
-    ], 'id = :id', ['id' => $ids['customer_confirmation']]);
+    foreach ($conditions as $key => [$dependsOn, $operator, $value]) {
+        if (!isset($ids[$dependsOn])) {
+            continue;
+        }
 
-    echo "  inspection_forms: default inspection form #{$formId} with " . count($fields) . " fields\n";
+        Database::update('inspection_form_fields', [
+            'condition_field_id' => $ids[$dependsOn],
+            'condition_operator' => $operator,
+            'condition_value' => $value,
+            'updated_at' => now(),
+        ], 'id = :id', ['id' => $ids[$key]]);
+    }
 
-    return $formId;
+    return $ids;
 }
 
 /**
@@ -784,6 +920,87 @@ function lrms_seed_demo(): void
                 'updated_at' => now(),
             ]);
         }
+    }
+
+    /*
+     * One submitted inspection.
+     *
+     * Not decoration: the smoke suite opens the inspection report page and downloads its
+     * PDF only when a submitted inspection exists, and none ever did, so both checks
+     * reported themselves as skipped and the printed inspection was never generated by
+     * any suite. The format could have been broken by anything and nothing would have
+     * said so.
+     *
+     * Written with the same Forms::saveValues the panel uses, so the answers carry the
+     * field ids, labels and types a real submission would.
+     */
+    $adminId = (int) Database::scalar(
+        'SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.slug = :slug ORDER BY u.id LIMIT 1',
+        ['slug' => Auth::ROLE_ADMIN]
+    );
+
+    $firstBcCode = (string) array_key_first($bcIds);
+    $firstBcId = (int) $bcIds[$firstBcCode];
+    $form = App\Services\Forms::defaultForm(App\Services\Forms::KIND_INSPECTION);
+
+    if ($adminId > 0 && $form !== null) {
+        $inspectionId = Database::insert('inspections', [
+            'uuid' => sprintf('%s-%s', 'demo-inspection', $firstBcCode),
+            'admin_user_id' => $adminId,
+            'bc_supervisor_id' => $firstBcId,
+            'branch_id' => (int) Database::scalar(
+                'SELECT branch_id FROM bc_supervisors WHERE id = :id',
+                ['id' => $firstBcId]
+            ),
+            'form_id' => (int) $form['id'],
+            'inspection_date' => date('Y-m-d', strtotime('-2 days')),
+            'started_at' => now(),
+            'submitted_at' => now(),
+            'result' => 'work_verified',
+            'remarks' => 'Outlet visited, registers seen, board on display.',
+            'followup_required' => 0,
+            'status' => 'submitted',
+            'gps_verified' => 1,
+            'photo_count' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        App\Services\Forms::saveValues(
+            App\Services\Forms::KIND_INSPECTION,
+            $inspectionId,
+            App\Services\Forms::fields(App\Services\Forms::KIND_INSPECTION, (int) $form['id']),
+            [
+                'bca_name' => 'DEMO BC AGENT',
+                'branch_name' => 'Katihar Main',
+                'bca_qualification' => 'B.Com',
+                'bca_age' => '31',
+                'iibf_certified' => 'Yes',
+                'iibf_certificate_no' => 'IIBF/DEMO/1001',
+                'bc_working_since' => date('Y-m-d', strtotime('-3 years')),
+                'appointment_letter' => 'Yes',
+                'identity_card' => 'Yes',
+                'villages_covered' => '5',
+                'board_available' => 'Yes',
+                'dos_donts_board' => 'Yes',
+                'sign_board' => 'Yes',
+                'transactions_previous_day' => '64',
+                'transaction_types' => 'Cash Deposit, Cash Payment, Fund Transfer',
+                'services_provided_count' => '24',
+                'complaint_register' => 'Yes',
+                'transactions_register' => 'Yes',
+                'visit_register' => 'No',
+                'equipment_available' => 'Laptop / Desktop, Biometric device, Printer',
+                'remuneration_month_1' => date('F', strtotime('-3 months')),
+                'remuneration_amount_1' => '5120.00',
+                'villager_feedback' => 'Two account holders confirmed deposits were handled the same day.',
+                'working_in_allotted_location' => 'Yes',
+                'observation' => 'Good',
+                'visiting_official' => 'System Administrator, 9111100000',
+            ]
+        );
+
+        echo "  demo: 1 submitted BC Supervisor inspection on form #{$form['id']}\n";
     }
 
     echo "  demo: " . count($branchIds) . " branches, " . count($bcIds) . " BC Supervisors\n";

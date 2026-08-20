@@ -25,7 +25,9 @@ use App\Core\Database;
 use App\Services\CkccRenewals;
 use App\Services\Export\FieldVisitReport;
 use App\Services\Export\PdfWriter;
+use App\Services\Export\RecordExport;
 use App\Services\Forms;
+use App\Services\Inspections;
 use App\Services\KrmOts;
 use App\Services\Photos;
 use App\Services\Visits;
@@ -1079,5 +1081,266 @@ equals(7, count(KrmOts::FINAL_STATUSES), 'Seven KRM final statuses (section 13)'
 equals(4, count(CkccRenewals::DUE_BUCKETS), 'Four renewal due buckets (section 5)');
 equals(5, count(CkccRenewals::RECOMMENDATIONS), 'Five CKCC recommendations (section 9)');
 equals(8, count(CkccRenewals::FINAL_STATUSES), 'Eight CKCC final statuses (section 13)');
+
+/* -------------------------------------------------------------------------- */
+section("The BC Supervisor inspection uses the client's issued format");
+/* -------------------------------------------------------------------------- */
+
+// The Admin's inspection of a BC Supervisor is no longer eleven questions about whether
+// one customer visit was done properly. It is the Bank's own form: 27 numbered items
+// about the outlet itself.
+$inspectionForm = Forms::defaultForm(Forms::KIND_INSPECTION);
+
+ok($inspectionForm !== null, 'An inspection form is installed');
+
+$inspectionFields = $inspectionForm === null
+    ? []
+    : Forms::fields(Forms::KIND_INSPECTION, (int) $inspectionForm['id']);
+
+$inspectionKeys = array_map(static fn (array $f): string => (string) $f['field_key'], $inspectionFields);
+
+// Every item the paper asks for, by the answer it expects rather than by count, so
+// renumbering or regrouping the sections cannot make this pass on a form missing one.
+foreach ([
+    'bca_name', 'branch_name', 'cbc_name', 'bca_qualification', 'bca_age', 'bca_address_contact',
+    'iibf_certified', 'bc_working_since', 'appointment_letter', 'identity_card',
+    'coordinator_contact', 'ssa_name', 'villages_covered', 'board_available',
+    'transactions_previous_day', 'services_provided_count', 'sss_awareness',
+    'complaint_register', 'transactions_register', 'visit_register', 'equipment_available',
+    'remuneration_month_1', 'remuneration_amount_1', 'villager_feedback',
+    'working_in_allotted_location', 'other_information', 'photo', 'observation',
+    'visiting_official', 'other_information_final',
+] as $needle) {
+    ok(in_array($needle, $inspectionKeys, true), 'The inspection form asks item "' . $needle . '"');
+}
+
+// The questions the old form asked are gone from the current one. They still exist on the
+// form they were asked on, which the historic check further down relies on.
+foreach (['bc_visited_customer', 'customer_confirmation', 'recovery_recorded_correctly'] as $retired) {
+    ok(
+        !in_array($retired, $inspectionKeys, true),
+        'The retired question "' . $retired . '" is not on the current form'
+    );
+}
+
+$byKey = [];
+
+foreach ($inspectionFields as $field) {
+    $byKey[(string) $field['field_key']] = $field;
+}
+
+equals('dropdown', (string) $byKey['observation']['field_type'], 'Item 24 is a fixed grade, not free text');
+equals(
+    ['Excellent', 'Good', 'Satisfactory', 'Poor'],
+    $byKey['observation']['option_list'],
+    'And its four words are the ones the form prints'
+);
+equals('checkbox', (string) $byKey['equipment_available']['field_type'], 'Item 18 is a checklist of equipment');
+equals('yes_no', (string) $byKey['iibf_certified']['field_type'], 'Item 7 is the Y/N the form prints');
+
+// Conditionals: the form asks for a certificate number only when there is a certificate,
+// the board sub-questions only when there is a board, and where the agent actually works
+// only when it is not the allotted place.
+$conditionParent = static function (array $field) use ($inspectionFields): ?string {
+    if ($field['condition_field_id'] === null) {
+        return null;
+    }
+
+    foreach ($inspectionFields as $candidate) {
+        if ((int) $candidate['id'] === (int) $field['condition_field_id']) {
+            return (string) $candidate['field_key'];
+        }
+    }
+
+    return null;
+};
+
+equals('iibf_certified', $conditionParent($byKey['iibf_certificate_no']), 'The certificate number hangs off item 7');
+equals('board_available', $conditionParent($byKey['dos_donts_board']), "The Do's and Don'ts board hangs off item 13");
+equals(
+    'working_in_allotted_location',
+    $conditionParent($byKey['actual_location']),
+    'Where they actually work hangs off item 21'
+);
+equals('No', (string) $byKey['actual_location']['condition_value'], 'And it is asked when the answer is No');
+
+/* -------------------------------------------------------------------------- */
+section('The inspection prints in that format');
+/* -------------------------------------------------------------------------- */
+
+Auth::setUser(Database::selectOne('SELECT * FROM users WHERE email = :e', ['e' => 'admin@lrms.local']));
+
+$inspectionBcId = (int) Database::scalar('SELECT id FROM bc_supervisors ORDER BY id LIMIT 1');
+$inspections = new Inspections();
+$startedInspection = $inspections->start([
+    'bc_supervisor_id' => $inspectionBcId,
+    'inspection_date' => today(),
+    'gps' => lrms_test_gps(),
+]);
+$inspectionId = (int) $startedInspection['id'];
+
+Database::insert('inspection_photos', [
+    'inspection_id' => $inspectionId,
+    'file_path' => 'demo/bc-point.jpg',
+    'file_name' => 'bc-point.jpg',
+    'photo_type' => 'bc_supervisor',
+    'latitude' => 25.5391,
+    'longitude' => 87.5721,
+    'captured_at' => now(),
+    'created_at' => now(),
+]);
+
+// Several items are deliberately left unanswered: the page is a form somebody signs, so
+// a gap has to print as a gap rather than vanish.
+$inspections->submit($inspectionId, [
+    'result' => 'work_verified',
+    'remarks' => 'Outlet inspected.',
+    'form' => [
+        'bca_name' => 'RAMESH KUMAR',
+        'bca_age' => '34',
+        'iibf_certified' => 'Yes',
+        'iibf_certificate_no' => 'IIBF/2019/44821',
+        'bc_working_since' => '2019-06-01',
+        'identity_card' => 'No',
+        'board_available' => 'Yes',
+        'sign_board' => 'No',
+        'transaction_types' => ['Cash Deposit', 'Fund Transfer'],
+        'equipment_available' => ['Laptop / Desktop', 'Printer'],
+        'remuneration_month_1' => 'June',
+        'remuneration_amount_1' => '4250.50',
+        'working_in_allotted_location' => 'No',
+        'actual_location' => 'Market, 2 km away.',
+        'observation' => 'Satisfactory',
+        'visiting_official' => 'A. K. Verma, 9876543210',
+    ],
+]);
+
+$inspectionPdf = RecordExport::inspectionPdf($inspectionId);
+
+ok(is_file($inspectionPdf['path']), 'The inspection PDF is written');
+
+$inspectionText = pdf_text_flat($inspectionPdf['path']);
+
+foreach ([
+    '1. Name of Business',
+    '7. BC certification',
+    '13. Board of the CBC',
+    '18. Equipment available',
+    '23. Photographs',
+    '24. Observation',
+    '26. Signature of the visiting official',
+    '27. Other information',
+] as $needle) {
+    ok(str_contains($inspectionText, $needle), 'The printed form carries "' . $needle . '"');
+}
+
+ok(str_contains($inspectionText, 'RAMESH KUMAR'), 'An answer is printed');
+ok(str_contains($inspectionText, '01 Jun 2019'), 'A date prints as a person writes it, not as 2019-06-01');
+ok(str_contains($inspectionText, '4,250.50'), 'An amount prints grouped to two places');
+ok(str_contains($inspectionText, 'Market, 2 km away.'), 'A conditional answer prints when it was asked');
+
+// The four grades and the five pieces of equipment are all printed, ticked or crossed,
+// so a reader sees what was ruled out and not merely what was chosen.
+foreach (['Excellent', 'Good', 'Satisfactory', 'Poor'] as $grade) {
+    ok(str_contains($inspectionText, $grade), 'The observation row offers "' . $grade . '"');
+}
+
+ok(str_contains($inspectionText, 'PIN pad device'), 'An unticked equipment option is still printed');
+ok(
+    pdf_stroke_count($inspectionPdf['path'], '0e7c7b') > 0,
+    'Chosen answers are ticked'
+);
+ok(
+    pdf_stroke_count($inspectionPdf['path'], '6b7280') > 0,
+    'Answers ruled out are crossed'
+);
+ok(
+    str_contains($inspectionText, 'fibhopzo@centralbank.co.in'),
+    "The printed copy carries the office from the form's letterhead"
+);
+
+/* -------------------------------------------------------------------------- */
+section('An inspection recorded on the old format still prints its own questions');
+/* -------------------------------------------------------------------------- */
+
+// The whole reason the new form was installed as another version rather than by rewriting
+// the old one. An inspection points at the form it was filled in on, so a record from
+// before the change must print what was actually asked — not the new questions with every
+// answer blank, and not the old answers under new labels.
+$retiredFormId = Database::insert('inspection_forms', [
+    'name' => 'BC Supervisor Field Work Inspection',
+    'description' => 'The format used before the client issued the current one.',
+    'version' => 1,
+    'is_active' => 1,
+    'is_default' => 0,
+    'created_at' => now(),
+    'updated_at' => now(),
+]);
+
+$retiredFields = [
+    ['bc_visited_customer', 'Did the BC Supervisor visit the customer?', 'yes_no'],
+    ['customer_confirmation', 'What did the customer confirm?', 'text'],
+    ['inspector_remarks', 'Inspector remarks', 'remarks'],
+];
+$retiredOrder = 0;
+
+foreach ($retiredFields as [$key, $label, $type]) {
+    $retiredOrder += 10;
+
+    Database::insert('inspection_form_fields', [
+        'form_id' => $retiredFormId,
+        'field_key' => $key,
+        'label' => $label,
+        'field_type' => $type,
+        'is_required' => 0,
+        'sort_order' => $retiredOrder,
+        'is_active' => 1,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+}
+
+$historicId = Database::insert('inspections', [
+    'uuid' => 'aaaa1111-2222-4333-8444-5555666600c7',
+    'admin_user_id' => (int) Database::scalar('SELECT id FROM users WHERE email = :e', ['e' => 'admin@lrms.local']),
+    'bc_supervisor_id' => $inspectionBcId,
+    'branch_id' => (int) Database::scalar('SELECT branch_id FROM bc_supervisors WHERE id = :id', ['id' => $inspectionBcId]),
+    'form_id' => $retiredFormId,
+    'inspection_date' => date('Y-m-d', strtotime('-40 days')),
+    'started_at' => now(),
+    'submitted_at' => now(),
+    'result' => 'work_verified',
+    'remarks' => 'Recorded before the format changed.',
+    'status' => 'submitted',
+    'created_at' => now(),
+    'updated_at' => now(),
+]);
+
+Forms::saveValues(
+    Forms::KIND_INSPECTION,
+    $historicId,
+    Forms::fields(Forms::KIND_INSPECTION, $retiredFormId),
+    [
+        'bc_visited_customer' => 'Yes',
+        'customer_confirmation' => 'Confirmed the visit',
+        'inspector_remarks' => 'Field work checked at the doorstep.',
+    ]
+);
+
+$historicPdf = RecordExport::inspectionPdf($historicId);
+$historicText = pdf_text_flat($historicPdf['path']);
+
+ok(
+    str_contains($historicText, 'Did the BC Supervisor visit the customer?'),
+    'The old record prints the question it was actually asked'
+);
+ok(
+    str_contains($historicText, 'Confirmed the visit'),
+    'And the answer that was given to it'
+);
+ok(
+    !str_contains($historicText, '1. Name of Business'),
+    'It is not reprinted against the new format'
+);
 
 exit(TestRunner::summary());
