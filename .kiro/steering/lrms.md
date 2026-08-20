@@ -1,0 +1,117 @@
+# LRMS — what to know before changing anything
+
+Loan Recovery Management System for a bank's BC (Business Correspondent) network in Bihar.
+Two halves of one product, and a change usually touches both:
+
+- **Web panel** — plain PHP, no framework, no Composer dependencies. It has to boot on bare
+  shared hosting where `composer install` was never run.
+- **Android app** — Kotlin, Compose, Room, Retrofit/Moshi, single Activity, single ViewModel,
+  no DI framework. Lives in `android/`.
+
+The people using it are BC Supervisors on cheap handsets in villages with bad signal, and
+branch staff on Windows machines. Both of those shape more decisions here than any
+architectural preference.
+
+## Standing rules — do not re-litigate these
+
+These came from the client directly and have each been stated more than once.
+
+- **No cash, no payments, no money collection.** "हमको payment ही नहीं लेनी, हमारा काम बस visit
+  का है." The field job is visiting and reporting. Recovery amounts are recorded by the
+  branch, never taken by an agent. The `recovery` outbox type still exists only because a
+  handset updating from an old build may be holding one.
+- **Nothing is mandatory in the app.** No required photograph, no required GPS fix, no
+  required field. A village with no signal is not a reason to throw away a real visit. If
+  something must be encouraged, encourage it — do not block the submit button on it.
+- **No signature capture.** Signatures stay on paper.
+- **Never remove or weaken the offline outbox.** It is not a cache. Until a signal returns it
+  is the only copy of a day's field work. Anything that could wipe it — a destructive Room
+  migration, a "clear local data" convenience — is a data-loss bug.
+- **Hindi must actually render.** The single Activity must stay an `AppCompatActivity` and the
+  window theme a `Theme.AppCompat` descendant. `AppCompatDelegate.setApplicationLocales` is a
+  support-library backport below Android 13 and reaches a screen only through AppCompat's
+  delegate — with a plain `ComponentActivity` the choice saves and every label comes back in
+  English. Every user-visible string goes in **both** `values/strings.xml` and
+  `values-hi/strings.xml`; nothing warns you about a missing Hindi key.
+- **KRM OTS and CKCC OD-2 are separate work streams.** Separate lists, separate registers,
+  separate report columns. Do not merge them.
+- **Printed forms:** a tick on what was chosen and a cross on **every** option that was not —
+  including in a group nobody answered. A bank auditor reads a blank as "not asked".
+- **British spelling** in identifiers and copy: `organisation`, `enrolment`.
+- App name is **D2 RECOVERY SOLUTION**.
+
+## Updating a live site
+
+Never reinstall to update. `public/install.php` drops all 41 tables before building an empty
+system, and its guard recognises an existing installation by `config/config.local.php` and
+`storage/installed.lock` — so deleting the files to "start clean" is exactly what gets past
+the guard and destroys the data.
+
+The supported paths, both running the same script:
+
+- Panel: **Settings ▸ Update the database** (Admin only) — preview, then apply.
+- Terminal: `php database/upgrade.php --dry-run` then `php database/upgrade.php`.
+
+`database/upgrade.php` only adds what is missing, checks `INFORMATION_SCHEMA` before every
+step and never drops a column or rewrites a row. It must stay includable, so: no shebang
+(it pushes `declare(strict_types=1)` off the first line) and no `exit()` unless
+`PHP_SAPI === 'cli'`.
+
+**A new table needs a `$newTables` entry in `upgrade.php` as well as `schema.sql`.** A fresh
+install runs one and a live database runs the other; a test asserts `SHOW CREATE TABLE` is
+byte-identical between them.
+
+**A new setting needs a row in `database/seed.php` and an input on the settings screen.** It
+is read through a code default until the row exists, so a seeded-but-unrendered setting is a
+constant with extra steps.
+
+## Tests
+
+Four suites, in this order, always against a freshly migrated database:
+
+```
+bash /projects/sandbox/mysql-up.sh          # sandbox only; MariaDB is not persistent
+php database/migrate.php --fresh --demo
+php tests/test-import.php
+php -S 127.0.0.1:8000 -t public &           # http- and api-smoke need a server
+php tests/http-smoke.php http://127.0.0.1:8000
+php tests/api-smoke.php  http://127.0.0.1:8000
+php tests/test-reports.php
+```
+
+Lint everything:
+
+```
+find app config database public routes resources tests bin deploy -name '*.php' -print0 \
+  | xargs -0 -n1 php -l | grep -v "No syntax errors"
+```
+
+`tests/test-reports.php` is not re-runnable on a dirty database (it uses fixed inspection
+UUIDs) — migrate fresh first. New test sections should clear their own rows so they do not
+end up testing the previous run.
+
+## Sandbox facts that will waste your time otherwise
+
+- **MariaDB dies between bash calls and `/tmp` is wiped.** Do setup and assertions in **one**
+  call. Write artefacts to `/projects/tools/`, never `/tmp`.
+- **There is no Android SDK and no `kotlinc` here.** `./gradlew` cannot run. Kotlin only
+  compiles in CI: push a `build/X.Y.Z` branch, the workflow leaves the APK on
+  `staging/vX.Y.Z`, fetch it with git.
+- `Auth::setUser()` in a CLI script needs the role joined, or `Acl` breaks:
+  `SELECT u.*, r.slug AS role FROM users u JOIN roles r ON r.id = u.role_id`.
+- The panel login field is named `login`, not `email`.
+
+## Release
+
+- Web: `bash deploy/publish-web-branch.sh --push` → the `web-app` branch, which the live
+  server pulls. Never commit to that branch by hand; it would reject the next publish.
+- APK: push `build/X.Y.Z` → collect from `staging/vX.Y.Z` → sign with
+  `deploy/sign-apk.sh <apk> /projects/keystore/lrms-release.jks` → publish to the `apk`
+  branch. Every release must be signed with that same key or it will not install over the
+  previous build. Confirm the certificate SHA-256 is
+  `8bb48d4ef31a3504c40d7268a8d2bd3da6b06c19ad5004340354f15c6a324355`.
+- **Never commit the keystore or any password.**
+- The GitHub repo has been renamed more than once; read the current name from
+  `git remote -v` rather than assuming. Use `gh api` for pull requests and issues —
+  `gh pr create` and the other GraphQL-backed `gh pr`/`gh issue` subcommands always fail in
+  this environment. Delete `build/*` and `staging/*` branches once the APK is collected.
