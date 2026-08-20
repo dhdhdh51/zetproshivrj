@@ -1,65 +1,67 @@
 # LRMS Field — signed APK
 
-This branch exists only to give the app a download link. GitHub release assets cannot
-be uploaded from the environment that builds these, so the file is committed here
-instead. Nothing else lives on this branch.
+This branch exists only to give the app a download link. Nothing else lives on it.
 
 ## Download
 
-**[LRMS-v1.5.2-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobb/apk/LRMS-v1.5.2-SIGNED.apk)**
+**[LRMS-v1.5.3-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobb/apk/LRMS-v1.5.3-SIGNED.apk)**
 — open that link on the phone and Android will offer to install it.
 
-## 1.5.2 — the app takes no payments
+## 1.5.3 — the app is fully in Hindi
 
-The work is the visit. The borrower pays the bank directly, so the app no longer asks
-an agent how much they received: the amount, mode and receipt fields are gone from the
-visit screen, and the "add recovery" dialog and its button are gone from the account
-screen. Nothing in the app can create a payment record.
+Every screen and every message now follows the language switch. What was still English:
 
-Promise to pay stays, and the visit screen's money card is now the promise card. A
-promise is a finding of the visit, not a transaction.
+- The bottom navigation — Home, Accounts, Attendance, Sync, Profile — which is the one
+  piece of chrome visible on every screen and had never switched in either language.
+- Attendance, the daily report, the sync queue, notifications and profile: titles,
+  buttons, deadline warnings, empty states, the sign-out confirmation.
+- The messages built outside a screen: sign-in failures, GPS errors, "saved and queued"
+  confirmations, sync status. These needed a locale-aware context, because below Android
+  13 the app-wide locale does not reach code that has no activity — they would have
+  stayed English on exactly the cheap handsets this app is for.
+- Four counts that used "(s)" to dodge plurals, which Hindi cannot express that way.
 
-An agent whose phone still holds a payment queued offline before this update will
-still see it sync — those entries are accepted, because refusing them would lose the
-record of money somebody already paid rather than prevent it.
+210 translatable strings, 210 Hindi, none missing.
+
+Still English: eight network diagnostics that name a host or an HTTP code. They exist
+for whoever is debugging a certificate or DNS problem.
+
+## 1.5.2 — no payments
+
+The work is the visit. The borrower pays the bank, so the app no longer asks an agent
+for an amount, a mode or a receipt, and the "add recovery" dialog is gone. Promise to
+pay stays: a promise is a finding of the visit, not a transaction.
 
 ## 1.5.0 — matching the reference app
 
-- Case type is a dropdown instead of a row of chips.
-- Named **D2 Recovery Solutions & Services**.
-- Photo slots: borrower, house, Aadhaar copy, and the agent's own photograph, ahead of
-  the shop, land and document slots a CKCC crop case needs.
-- GPS is read again when the report is filed, not only when the visit was started, so
-  a form left open on the doorstep no longer files the previous doorstep.
-- A visit with no usable location at all can be submitted. That was the last place a
-  report could be thrown away for its location.
-- A warning when only half a promise has been entered — the server records a promise
-  only when an amount and a date arrive together.
-- Occupation "Other" asks which trade, and the answer is what gets printed.
-- The visit screen is fully translated; every label follows the app language.
+- Case type is a dropdown; the app is named **D2 Recovery Solutions & Services**.
+- Photo slots: borrower, house, Aadhaar copy, the agent's own photograph, then shop,
+  land and document.
+- GPS is read again when the report is filed, not only when the visit was started.
+- A visit with no usable location can still be submitted.
+- A warning when only half a promise has been entered.
+- Occupation "Other" asks which trade, and that is what gets printed.
 
 ## Details
 
-Built by CI from `feat/lrms-loan-recovery-system`, then signed with the D2 release
-key. Verified before publishing: zipalign ok, signature schemes **v2 and v3**, and the
-built APK searched to confirm no payment wording survives in either language.
+Built by CI, then signed with the D2 release key. Verified before publishing: zipalign
+ok, signature schemes **v2 and v3**, and the APK searched to confirm the Hindi strings
+are really in it.
 
 | | |
 | --- | --- |
-| Version | 1.5.2 |
+| Version | 1.5.3 |
 | Server | https://cvbuilder.bharatseo.site/api/v1/ |
 | Signed by | D2 Recovery Solutions and Services, Katihar, Bihar, IN |
 | Certificate SHA-256 | `8B:B4:8D:4E:F3:1A:35:04:C4:0D:72:68:A8:D2:BD:3D:A6:B0:6C:19:AD:50:04:34:03:54:F1:5C:6A:32:43:55` |
-| File SHA-256 | `e9db07f53e2a34689b7a8a6704f9dfbb9d9c9783dbd90a99ab66c0d766dc898d` |
+| File SHA-256 | `6f6dd4086bc57a54ac36c15239e93e2047616d13a30a55e4341122126eb04d9e` |
 | Size | 3.2M |
 
 Same certificate as every build since 1.4.1, so this installs straight over the one on
 the phone without uninstalling.
 
-## Check it before installing
-
 ```
-sha256sum LRMS-v1.5.2-SIGNED.apk     # must match the File SHA-256 above
+sha256sum LRMS-v1.5.3-SIGNED.apk     # must match the File SHA-256 above
 ```
 
 If the certificate fingerprint ever differs from the one above, it was signed with a
@@ -68,6 +70,5 @@ asking why.
 
 ## Older builds
 
-Superseded APKs are removed rather than left downloadable, so nobody installs a build
-that still asks an agent to take a payment. Every version is rebuildable from its
-commit.
+Superseded APKs are removed rather than left downloadable. Every version is rebuildable
+from its commit.
