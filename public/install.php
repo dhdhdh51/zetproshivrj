@@ -30,7 +30,11 @@ $schemaFile = LRMS_BASE . '/database/schema.sql';
 $blocked = null;
 
 if (is_file($lockFile)) {
-    $blocked = 'This site is already installed. Delete public/install.php.';
+    $blocked = 'This site is already installed. Delete public/install.php. '
+        . 'To update after uploading a newer version, sign in and use '
+        . 'Settings > Update the database. Do not delete the files to get past this '
+        . 'message: the installer drops every table, and deleting config/config.local.php '
+        . 'is what stops it recognising that there is anything here to protect.';
 } elseif (is_file($configFile)) {
     // A config exists — if it points at a populated database, this is a live site.
     $existing = @include $configFile;
@@ -48,7 +52,9 @@ if (is_file($lockFile)) {
             if ($count > 0) {
                 $blocked = 'This site is already installed and has data. '
                     . 'Delete public/install.php. To change settings edit config/config.local.php; '
-                    . 'to update the schema use database/upgrade.php.';
+                    . 'to update the schema, sign in and use Settings > Update the database, '
+                    . 'or run database/upgrade.php from a terminal. Running this installer '
+                    . 'would drop every table and everything in them.';
             }
         } catch (Throwable) {
             // Cannot connect, so nothing to protect — let the installer run.

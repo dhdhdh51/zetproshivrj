@@ -877,6 +877,68 @@ $branchCreate = page('/admin/branches/create', 'Add branch');
 ok(str_contains($branchCreate, 'name="zone"'), 'Branch form offers the zone field');
 
 /* -------------------------------------------------------------------------- */
+section('The database can be updated from the browser, without reinstalling');
+/* -------------------------------------------------------------------------- */
+
+// This exists because the alternative people reach for is deleting the files and running
+// install.php again, which drops every table. An update that needs a terminal, on hosting
+// that has no terminal, is an update that gets done the destructive way instead.
+
+$upgradePage = page('/admin/settings/upgrade', 'Database update screen');
+ok(str_contains($upgradePage, 'never deletes anything'), 'The screen says what it will and will not do');
+ok(
+    str_contains($upgradePage, 'drops every table'),
+    'The screen warns against reinstalling, where somebody about to do it will read it'
+);
+
+$accountsBefore = (int) Database::scalar('SELECT COUNT(*) FROM loan_accounts');
+$usersBefore = (int) Database::scalar('SELECT COUNT(*) FROM users');
+
+$preview = request($base . '/admin/settings/upgrade', [
+    'post' => ['_token' => csrfToken($upgradePage), 'mode' => 'preview'],
+]);
+
+equals(200, $preview['status'], 'Previewing the update succeeds');
+ok(str_contains($preview['body'], 'Would apply'), 'The preview reports what it would change');
+ok(!str_contains($preview['body'], 'Applied:'), 'The preview does not apply anything');
+
+$applied = request($base . '/admin/settings/upgrade', [
+    'post' => ['_token' => csrfToken($upgradePage), 'mode' => 'apply'],
+]);
+
+equals(200, $applied['status'], 'Applying the update succeeds');
+ok(str_contains($applied['body'], 'Applied:'), 'The update reports what it changed');
+ok(
+    str_contains($applied['body'], '0 failed'),
+    'The update ran without failures against a database already at this schema'
+);
+
+// The whole point: an update adds, it does not replace.
+equals($accountsBefore, (int) Database::scalar('SELECT COUNT(*) FROM loan_accounts'), 'The update kept every loan account');
+equals($usersBefore, (int) Database::scalar('SELECT COUNT(*) FROM users'), 'The update kept every user');
+ok(
+    (int) Database::scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()") >= 40,
+    'The update left the schema whole'
+);
+ok(
+    Database::scalar('SELECT id FROM audit_logs WHERE action = :a ORDER BY id DESC LIMIT 1', ['a' => 'schema_upgraded']) !== null,
+    'Running the update is recorded in the audit log'
+);
+
+// Ordinary CLI safety must survive having a second entry point.
+ok(
+    str_contains(
+        (string) file_get_contents(__DIR__ . '/../database/upgrade.php'),
+        "PHP_SAPI !== 'cli' && !defined('LRMS_UPGRADE_IN_APP')"
+    ),
+    'upgrade.php still refuses to run over HTTP unless the panel invoked it'
+);
+ok(
+    !str_starts_with((string) file_get_contents(__DIR__ . '/../database/upgrade.php'), '#!'),
+    'upgrade.php carries no shebang, which would break including it'
+);
+
+/* -------------------------------------------------------------------------- */
 section('The browser installer refuses to run on an installed site');
 /* -------------------------------------------------------------------------- */
 
