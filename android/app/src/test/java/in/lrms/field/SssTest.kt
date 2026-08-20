@@ -103,9 +103,18 @@ class SssTest {
         // Without this, correcting a figure while offline queues a second entry for the
         // same day. The server would rewrite the day rather than double it, but the outbox
         // would carry two rows and the second would report itself a duplicate.
+        //
+        // Checked as two facts rather than one exact expression: the day is looked up, and
+        // its uuid is preferred to a new one. Pinning the whole line meant this failed when
+        // the lookup was widened to read the day's status as well, which is a change of
+        // shape and not of contract.
         assertTrue(
-            "queueSss must reuse the uuid already stored for the day",
-            queueSss.contains("db.sss().find(date)?.uuid ?: newUuid()"),
+            "queueSss must look up the day already stored",
+            queueSss.contains("db.sss().find(date)"),
+        )
+        assertTrue(
+            "queueSss must reuse that day's uuid rather than minting a second one",
+            queueSss.contains("?.uuid ?: newUuid()"),
         )
     }
 
