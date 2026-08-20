@@ -84,6 +84,10 @@ $newTables = [
   `pmjdy_count`      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `remarks`          VARCHAR(500) NULL,
   `source`           ENUM('app','panel') NOT NULL DEFAULT 'app',
+  `status`           ENUM('submitted','reopened') NOT NULL DEFAULT 'submitted',
+  `submitted_at`     DATETIME NULL,
+  `reopened_by`      BIGINT UNSIGNED NULL,
+  `reopened_at`      DATETIME NULL,
   `recorded_by`      BIGINT UNSIGNED NULL,
   `device_id`        BIGINT UNSIGNED NULL,
   `created_at`       DATETIME NULL,
@@ -93,10 +97,29 @@ $newTables = [
   UNIQUE KEY `uq_sss_day` (`bc_supervisor_id`, `enrolment_date`),
   KEY `ix_sss_branch_date` (`branch_id`, `enrolment_date`),
   KEY `ix_sss_date` (`enrolment_date`),
+  KEY `ix_sss_status` (`status`),
   CONSTRAINT `fk_sss_bc` FOREIGN KEY (`bc_supervisor_id`) REFERENCES `bc_supervisors` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_sss_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_sss_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_sss_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    'sss_targets' => "CREATE TABLE `sss_targets` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `bc_supervisor_id` BIGINT UNSIGNED NOT NULL,
+  `target_month`     DATE NOT NULL,
+  `apy_target`       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjjby_target`    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmsby_target`     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjdy_target`     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `notes`            VARCHAR(255) NULL,
+  `created_by`       BIGINT UNSIGNED NULL,
+  `created_at`       DATETIME NULL,
+  `updated_at`       DATETIME NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_sss_target_month` (`bc_supervisor_id`, `target_month`),
+  KEY `ix_sss_targets_month` (`target_month`),
+  CONSTRAINT `fk_sss_target_bc` FOREIGN KEY (`bc_supervisor_id`) REFERENCES `bc_supervisors` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
@@ -214,6 +237,17 @@ $columns = [
             . "'pending_at_branch','became_npa','followup_required') NULL",
         'recommendation',
     ],
+
+    /* SSS: submitted figures lock, and only an Admin can hand the day back. ---
+     *
+     * These four are also in the `sss_enrolments` CREATE TABLE above, for a database old
+     * enough to have no SSS at all. This pass is for the one in between: SSS arrived in an
+     * earlier update, so the table exists without them. `status` defaults to 'submitted'
+     * so the days already in the register read as reported rather than unfinished. */
+    ['sss_enrolments', 'status', "ENUM('submitted','reopened') NOT NULL DEFAULT 'submitted'", 'source'],
+    ['sss_enrolments', 'submitted_at', 'DATETIME NULL', 'status'],
+    ['sss_enrolments', 'reopened_by', 'BIGINT UNSIGNED NULL', 'submitted_at'],
+    ['sss_enrolments', 'reopened_at', 'DATETIME NULL', 'reopened_by'],
 ];
 
 /**
@@ -281,6 +315,7 @@ $indexes = [
     ['krm_ots_cases', 'ix_krm_response', '(`customer_response`)'],
     ['ckcc_renewals', 'ix_ckcc_final', '(`final_status`)'],
     ['ckcc_renewals', 'ix_ckcc_due', '(`renewal_due_date`)'],
+    ['sss_enrolments', 'ix_sss_status', '(`status`)'],
 ];
 
 function tableExists(string $database, string $table): bool

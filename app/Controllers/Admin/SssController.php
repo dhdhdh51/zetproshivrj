@@ -8,6 +8,7 @@ use App\Controllers\BaseController;
 use App\Core\Database;
 use App\Core\Request;
 use App\Services\Audit;
+use App\Services\Notify;
 use App\Services\Sss;
 
 /**
@@ -15,11 +16,19 @@ use App\Services\Sss;
  *
  * What the BC Supervisor signed people up for at the outlet, by day: APY, PMJJBY, PMSBY
  * and PMJDY. Supervisors report their own figures from the handset; this screen is for
- * reading them across a branch or a month, and for filling in a day the handset could not.
+ * reading them against the target the Admin set, and for filling in a day the handset
+ * could not.
  *
  * A day belongs to a supervisor, so there is no delete. Correcting the figures is an edit
  * of the day, which keeps one row per supervisor per day and keeps every total built on
  * top of it arithmetically sound.
+ *
+ * THE PANEL IS NOT SUBJECT TO THE LOCK
+ *
+ * Once a supervisor submits a day, the app refuses to change it. An Admin editing here
+ * still can, and the row records that it was a panel correction — the lock exists to stop
+ * a reported figure moving quietly, not to stop the branch fixing a mistake. When the
+ * supervisor should fix it themselves, reopen() hands the day back instead.
  */
 final class SssController extends BaseController
 {
@@ -29,6 +38,24 @@ final class SssController extends BaseController
         // the one somebody opening this screen is nearly always after.
         $from = trim((string) $request->query('from', '')) ?: date('Y-m-01');
         $to = trim((string) $request->query('to', '')) ?: today();
+
+        // Three named windows, because "how are we doing today", "how are we doing this
+        // month so far" and "how did last month finish" are three different questions and
+        // typing two dates to ask any of them is friction nobody needs. Anything else is a
+        // custom range and the dates are taken as given.
+        $period = (string) $request->query('period', '');
+        $period = in_array($period, ['day', 'mtd', 'month'], true) ? $period : 'custom';
+        $monthAnchor = Sss::month(trim((string) $request->query('month', '')) ?: today());
+
+        if ($period === 'day') {
+            $from = $to = today();
+        } elseif ($period === 'mtd') {
+            $from = date('Y-m-01');
+            $to = today();
+        } elseif ($period === 'month') {
+            $from = $monthAnchor;
+            $to = date('Y-m-t', (int) strtotime($monthAnchor));
+        }
 
         if ($from > $to) {
             [$from, $to] = [$to, $from];
@@ -69,30 +96,31 @@ final class SssController extends BaseController
             $params
         );
 
-        // Per supervisor over the same window, so a branch's figures can be read without
-        // adding up a month of rows by eye.
-        $perSupervisor = Database::select(
-            'SELECT s.id, s.bc_code, u.name AS supervisor_name, b.name AS branch_name,
-                    COUNT(*) AS days,
-                    SUM(e.apy_count) AS apy_count,
-                    SUM(e.pmjjby_count) AS pmjjby_count,
-                    SUM(e.pmsby_count) AS pmsby_count,
-                    SUM(e.pmjdy_count) AS pmjdy_count,
-                    SUM(e.apy_count + e.pmjjby_count + e.pmsby_count + e.pmjdy_count) AS total
-               FROM sss_enrolments e
-               JOIN bc_supervisors s ON s.id = e.bc_supervisor_id
-               JOIN users u ON u.id = s.user_id
-               JOIN branches b ON b.id = e.branch_id
-              WHERE ' . implode(' AND ', $where)
-            . ' GROUP BY s.id, s.bc_code, u.name, b.name
-                ORDER BY total DESC, u.name ASC',
-            $params
+        // Target against achievement per supervisor, ranked. This replaced a plain SUM
+        // roll-up: the same figures are here, but a supervisor with a target and nothing
+        // recorded now appears with the whole target as their gap, which a query over the
+        // enrolments alone can never show — there is no row to find.
+        $register = Sss::performance(
+            $from,
+            $to,
+            $branchId > 0 ? $branchId : null,
+            $supervisorId > 0 ? $supervisorId : null
         );
+
+        $expected = 0;
+        $achieved = 0;
+
+        foreach ($register as $entry) {
+            $expected += (int) $entry['total_target'];
+            $achieved += (int) $entry['total_achievement'];
+        }
 
         $this->page('admin.sss.index', [
             'title' => 'SSS enrolments',
             'from' => $from,
             'to' => $to,
+            'period' => $period,
+            'monthAnchor' => $monthAnchor,
             'branchId' => $branchId,
             'supervisorId' => $supervisorId,
             'branches' => $this->branchOptions(),
@@ -101,8 +129,73 @@ final class SssController extends BaseController
             'schemeNames' => Sss::schemeNames(),
             'summary' => Sss::summary($from, $to, $supervisorId > 0 ? $supervisorId : null, $branchId > 0 ? $branchId : null),
             'rows' => $rows,
-            'perSupervisor' => $perSupervisor,
+            'register' => $register,
+            'workingDays' => Sss::workingDaysBetween($from, $to),
+            'totalTarget' => $expected,
+            'totalAchievement' => $achieved,
+            'totalPercent' => percent_of($achieved, $expected),
+            'totalGap' => max(0, $expected - $achieved),
+            'reopenedStatus' => Sss::STATUS_REOPENED,
         ]);
+    }
+
+    /**
+     * Hand a submitted day back to the supervisor.
+     *
+     * The only route out of the lock. The supervisor gets one submission from the app and
+     * the day closes again, and the fact that it was ever re-opened stays on the row and in
+     * the audit log — a figure that changed after it was reported is exactly what somebody
+     * checking a total needs to be able to see.
+     */
+    public function reopen(Request $request): void
+    {
+        $id = $request->paramInt('id');
+        $entry = $this->entry($id);
+
+        $previous = Sss::reopen($id);
+
+        if ($previous === null) {
+            // Two admins on the same screen, or a refreshed tab. Not an error.
+            $this->info('That day is already open for correction.');
+            $this->back('/admin/sss');
+
+            return;
+        }
+
+        Audit::log(Audit::SSS_REOPENED, [
+            'entity_type' => 'sss_enrolment',
+            'entity_id' => $id,
+            'description' => sprintf(
+                'SSS figures for %s re-opened for %s.',
+                format_date((string) $entry['enrolment_date']),
+                (string) $entry['supervisor_name']
+            ),
+            'old' => ['status' => (string) $previous['status']],
+            'new' => ['status' => Sss::STATUS_REOPENED],
+        ]);
+
+        $userId = (int) Database::scalar(
+            'SELECT user_id FROM bc_supervisors WHERE id = :id',
+            ['id' => (int) $entry['bc_supervisor_id']]
+        );
+
+        if ($userId > 0) {
+            Notify::user(
+                $userId,
+                'SSS figures re-opened',
+                sprintf(
+                    'Your enrolment figures for %s can be corrected again. Open SSS enrolments on the app and submit them once more.',
+                    format_date((string) $entry['enrolment_date'])
+                ),
+                ['type' => 'info', 'related_type' => 'sss_enrolment', 'related_id' => $id]
+            );
+        }
+
+        $this->success('That day is open for correction. The supervisor can submit it again from the app.');
+        $this->back('/admin/sss?' . http_build_query([
+            'from' => (string) $entry['enrolment_date'],
+            'to' => (string) $entry['enrolment_date'],
+        ]));
     }
 
     public function create(Request $request): void

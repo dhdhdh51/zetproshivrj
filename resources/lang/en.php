@@ -99,6 +99,7 @@ return [
     'nav.krm_ots' => 'KRM OTS',
     'nav.ckcc' => 'CKCC OD-2',
     'nav.sss' => 'SSS enrolments',
+    'nav.sss_targets' => 'SSS targets',
     'nav.branches' => 'Branches',
     'nav.branch_managers' => 'Branch managers',
     'nav.bc_supervisors' => 'BC supervisors',

@@ -107,6 +107,12 @@ final class Reports
                 'icon' => 'target',
                 'group' => 'Performance',
             ],
+            'sss_target' => [
+                'name' => 'SSS Target vs Achievement',
+                'description' => 'Scheme enrolment target, achievement, percentage and gap per supervisor, ranked.',
+                'icon' => 'target',
+                'group' => 'Performance',
+            ],
             'branch_performance' => [
                 'name' => 'Branch Performance',
                 'description' => 'Branch level accounts, visits, recovery and coverage.',
@@ -173,6 +179,7 @@ final class Reports
             'followup' => array_merge($common, ['status', 'action']),
             'attendance' => array_merge($common, ['status']),
             'sss' => array_merge($common, ['source']),
+            'sss_target' => $common,
             'gps' => array_merge($common, ['gps_invalid_only']),
             'photo' => array_merge($common, ['photo_type']),
             'target' => ['from', 'to', 'branch_id', 'bc_supervisor_id', 'period'],
@@ -373,6 +380,7 @@ final class Reports
             'followup' => self::followup($filters),
             'attendance' => self::attendance($filters),
             'sss' => self::sss($filters),
+            'sss_target' => self::sssTarget($filters),
             'gps' => self::gps($filters),
             'photo' => self::photo($filters),
             'target' => self::target($filters),
@@ -1130,6 +1138,173 @@ final class Reports
         ];
     }
 
+    /**
+     * SSS target against achievement per supervisor, ranked — the printable half of the
+     * enrolment dashboard.
+     *
+     * TARGETS ARE STORED PER WORKING DAY, SO THE MULTIPLIER IS BUILT HERE
+     *
+     * `sss_targets` holds a daily figure per month. What a supervisor owed over the window
+     * being reported is that figure times the working days of each month *inside* the
+     * window, and working days come from a setting the database knows nothing about. So the
+     * counts are worked out in PHP by App\Services\Sss and injected as bound parameters,
+     * one per month — which keeps this a normal report definition, paged and exported by the
+     * same machinery as every other, instead of a hand-rolled screen.
+     *
+     * A supervisor with a target and nothing recorded still appears, with the whole target
+     * as their gap. That row is the entire point of the report, and a query starting from
+     * the enrolments could never produce it.
+     */
+    private static function sssTarget(array $filters): array
+    {
+        [$scope, $params] = self::scope('s', $filters);
+        $range = self::dateRange($filters);
+        $params += ['from' => $range['from'], 'to' => $range['to']];
+
+        $where = [$scope];
+
+        if (!empty($filters['bc_supervisor_id'])) {
+            $where[] = 's.id = :bc';
+            $params['bc'] = (int) $filters['bc_supervisor_id'];
+        }
+
+        if (!empty($filters['search'])) {
+            $where[] = '(u.name LIKE :search OR s.bc_code LIKE :search)';
+            $params['search'] = '%' . trim((string) $filters['search']) . '%';
+        }
+
+        // One CASE arm per month in the window: target month => working days it contributes.
+        //
+        // These are written into the SQL rather than bound, because the multiplier is
+        // repeated once per scheme column and this connection runs with
+        // PDO::ATTR_EMULATE_PREPARES => false, where a named placeholder used more than once
+        // is an error rather than a convenience. Nothing user-supplied reaches the string:
+        // the month is re-formatted through date('Y-m-01') and the day count is an integer
+        // counted in a loop, so both are regenerated here rather than trusted.
+        $windows = Sss::monthWorkingDays((string) $range['from'], (string) $range['to']);
+        $monthLiterals = [];
+        $cases = [];
+
+        foreach ($windows as $month => $days) {
+            $safeMonth = date('Y-m-01', (int) (strtotime((string) $month) ?: time()));
+            $monthLiterals[] = sprintf("'%s'", $safeMonth);
+            $cases[] = sprintf("WHEN '%s' THEN %d", $safeMonth, (int) $days);
+        }
+
+        // No month in range means no target can apply; 0 keeps the arithmetic honest rather
+        // than dividing by a NULL later.
+        $multiplier = $cases === []
+            ? '0'
+            : sprintf('CASE t2.target_month %s ELSE 0 END', implode(' ', $cases));
+
+        $targetSums = [];
+
+        foreach (Sss::targetSchemes() as $column => $abbreviation) {
+            $targetSums[] = sprintf('COALESCE(SUM(t2.`%s` * (%s)), 0) AS `%s`', $column, $multiplier, $column);
+        }
+
+        $totalTargetExpression = [];
+
+        foreach (array_keys(Sss::targetSchemes()) as $column) {
+            $totalTargetExpression[] = sprintf('t2.`%s`', $column);
+        }
+
+        $targetSubquery = $monthLiterals === []
+            ? null
+            : sprintf(
+                'SELECT t2.bc_supervisor_id, %s,
+                        COALESCE(SUM((%s) * (%s)), 0) AS total_target
+                   FROM sss_targets t2
+                  WHERE t2.target_month IN (%s)
+               GROUP BY t2.bc_supervisor_id',
+                implode(', ', $targetSums),
+                implode(' + ', $totalTargetExpression),
+                $multiplier,
+                implode(', ', $monthLiterals)
+            );
+
+        $achievementSums = [];
+
+        foreach (array_keys(Sss::schemes()) as $column) {
+            $achievementSums[] = sprintf('SUM(e2.`%s`) AS `%s`', $column, $column);
+        }
+
+        $selectTargets = [];
+
+        foreach (array_keys(Sss::targetSchemes()) as $column) {
+            $selectTargets[] = $targetSubquery === null
+                ? sprintf('0 AS `%s`', $column)
+                : sprintf('COALESCE(t.`%s`, 0) AS `%s`', $column, $column);
+        }
+
+        $selectAchievements = [];
+
+        foreach (array_keys(Sss::schemes()) as $column) {
+            $selectAchievements[] = sprintf('COALESCE(e.`%s`, 0) AS `%s`', $column, $column);
+        }
+
+        $totalTargetColumn = $targetSubquery === null ? '0' : 'COALESCE(t.total_target, 0)';
+
+        $sql = sprintf(
+            'SELECT s.id AS bc_supervisor_id, u.name AS supervisor_name, s.bc_code,
+                    b.name AS branch_name,
+                    COALESCE(e.days, 0) AS days_reported,
+                    %s AS total_target,
+                    COALESCE(e.total, 0) AS total_achievement,
+                    %s,
+                    %s
+               FROM bc_supervisors s
+               JOIN users u ON u.id = s.user_id
+          LEFT JOIN branches b ON b.id = s.branch_id
+          LEFT JOIN (
+                    SELECT e2.bc_supervisor_id, COUNT(*) AS days, %s,
+                           SUM(e2.apy_count + e2.pmjjby_count + e2.pmsby_count + e2.pmjdy_count) AS total
+                      FROM sss_enrolments e2
+                     WHERE e2.enrolment_date BETWEEN :from AND :to
+                  GROUP BY e2.bc_supervisor_id
+               ) e ON e.bc_supervisor_id = s.id
+               %s
+              WHERE %s
+           ORDER BY (CASE WHEN %s > 0 THEN 1 ELSE 0 END) DESC,
+                    (COALESCE(e.total, 0) / NULLIF(%s, 0)) DESC,
+                    COALESCE(e.total, 0) DESC,
+                    u.name ASC',
+            $totalTargetColumn,
+            implode(', ', $selectAchievements),
+            implode(', ', $selectTargets),
+            implode(', ', $achievementSums),
+            $targetSubquery === null
+                ? ''
+                : sprintf('LEFT JOIN (%s) t ON t.bc_supervisor_id = s.id', $targetSubquery),
+            implode(' AND ', $where),
+            $totalTargetColumn,
+            $totalTargetColumn
+        );
+
+        return [
+            'sql' => $sql,
+            'params' => $params,
+            'columns' => [
+                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.3],
+                ['key' => 'bc_code', 'label' => 'BC Code', 'weight' => 0.8],
+                ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
+                ['key' => 'days_reported', 'label' => 'Days', 'type' => 'count', 'align' => 'center', 'weight' => 0.6],
+                ['key' => 'total_target', 'label' => 'Target', 'type' => 'count', 'align' => 'right', 'weight' => 0.7],
+                ['key' => 'total_achievement', 'label' => 'Achieved', 'type' => 'count', 'align' => 'right', 'weight' => 0.8],
+                ['key' => 'achievement_percent', 'label' => '%', 'type' => 'computed', 'align' => 'right', 'weight' => 0.7],
+                ['key' => 'achievement_gap', 'label' => 'Gap', 'type' => 'computed', 'align' => 'right', 'weight' => 0.7],
+                ['key' => 'apy_count', 'label' => 'APY done', 'type' => 'count', 'align' => 'right', 'weight' => 0.7],
+                ['key' => 'apy_target', 'label' => 'APY target', 'type' => 'count', 'align' => 'right', 'weight' => 0.8],
+                ['key' => 'pmjjby_count', 'label' => 'PMJJBY done', 'type' => 'count', 'align' => 'right', 'weight' => 0.8],
+                ['key' => 'pmjjby_target', 'label' => 'PMJJBY target', 'type' => 'count', 'align' => 'right', 'weight' => 0.9],
+                ['key' => 'pmsby_count', 'label' => 'PMSBY done', 'type' => 'count', 'align' => 'right', 'weight' => 0.8],
+                ['key' => 'pmsby_target', 'label' => 'PMSBY target', 'type' => 'count', 'align' => 'right', 'weight' => 0.9],
+                ['key' => 'pmjdy_count', 'label' => 'PMJDY done', 'type' => 'count', 'align' => 'right', 'weight' => 0.8],
+                ['key' => 'pmjdy_target', 'label' => 'PMJDY target', 'type' => 'count', 'align' => 'right', 'weight' => 0.9],
+            ],
+        ];
+    }
+
     private static function gps(array $filters): array
     {
         [$scope, $params] = self::scope('v', $filters);
@@ -1464,6 +1639,23 @@ final class Reports
                 'visit_percent' => percent_of((int) ($row['visits_done'] ?? 0), (int) ($row['visit_target'] ?? 0)) . '%',
                 'recovery_pending' => max(0.0, (float) ($row['recovery_target'] ?? 0) - (float) ($row['recovery_done'] ?? 0)),
                 'recovery_percent' => percent_of((float) ($row['recovery_done'] ?? 0), (float) ($row['recovery_target'] ?? 0)) . '%',
+                // SSS: the same arithmetic App\Services\Sss does for the screen and the
+                // handset, so a printed percentage can never disagree with either.
+                'achievement_gap' => max(
+                    0,
+                    (int) ($row['total_target'] ?? 0) - (int) ($row['total_achievement'] ?? 0)
+                ),
+                // No target is not 100%. percent_of() answers 100 for "achieved something
+                // against nothing", which is the right answer for a pending figure and the
+                // wrong one on a ranking somebody reads down: a supervisor nobody set a
+                // target for would head the table. Null prints as a dash on screen and as
+                // an empty cell in an export, which is what "not measured" looks like.
+                'achievement_percent' => (int) ($row['total_target'] ?? 0) > 0
+                    ? percent_of(
+                        (int) ($row['total_achievement'] ?? 0),
+                        (int) ($row['total_target'] ?? 0)
+                    ) . '%'
+                    : null,
                 default => null,
             };
         }

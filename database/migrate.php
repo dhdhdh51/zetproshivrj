@@ -39,6 +39,7 @@ $expected = [
     'recoveries', 'promises', 'followups',
     'krm_ots_cases', 'ckcc_renewals',
     'attendance', 'targets',
+    'sss_enrolments', 'sss_targets',
     'report_types', 'report_submissions', 'report_exports',
     'notifications', 'documents', 'system_settings', 'audit_logs',
 ];

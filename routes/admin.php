@@ -19,6 +19,7 @@ use App\Controllers\Admin\FormBuilderController;
 use App\Controllers\Admin\ImportController;
 use App\Controllers\Admin\InspectionController;
 use App\Controllers\Admin\SssController;
+use App\Controllers\Admin\SssTargetController;
 use App\Controllers\Admin\ReportController;
 use App\Controllers\Admin\StaffController;
 use App\Controllers\Admin\SystemController;
@@ -108,6 +109,13 @@ $router->group(['prefix' => 'admin', 'middleware' => ['admin', 'password']], sta
     $router->post('/sss', [SssController::class, 'store']);
     $router->get('/sss/{id:\d+}/edit', [SssController::class, 'edit']);
     $router->post('/sss/{id:\d+}', [SssController::class, 'update']);
+    // Hands a submitted day back to the supervisor. The only way a locked day reopens.
+    $router->post('/sss/{id:\d+}/reopen', [SssController::class, 'reopen']);
+
+    /* -------------------------------------------------- SSS targets per supervisor */
+    $router->get('/sss-targets', [SssTargetController::class, 'index']);
+    $router->post('/sss-targets', [SssTargetController::class, 'store']);
+    $router->post('/sss-targets/{id:\d+}/delete', [SssTargetController::class, 'destroy']);
 
     /* ------------------------------------------ BC Supervisor inspections (TYPE B) */
     $router->get('/inspections', [InspectionController::class, 'index']);
