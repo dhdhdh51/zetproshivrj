@@ -4,8 +4,34 @@ This branch exists only to give the app a download link. Nothing else lives on i
 
 ## Download
 
-**[LRMS-v1.5.4-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobb/apk/LRMS-v1.5.4-SIGNED.apk)**
+**[LRMS-v1.5.5-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.5.5-SIGNED.apk)**
 — open that link on the phone and Android will offer to install it.
+
+Every release here is signed with the same key, so this installs over the previous
+version and keeps the data already on the handset.
+
+## 1.5.5 — the day's social security scheme enrolments
+
+A new screen on the home page: how many people were enrolled today for APY, PMJJBY,
+PMSBY and PMJDY. Until now only doorstep visits were counted, so the work done at the
+counter did not appear anywhere.
+
+Four boxes and a remark. Nothing is compulsory and a blank box is a zero — a scheme with
+no enrolments that day is a real answer, and making somebody type four zeros to say
+"nothing happened" only teaches them to skip the screen.
+
+It survives being offline like everything else here. The figures are saved on the handset
+first, so the screen shows them with or without a signal, and sent at the next sync.
+Saving the same day again corrects it instead of adding to it, which matters because
+counting sign-ups at a busy counter is exactly the kind of thing somebody gets wrong once
+and fixes a minute later.
+
+The panel side has the same figures under **Field work ▸ SSS enrolments**: a month-to-date
+total, filters by branch, supervisor and date, a per-supervisor breakdown, and a printable
+report. An Admin can also record or correct a day there for a supervisor whose handset
+could not file, and the entry says which of the two it came from.
+
+Older versions remain below.
 
 ## 1.5.4 — the Hindi switch actually works now
 
