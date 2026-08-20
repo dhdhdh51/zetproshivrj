@@ -179,4 +179,88 @@
     <string name="visit_promise_section">भुगतान का वादा</string>
     <string name="visit_promise_blank">ग्राहक ने कोई वादा न किया हो तो खाली छोड़ें।</string>
     <string name="sync_queued_entries">सिंक होने के लिए क़तार में</string>
+
+    <!-- नीचे का नेविगेशन -->
+    <string name="tab_home">होम</string>
+    <string name="tab_accounts">खाते</string>
+    <string name="tab_attendance">हाज़िरी</string>
+    <string name="tab_sync">सिंक</string>
+    <string name="tab_profile">प्रोफ़ाइल</string>
+
+    <!-- हाज़िरी, दैनिक रिपोर्ट, सिंक क़तार, सूचनाएँ, प्रोफ़ाइल -->
+    <string name="action_open">खोलें</string>
+    <string name="action_sign_out">साइन आउट</string>
+    <string name="label_loan">ऋण</string>
+    <string name="attendance_start_day">अपना दिन शुरू करें</string>
+    <string name="attendance_end_day">अपना दिन समाप्त करें</string>
+    <string name="attendance_check_out">छुट्टी दर्ज करें</string>
+    <string name="report_today_work">आज का काम</string>
+    <string name="report_summary">दिन का सारांश</string>
+    <string name="report_late_reason">देर से भेजने का कारण</string>
+    <string name="sync_title">सिंक क़तार</string>
+    <string name="notifications_mark_all">सभी को पढ़ा हुआ चिह्नित करें</string>
+    <string name="notifications_mark_read">पढ़ा हुआ चिह्नित करें</string>
+    <string name="profile_this_device">यह डिवाइस</string>
+    <string name="sign_out_title">साइन आउट करें?</string>
+    <string name="case_type_ckcc_od2">CKCC OD-2 नवीनीकरण</string>
+    <plurals name="notifications_unread">
+        <item quantity="one">%1$d अपठित सूचना</item>
+        <item quantity="other">%1$d अपठित सूचनाएँ</item>
+    </plurals>
+
+    <!-- हाज़िरी, दैनिक रिपोर्ट, सिंक क़तार और साइन आउट की कॉपी -->
+    <string name="attendance_check_in_note">हाज़िरी के समय आपकी लोकेशन और सेल्फ़ी दर्ज होती है, जो आपके एडमिन/सुपरवाइज़र को दिखती है।</string>
+    <string name="attendance_check_out_note">छुट्टी दर्ज करते समय आपकी लोकेशन दर्ज होती है और काम के घंटे गिने जाते हैं।</string>
+    <string name="attendance_done">आज की हाज़िरी पूरी हो गई। धन्यवाद।</string>
+    <string name="report_no_deadline">एक बार सिंक करें, ताकि ऐप को आज की समय-सीमा पता चले।</string>
+    <string name="report_deadline_passed">%1$s की समय-सीमा बीत चुकी है। आपकी रिपोर्ट देर से दर्ज होगी और उसके लिए एडमिन/सुपरवाइज़र की मंज़ूरी चाहिए — नीचे कारण लिखें।</string>
+    <string name="report_deadline_left">समय-सीमा %1$s — %2$s। समय सर्वर का माना जाएगा, इस फ़ोन का नहीं।</string>
+    <string name="label_date">तारीख़</string>
+    <string name="report_visits_recorded">दर्ज विज़िट</string>
+    <string name="report_in_progress">अभी चल रही</string>
+    <string name="report_submit_late">देर वाली रिपोर्ट मंज़ूरी के लिए भेजें</string>
+    <string name="report_submit">दैनिक रिपोर्ट भेजें</string>
+    <string name="report_queue_note">रिपोर्ट इसी फ़ोन में क़तार में लग जाती है और अगली सिंक पर भेज दी जाती है; भेजने का सही समय सर्वर दर्ज करता है।</string>
+    <string name="sync_synchronising">सिंक हो रहा है…</string>
+    <string name="sync_auto_note">इस फ़ोन में दर्ज सब कुछ, कनेक्शन मिलते ही अपने आप भेज दिया जाता है।</string>
+    <string name="sync_nothing_waiting">कुछ बाक़ी नहीं</string>
+    <string name="sync_all_sent">आपका दर्ज किया सब कुछ LRMS तक पहुँच गया है।</string>
+    <string name="notifications_empty_title">अभी कुछ नहीं</string>
+    <string name="notifications_empty_message">लक्ष्य, आवंटन, समय-सीमा की याद और निरीक्षण के नतीजे यहाँ दिखते हैं।</string>
+    <string name="sign_out_cached_warning">इस फ़ोन से आपके सेव किए गए खाते हट जाएंगे।</string>
+    <plurals name="sign_out_queued_warning">
+        <item quantity="one">%1$d रिकॉर्ड अभी क़तार में है और मिट जाएगा। हो सके तो पहले सिंक करें।</item>
+        <item quantity="other">%1$d रिकॉर्ड अभी क़तार में हैं और मिट जाएंगे। हो सके तो पहले सिंक करें।</item>
+    </plurals>
+
+    <!-- composable के बाहर बनने वाले संदेश: साइन-इन, सिंक, लोकेशन, पुष्टि -->
+    <string name="msg_enter_credentials">अपना BCBF कोड और पासवर्ड डालें।</string>
+    <string name="msg_enter_otp">आपको भेजा गया सत्यापन कोड डालें।</string>
+    <string name="msg_bad_credentials">BCBF कोड, यूज़रनेम या पासवर्ड ग़लत है।</string>
+    <string name="msg_otp_rejected">वह कोड स्वीकार नहीं हुआ।</string>
+    <string name="msg_no_connection">कोई कनेक्शन नहीं।</string>
+    <string name="msg_password_needs_connection">पासवर्ड बदलने के लिए कनेक्शन ज़रूरी है।</string>
+    <string name="msg_sign_in_again">कृपया दोबारा साइन इन करें।</string>
+    <string name="msg_session_expired">आपका सत्र समाप्त हो गया। कृपया दोबारा साइन इन करें।</string>
+    <string name="msg_not_signed_in">साइन इन नहीं हैं।</string>
+    <string name="msg_password_too_short">कम से कम 8 अक्षर रखें।</string>
+    <string name="msg_passwords_differ">दोनों पासवर्ड मेल नहीं खा रहे।</string>
+    <string name="msg_location_permission">फ़ील्ड का काम दर्ज करने के लिए लोकेशन की अनुमति ज़रूरी है।</string>
+    <string name="msg_location_off">विज़िट शुरू करने के लिए लोकेशन (GPS) चालू करें।</string>
+    <string name="msg_no_gps_fix">GPS लोकेशन नहीं मिली। खुली जगह पर जाकर दोबारा कोशिश करें।</string>
+    <string name="msg_promise_saved">भुगतान का वादा सुरक्षित होकर क़तार में लग गया।</string>
+    <string name="msg_followup_saved">फ़ॉलो-अप सुरक्षित होकर क़तार में लग गया।</string>
+    <string name="msg_checked_in">%1$s पर हाज़िरी दर्ज हुई।</string>
+    <string name="msg_checked_out">%1$s पर छुट्टी दर्ज हुई।</string>
+    <string name="msg_report_queued">दैनिक रिपोर्ट भेजने के लिए क़तार में लग गई।</string>
+    <string name="msg_server_error">%1$s तक पहुँच गए, पर उसने त्रुटि दी: %2$s</string>
+    <string name="msg_server_refused">%1$s तक पहुँच गए, पर उसने अनुरोध अस्वीकार कर दिया। सर्वर URL जाँचें।</string>
+    <plurals name="msg_offline_waiting">
+        <item quantity="one">ऑफ़लाइन — %1$d आइटम अभी बाक़ी है।</item>
+        <item quantity="other">ऑफ़लाइन — %1$d आइटम अभी बाक़ी हैं।</item>
+    </plurals>
+    <plurals name="msg_offline_pushed">
+        <item quantity="one">ऑफ़लाइन — कनेक्शन टूटने से पहले %1$d आइटम भेजा।</item>
+        <item quantity="other">ऑफ़लाइन — कनेक्शन टूटने से पहले %1$d आइटम भेजे।</item>
+    </plurals>
 </resources>

@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,7 +80,7 @@ fun AttendanceScreen(viewModel: AppViewModel) {
         selfieTaken = success && selfie?.let { PhotoFiles.compress(it) } == true
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Attendance") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.home_attendance)) }) }) { padding ->
         Column(
             Modifier
                 .fillMaxSize()
@@ -121,10 +122,9 @@ fun AttendanceScreen(viewModel: AppViewModel) {
             if (attendance?.checkInAt == null) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
-                        Text("Start your day", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.attendance_start_day), style = MaterialTheme.typography.titleSmall)
                         Text(
-                            "Check in records your location and a selfie, both of which your " +
-                                "Admin/Supervisor can see.",
+                            stringResource(R.string.attendance_check_in_note),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -157,16 +157,16 @@ fun AttendanceScreen(viewModel: AppViewModel) {
                             enabled = !locationState.busy,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Check in")
+                            Text(stringResource(R.string.home_check_in))
                         }
                     }
                 }
             } else if (attendance?.checkOutAt == null) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
-                        Text("End your day", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.attendance_end_day), style = MaterialTheme.typography.titleSmall)
                         Text(
-                            "Check out records your location and computes your working hours.",
+                            stringResource(R.string.attendance_check_out_note),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -184,12 +184,12 @@ fun AttendanceScreen(viewModel: AppViewModel) {
                             enabled = !locationState.busy,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Check out")
+                            Text(stringResource(R.string.attendance_check_out))
                         }
                     }
                 }
             } else {
-                InlineNotice("Attendance complete for today. Thank you.", Tone.SUCCESS)
+                InlineNotice(stringResource(R.string.attendance_done), Tone.SUCCESS)
             }
         }
     }
@@ -219,10 +219,10 @@ fun DailyReportScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Daily report") },
+                title = { Text(stringResource(R.string.home_daily_report)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
             )
@@ -239,35 +239,43 @@ fun DailyReportScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             message?.let { InlineNotice(it, Tone.SUCCESS) }
 
             if (deadline.deadlineAt == null) {
-                InlineNotice("Sync once so the app knows today's deadline.", Tone.WARNING)
+                InlineNotice(stringResource(R.string.report_no_deadline), Tone.WARNING)
             } else if (passed) {
                 InlineNotice(
-                    "The ${Times.timeOnly(deadline.deadlineAt)} deadline has passed. Your report will be " +
-                        "submitted as late and needs Admin/Supervisor approval — give a reason below.",
+                    stringResource(R.string.report_deadline_passed, Times.timeOnly(deadline.deadlineAt)),
                     Tone.DANGER,
                 )
             } else {
                 InlineNotice(
-                    "Deadline ${Times.timeOnly(deadline.deadlineAt)} — ${Times.countdown(secondsRemaining)}. " +
-                        "Server time decides, not this device.",
+                    stringResource(
+                        R.string.report_deadline_left,
+                        Times.timeOnly(deadline.deadlineAt),
+                        Times.countdown(secondsRemaining),
+                    ),
                     Tone.INFO,
                 )
             }
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
-                    Text("Today's work", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.report_today_work), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(6.dp))
-                    DetailRow("Date", Times.humanDate(Times.today()))
-                    DetailRow("Visits recorded", todaysVisits.count { it.syncState != SyncState.DRAFT }.toString())
-                    DetailRow("Still in progress", todaysVisits.count { it.syncState == SyncState.DRAFT }.toString())
+                    DetailRow(stringResource(R.string.label_date), Times.humanDate(Times.today()))
+                    DetailRow(
+                            stringResource(R.string.report_visits_recorded),
+                            todaysVisits.count { it.syncState != SyncState.DRAFT }.toString(),
+                        )
+                    DetailRow(
+                            stringResource(R.string.report_in_progress),
+                            todaysVisits.count { it.syncState == SyncState.DRAFT }.toString(),
+                        )
                 }
             }
 
             OutlinedTextField(
                 value = summary,
                 onValueChange = { summary = it },
-                label = { Text("Summary of the day") },
+                label = { Text(stringResource(R.string.report_summary)) },
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -276,7 +284,7 @@ fun DailyReportScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 OutlinedTextField(
                     value = lateReason,
                     onValueChange = { lateReason = it },
-                    label = { Text("Reason for late submission") },
+                    label = { Text(stringResource(R.string.report_late_reason)) },
                     minLines = 2,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -293,12 +301,11 @@ fun DailyReportScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 enabled = summary.isNotBlank() && (!passed || lateReason.isNotBlank()),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (passed) "Submit late report for approval" else "Submit daily report")
+                Text(stringResource(if (passed) R.string.report_submit_late else R.string.report_submit))
             }
 
             Text(
-                "The report is queued on this device and sent at the next sync; the server records the " +
-                    "exact submission time.",
+                stringResource(R.string.report_queue_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -320,10 +327,10 @@ fun OutboxScreen(viewModel: AppViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Sync queue") },
+                title = { Text(stringResource(R.string.sync_title)) },
                 actions = {
                     IconButton(onClick = { viewModel.syncNow() }, enabled = !sync.busy) {
-                        Icon(Icons.Filled.Sync, contentDescription = "Sync now")
+                        Icon(Icons.Filled.Sync, contentDescription = stringResource(R.string.home_sync_now))
                     }
                 },
             )
@@ -340,11 +347,10 @@ fun OutboxScreen(viewModel: AppViewModel) {
                 Spacer(Modifier.height(4.dp))
 
                 if (sync.busy) {
-                    LoadingBlock("Synchronising…")
+                    LoadingBlock(stringResource(R.string.sync_synchronising))
                 } else {
                     InlineNotice(
-                        sync.message ?: "Everything recorded on this device is sent automatically when " +
-                            "there is a connection.",
+                        sync.message ?: stringResource(R.string.sync_auto_note),
                         if (sync.offline) Tone.WARNING else Tone.INFO,
                     )
                 }
@@ -465,8 +471,8 @@ fun OutboxScreen(viewModel: AppViewModel) {
                     Card(Modifier.fillMaxWidth()) {
                         EmptyState(
                             icon = Icons.Filled.CheckCircle,
-                            title = "Nothing waiting",
-                            message = "Everything you have recorded has reached LRMS.",
+                            title = stringResource(R.string.sync_nothing_waiting),
+                            message = stringResource(R.string.sync_all_sent),
                         )
                     }
                 }
@@ -488,16 +494,16 @@ fun NotificationsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Notifications") },
+                title = { Text(stringResource(R.string.home_notifications)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     if (unread > 0) {
                         IconButton(onClick = { viewModel.markAllNotificationsRead() }) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = "Mark all read")
+                            Icon(Icons.Filled.CheckCircle, contentDescription = stringResource(R.string.notifications_mark_all))
                         }
                     }
                 },
@@ -507,8 +513,8 @@ fun NotificationsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         if (notifications.isEmpty()) {
             EmptyState(
                 icon = Icons.Filled.Notifications,
-                title = "Nothing yet",
-                message = "Targets, allocations, deadline reminders and inspection results appear here.",
+                title = stringResource(R.string.notifications_empty_title),
+                message = stringResource(R.string.notifications_empty_message),
                 modifier = Modifier.padding(padding),
             )
 
@@ -562,7 +568,7 @@ fun NotificationsScreen(viewModel: AppViewModel, onBack: () -> Unit) {
 
                             if (!notification.isRead) {
                                 OutlinedButton(onClick = { viewModel.markNotificationRead(notification.id) }) {
-                                    Text("Mark read")
+                                    Text(stringResource(R.string.notifications_mark_read))
                                 }
                             }
                         }
@@ -585,7 +591,7 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
     val pendingOutbox by viewModel.pendingOutbox.collectAsStateWithLifecycle()
     var confirmSignOut by remember { mutableStateOf(false) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Profile") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.tab_profile)) }) }) { padding ->
         Column(
             Modifier
                 .fillMaxSize()
@@ -614,7 +620,7 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
-                    Text("This device", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.profile_this_device), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(6.dp))
                     DetailRow("Environment", BuildConfig.ENVIRONMENT)
                     DetailRow("App version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
@@ -643,14 +649,14 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
                 enabled = !sync.busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Sync now")
+                Text(stringResource(R.string.home_sync_now))
             }
 
             Button(
                 onClick = { confirmSignOut = true },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Sign out")
+                Text(stringResource(R.string.action_sign_out))
             }
 
             if (pendingVisits + pendingOutbox > 0) {
@@ -666,14 +672,18 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
     if (confirmSignOut) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmSignOut = false },
-            title = { Text("Sign out?") },
+            title = { Text(stringResource(R.string.sign_out_title)) },
             text = {
                 Text(
                     if (pendingVisits + pendingOutbox > 0) {
-                        "${pendingVisits + pendingOutbox} record(s) are still queued and will be lost. " +
-                            "Sync first if you can."
+                    if (pendingVisits + pendingOutbox > 0) {
+                        pluralStringResource(
+                            R.plurals.sign_out_queued_warning,
+                            pendingVisits + pendingOutbox,
+                            pendingVisits + pendingOutbox,
+                        )
                     } else {
-                        "Your cached accounts will be removed from this device."
+                        stringResource(R.string.sign_out_cached_warning)
                     },
                 )
             },
@@ -682,11 +692,11 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
                     confirmSignOut = false
                     viewModel.signOut()
                 }) {
-                    Text("Sign out")
+                    Text(stringResource(R.string.action_sign_out))
                 }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { confirmSignOut = false }) { Text("Cancel") }
+                androidx.compose.material3.TextButton(onClick = { confirmSignOut = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }

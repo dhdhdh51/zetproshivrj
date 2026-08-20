@@ -1,6 +1,9 @@
 package `in`.lrms.field.ui
 
+import `in`.lrms.field.R
+import `in`.lrms.field.util.Localised
 import android.app.Application
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import `in`.lrms.field.ServiceLocator
@@ -39,6 +42,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val locationCapture = LocationCapture(application)
 
     val session get() = repository.store
+
+    /**
+     * A message for the supervisor, in the app's language.
+     *
+     * Resolved through [Localised] rather than getApplication().getString, because the
+     * application context can still be serving the locale it was created with — see
+     * the note on that object. These strings end up on screen next to ones a
+     * composable resolved, and the two must not disagree about the language.
+     */
+    private fun message(@StringRes id: Int, vararg args: Any): String =
+        Localised.string(getApplication(), id, *args)
 
     /* ------------------------------------------------------------------ */
     /* Session                                                             */
@@ -84,7 +98,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun signIn(username: String, password: String) {
         if (username.isBlank() || password.isBlank()) {
-            _auth.value = _auth.value.copy(error = "Enter your BCBF code and password.")
+            _auth.value = _auth.value.copy(error = message(R.string.msg_enter_credentials))
 
             return
         }
@@ -151,13 +165,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun changePassword(current: String, next: String, confirm: String, onDone: (String?) -> Unit) {
         if (next.length < 8) {
-            onDone("Use at least 8 characters.")
+            onDone(message(R.string.msg_password_too_short))
 
             return
         }
 
         if (next != confirm) {
-            onDone("The two passwords do not match.")
+            onDone(message(R.string.msg_passwords_differ))
 
             return
         }
@@ -197,7 +211,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val report = repository.sync()
 
             if (report.unauthenticated) {
-                _auth.value = AuthState(signedIn = false, error = "Your session expired. Please sign in again.")
+                _auth.value = AuthState(signedIn = false, error = message(R.string.msg_session_expired))
                 session.clear()
             }
 
@@ -298,14 +312,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun captureLocation(onResult: (FieldLocation?) -> Unit = {}) {
         if (!locationCapture.hasPermission()) {
-            _location.value = LocationState(error = "Location permission is needed to record field work.")
+            _location.value = LocationState(error = message(R.string.msg_location_permission))
             onResult(null)
 
             return
         }
 
         if (!locationCapture.isGpsEnabled()) {
-            _location.value = LocationState(error = "Turn on location (GPS) to start a visit.")
+            _location.value = LocationState(error = message(R.string.msg_location_off))
             onResult(null)
 
             return
@@ -317,7 +331,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val fix = locationCapture.awaitFix()
 
             _location.value = if (fix == null) {
-                LocationState(error = "Could not get a GPS fix. Move to an open area and try again.")
+                LocationState(error = message(R.string.msg_no_gps_fix))
             } else {
                 LocationState(fix = fix)
             }
@@ -474,7 +488,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.queuePromise(account, amount, promiseDate, null, remarks)
             requestBackgroundSync()
-            onDone("Promise to pay saved and queued.")
+            onDone(message(R.string.msg_promise_saved))
         }
     }
 
@@ -488,7 +502,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.queueFollowup(account, date, action, notes)
             requestBackgroundSync()
-            onDone("Follow-up saved and queued.")
+            onDone(message(R.string.msg_followup_saved))
         }
     }
 
@@ -496,7 +510,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.queueCheckIn(fix.latitude, fix.longitude, fix.accuracy, null, selfieBase64)
             requestBackgroundSync()
-            onDone("Checked in at ${Times.timeOnly(Times.nowServerFormat())}.")
+            onDone(message(R.string.msg_checked_in, Times.timeOnly(Times.nowServerFormat())))
         }
     }
 
@@ -504,7 +518,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.queueCheckOut(fix.latitude, fix.longitude, fix.accuracy, null)
             requestBackgroundSync()
-            onDone("Checked out at ${Times.timeOnly(Times.nowServerFormat())}.")
+            onDone(message(R.string.msg_checked_out, Times.timeOnly(Times.nowServerFormat())))
         }
     }
 
@@ -512,7 +526,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.queueDailyReport(summary, lateReason)
             requestBackgroundSync()
-            onDone("Daily report queued for submission.")
+            onDone(message(R.string.msg_report_queued))
         }
     }
 

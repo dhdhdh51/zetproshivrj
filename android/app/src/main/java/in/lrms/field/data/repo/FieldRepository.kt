@@ -1,5 +1,7 @@
 package `in`.lrms.field.data.repo
 
+import `in`.lrms.field.R
+import `in`.lrms.field.util.Localised
 import android.content.Context
 import `in`.lrms.field.BuildConfig
 import `in`.lrms.field.data.local.AccountEntity
@@ -73,7 +75,7 @@ class FieldRepository(
                 if (data.otpRequired) {
                     LoginOutcome.OtpRequired(
                         userId = data.userId ?: 0L,
-                        message = data.message ?: "Enter the verification code sent to you.",
+                        message = data.message ?: Localised.string(context, R.string.msg_enter_otp),
                         destination = data.destination,
                     )
                 } else {
@@ -96,7 +98,8 @@ class FieldRepository(
                 },
             )
 
-            ApiResult.Unauthenticated -> LoginOutcome.Error("Incorrect BCBF code, username or password.")
+            ApiResult.Unauthenticated ->
+                LoginOutcome.Error(Localised.string(context, R.string.msg_bad_credentials))
         }
     }
 
@@ -113,9 +116,9 @@ class FieldRepository(
             is ApiResult.Success -> "Server reached: ${result.data.app ?: "LRMS"}. Sign-in should work."
             is ApiResult.Offline -> result.message
             is ApiResult.Failure ->
-                "Reached ${ApiClient.host} but it answered with an error: ${result.message}"
+                Localised.string(context, R.string.msg_server_error, ApiClient.host, result.message)
             ApiResult.Unauthenticated ->
-                "Reached ${ApiClient.host}, but it refused the request. Check the server URL."
+                Localised.string(context, R.string.msg_server_refused, ApiClient.host)
         }
     }
 
@@ -127,8 +130,8 @@ class FieldRepository(
             }
 
             is ApiResult.Failure -> LoginOutcome.Error(result.message)
-            is ApiResult.Offline -> LoginOutcome.Error("No connection.")
-            ApiResult.Unauthenticated -> LoginOutcome.Error("That code was not accepted.")
+            is ApiResult.Offline -> LoginOutcome.Error(Localised.string(context, R.string.msg_no_connection))
+            ApiResult.Unauthenticated -> LoginOutcome.Error(Localised.string(context, R.string.msg_otp_rejected))
         }
     }
 
@@ -170,8 +173,8 @@ class FieldRepository(
             }
 
             is ApiResult.Failure -> result.message
-            is ApiResult.Offline -> "Changing your password needs a connection."
-            ApiResult.Unauthenticated -> "Please sign in again."
+            is ApiResult.Offline -> Localised.string(context, R.string.msg_password_needs_connection)
+            ApiResult.Unauthenticated -> Localised.string(context, R.string.msg_sign_in_again)
         }
     }
 
@@ -586,7 +589,7 @@ class FieldRepository(
      */
     suspend fun sync(): SyncReport = withContext(Dispatchers.IO) {
         if (!session.isSignedIn()) {
-            return@withContext SyncReport(unauthenticated = true, message = "Not signed in.")
+            return@withContext SyncReport(unauthenticated = true, message = Localised.string(context, R.string.msg_not_signed_in))
         }
 
         var pushed = 0
@@ -658,13 +661,15 @@ class FieldRepository(
                     // Put everything back in the queue untouched.
                     resetSyncing(visits.map { it.uuid }, outbox.map { it.uuid })
 
-                    return@withContext SyncReport(offline = true, message = "Offline — ${items.size} item(s) still waiting.")
+                    return@withContext SyncReport(offline = true, message = Localised.context(context).resources.getQuantityString(
+                        R.plurals.msg_offline_waiting, items.size, items.size
+                    ))
                 }
 
                 ApiResult.Unauthenticated -> {
                     resetSyncing(visits.map { it.uuid }, outbox.map { it.uuid })
 
-                    return@withContext SyncReport(unauthenticated = true, message = "Session expired. Please sign in again.")
+                    return@withContext SyncReport(unauthenticated = true, message = Localised.string(context, R.string.msg_session_expired))
                 }
 
                 is ApiResult.Failure -> {
@@ -773,10 +778,15 @@ class FieldRepository(
                 duplicates = duplicates,
                 failed = failed,
                 offline = true,
-                message = "Offline — pushed $pushed item(s) before losing the connection.",
+                message = Localised.context(context).resources.getQuantityString(
+                            R.plurals.msg_offline_pushed, pushed, pushed
+                        ),
             )
 
-            ApiResult.Unauthenticated -> return@withContext SyncReport(unauthenticated = true, message = "Session expired.")
+            ApiResult.Unauthenticated -> return@withContext SyncReport(
+                    unauthenticated = true,
+                    message = Localised.string(context, R.string.msg_session_expired),
+                )
 
             is ApiResult.Failure -> return@withContext SyncReport(
                 pushed = pushed,

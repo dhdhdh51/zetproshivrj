@@ -31,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -214,14 +215,17 @@ fun HomeScreen(
                             Icon(Icons.Filled.Notifications, contentDescription = null)
                             Spacer(Modifier.height(8.dp))
                             Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                Text("$unread unread notification(s)", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    pluralStringResource(R.plurals.notifications_unread, unread, unread),
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
                                 Text(
                                     stringResource(R.string.home_targets_hint),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            OutlinedButton(onClick = onOpenNotifications) { Text("Open") }
+                            OutlinedButton(onClick = onOpenNotifications) { Text(stringResource(R.string.action_open)) }
                         }
                     }
                 }

@@ -1,11 +1,13 @@
 package `in`.lrms.field.ui
 
+import `in`.lrms.field.R
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
@@ -28,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -83,7 +86,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class Tab(val route: String, val label: String, val icon: ImageVector)
+/** A bottom-bar tab. The label is a resource id so the bar follows the app language. */
+private data class Tab(val route: String, @StringRes val labelRes: Int, val icon: ImageVector)
 
 /**
  * The start destination, named once because the bottom bar has to treat it
@@ -92,11 +96,11 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 private const val HOME_ROUTE = "home"
 
 private val tabs = listOf(
-    Tab(HOME_ROUTE, "Home", Icons.Filled.Home),
-    Tab("accounts", "Accounts", Icons.Filled.AccountBalance),
-    Tab("attendance", "Attendance", Icons.AutoMirrored.Filled.Assignment),
-    Tab("outbox", "Sync", Icons.Filled.Sync),
-    Tab("profile", "Profile", Icons.Filled.Person),
+    Tab(HOME_ROUTE, R.string.tab_home, Icons.Filled.Home),
+    Tab("accounts", R.string.tab_accounts, Icons.Filled.AccountBalance),
+    Tab("attendance", R.string.tab_attendance, Icons.AutoMirrored.Filled.Assignment),
+    Tab("outbox", R.string.tab_sync, Icons.Filled.Sync),
+    Tab("profile", R.string.tab_profile, Icons.Filled.Person),
 )
 
 @Composable
@@ -174,13 +178,13 @@ private fun SignedInApp(
                         icon = {
                             if (badge > 0) {
                                 BadgedBox(badge = { Badge { Text(badge.toString()) } }) {
-                                    Icon(tab.icon, contentDescription = tab.label)
+                                    Icon(tab.icon, contentDescription = stringResource(tab.labelRes))
                                 }
                             } else {
-                                Icon(tab.icon, contentDescription = tab.label)
+                                Icon(tab.icon, contentDescription = stringResource(tab.labelRes))
                             }
                         },
-                        label = { Text(tab.label) },
+                        label = { Text(stringResource(tab.labelRes)) },
                     )
                 }
             }

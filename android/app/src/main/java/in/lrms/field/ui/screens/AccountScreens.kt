@@ -227,7 +227,7 @@ private fun AccountCard(account: AccountEntity, onClick: () -> Unit) {
             Spacer(Modifier.height(10.dp))
 
             Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-                Text("Open")
+                Text(stringResource(R.string.action_open))
             }
         }
     }
@@ -261,7 +261,7 @@ fun AccountDetailScreen(
                 title = { Text(current?.borrowerName ?: stringResource(R.string.label_account)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -317,7 +317,7 @@ fun AccountDetailScreen(
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
-                    Text("Loan", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.label_loan), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(6.dp))
                     DetailRow(stringResource(R.string.label_loan_type), current.loanType)
                     DetailRow(stringResource(R.string.label_outstanding), Times.money(current.outstanding))
@@ -446,7 +446,7 @@ private fun PromiseDialog(onDismiss: () -> Unit, onSave: (Double, String, String
                 },
                 enabled = (amount.toDoubleOrNull() ?: 0.0) > 0 && date.length == 10,
             ) {
-                Text("Save")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
@@ -493,7 +493,7 @@ private fun FollowupDialog(onDismiss: () -> Unit, onSave: (String, String, Strin
                 onClick = { onSave(date, action, notes.ifBlank { null }) },
                 enabled = date.length == 10,
             ) {
-                Text("Save")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },

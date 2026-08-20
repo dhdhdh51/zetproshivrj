@@ -13,8 +13,8 @@
 
     <!-- Language switcher. Each language is named in its own script. -->
     <string name="language">Language</string>
-    <string name="language_english">English</string>
-    <string name="language_hindi">हिन्दी</string>
+    <string name="language_english" translatable="false">English</string>
+    <string name="language_hindi" translatable="false">हिन्दी</string>
     <string name="language_system">Phone language</string>
     <string name="language_change">Change language</string>
 
@@ -113,21 +113,21 @@
     <string name="offline_entries_note">Entries are saved on this device immediately and sent to LRMS when a connection is available.</string>
 
     <!-- Work streams -->
-    <string name="stream_krm_ots">KRM OTS</string>
-    <string name="stream_ckcc">CKCC OD-2</string>
+    <string name="stream_krm_ots" translatable="false">KRM OTS</string>
+    <string name="stream_ckcc" translatable="false">CKCC OD-2</string>
 
     <!-- Shared actions -->
     <string name="action_cancel">Cancel</string>
     <string name="action_save">Save</string>
     <string name="action_retry">Retry</string>
     <string name="filter_all">All</string>
-    <string name="filter_ptp">PTP</string>
+    <string name="filter_ptp" translatable="false">PTP</string>
     <!-- Case type on the visit form: the first thing chosen, because it decides
          which questions are asked and which box is ticked on the printed report. -->
     <string name="visit_case_type">Case type</string>
     <string name="visit_case_type_helper">Choose the report this visit is for</string>
     <string name="case_type_customer">Recovery visit</string>
-    <string name="case_type_krm_ots">KRM OTS</string>
+    <string name="case_type_krm_ots" translatable="false">KRM OTS</string>
     <string name="case_type_ckcc_od2">CKCC OD-2 Renewal</string>
     <string name="case_type_recovery_followup">Recovery Follow-up</string>
     <string name="case_type_pre_npa">Pre-NPA Verification</string>
@@ -189,4 +189,87 @@
     <string name="visit_promise_section">Promise to pay</string>
     <string name="visit_promise_blank">Leave blank when the borrower promised nothing.</string>
     <string name="sync_queued_entries">Entries waiting to sync</string>
+
+    <!-- Bottom navigation -->
+    <string name="tab_home">Home</string>
+    <string name="tab_accounts">Accounts</string>
+    <string name="tab_attendance">Attendance</string>
+    <string name="tab_sync">Sync</string>
+    <string name="tab_profile">Profile</string>
+
+    <!-- Attendance, daily report, sync queue, notifications, profile -->
+    <string name="action_open">Open</string>
+    <string name="action_sign_out">Sign out</string>
+    <string name="label_loan">Loan</string>
+    <string name="attendance_start_day">Start your day</string>
+    <string name="attendance_end_day">End your day</string>
+    <string name="attendance_check_out">Check out</string>
+    <string name="report_today_work">Today\'s work</string>
+    <string name="report_summary">Summary of the day</string>
+    <string name="report_late_reason">Reason for late submission</string>
+    <string name="sync_title">Sync queue</string>
+    <string name="notifications_mark_all">Mark all read</string>
+    <string name="notifications_mark_read">Mark read</string>
+    <string name="profile_this_device">This device</string>
+    <string name="sign_out_title">Sign out?</string>
+    <plurals name="notifications_unread">
+        <item quantity="one">%1$d unread notification</item>
+        <item quantity="other">%1$d unread notifications</item>
+    </plurals>
+
+    <!-- Attendance, daily report, sync queue and sign-out copy -->
+    <string name="attendance_check_in_note">Check in records your location and a selfie, both of which your Admin/Supervisor can see.</string>
+    <string name="attendance_check_out_note">Check out records your location and computes your working hours.</string>
+    <string name="attendance_done">Attendance complete for today. Thank you.</string>
+    <string name="report_no_deadline">Sync once so the app knows today\'s deadline.</string>
+    <string name="report_deadline_passed">The %1$s deadline has passed. Your report will be submitted as late and needs Admin/Supervisor approval — give a reason below.</string>
+    <string name="report_deadline_left">Deadline %1$s — %2$s. Server time decides, not this device.</string>
+    <string name="label_date">Date</string>
+    <string name="report_visits_recorded">Visits recorded</string>
+    <string name="report_in_progress">Still in progress</string>
+    <string name="report_submit_late">Submit late report for approval</string>
+    <string name="report_submit">Submit daily report</string>
+    <string name="report_queue_note">The report is queued on this device and sent at the next sync; the server records the exact submission time.</string>
+    <string name="sync_synchronising">Synchronising…</string>
+    <string name="sync_auto_note">Everything recorded on this device is sent automatically when there is a connection.</string>
+    <string name="sync_nothing_waiting">Nothing waiting</string>
+    <string name="sync_all_sent">Everything you have recorded has reached LRMS.</string>
+    <string name="notifications_empty_title">Nothing yet</string>
+    <string name="notifications_empty_message">Targets, allocations, deadline reminders and inspection results appear here.</string>
+    <string name="sign_out_cached_warning">Your cached accounts will be removed from this device.</string>
+    <plurals name="sign_out_queued_warning">
+        <item quantity="one">%1$d record is still queued and will be lost. Sync first if you can.</item>
+        <item quantity="other">%1$d records are still queued and will be lost. Sync first if you can.</item>
+    </plurals>
+
+    <!-- Messages produced outside a composable: sign-in, sync, location, confirmations -->
+    <string name="msg_enter_credentials">Enter your BCBF code and password.</string>
+    <string name="msg_enter_otp">Enter the verification code sent to you.</string>
+    <string name="msg_bad_credentials">Incorrect BCBF code, username or password.</string>
+    <string name="msg_otp_rejected">That code was not accepted.</string>
+    <string name="msg_no_connection">No connection.</string>
+    <string name="msg_password_needs_connection">Changing your password needs a connection.</string>
+    <string name="msg_sign_in_again">Please sign in again.</string>
+    <string name="msg_session_expired">Your session expired. Please sign in again.</string>
+    <string name="msg_not_signed_in">Not signed in.</string>
+    <string name="msg_password_too_short">Use at least 8 characters.</string>
+    <string name="msg_passwords_differ">The two passwords do not match.</string>
+    <string name="msg_location_permission">Location permission is needed to record field work.</string>
+    <string name="msg_location_off">Turn on location (GPS) to start a visit.</string>
+    <string name="msg_no_gps_fix">Could not get a GPS fix. Move to an open area and try again.</string>
+    <string name="msg_promise_saved">Promise to pay saved and queued.</string>
+    <string name="msg_followup_saved">Follow-up saved and queued.</string>
+    <string name="msg_checked_in">Checked in at %1$s.</string>
+    <string name="msg_checked_out">Checked out at %1$s.</string>
+    <string name="msg_report_queued">Daily report queued for submission.</string>
+    <string name="msg_server_error">Reached %1$s but it answered with an error: %2$s</string>
+    <string name="msg_server_refused">Reached %1$s, but it refused the request. Check the server URL.</string>
+    <plurals name="msg_offline_waiting">
+        <item quantity="one">Offline — %1$d item still waiting.</item>
+        <item quantity="other">Offline — %1$d items still waiting.</item>
+    </plurals>
+    <plurals name="msg_offline_pushed">
+        <item quantity="one">Offline — pushed %1$d item before losing the connection.</item>
+        <item quantity="other">Offline — pushed %1$d items before losing the connection.</item>
+    </plurals>
 </resources>
