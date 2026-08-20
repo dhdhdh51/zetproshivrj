@@ -658,13 +658,13 @@ ok($tickStrokes > 0, sprintf('Chosen options are ticked (%d strokes)', $tickStro
 equals(0, $tickStrokes % 2, 'Every tick is a complete two-stroke mark');
 ok($crossStrokes > 0, sprintf('Options ruled out are crossed (%d strokes)', $crossStrokes));
 
-// And the honest half of it, checked on the writer itself rather than through a whole
-// report, because a report ticks things no form field decided — the Case Type row comes
-// from the visit and the borrower's gender from the loan book, so "nothing is ticked"
-// is never true of a real page even when every question was skipped.
+// The rule itself, checked on the writer rather than through a whole report, because a
+// report ticks things no form field decided — the Case Type row comes from the visit and
+// the borrower's gender from the loan book — so a full page cannot isolate one group.
 //
-// A group nobody answered must carry no marks at all. Crossing it would print a "No"
-// against every option on the agent's behalf, and they said nothing.
+// Ticked is yes and everything else is no, including in a group nobody answered: a
+// checklist is read that way, and an unticked entry means the borrower did not produce
+// that document.
 $probeMarks = static function (array $selected): array {
     $probe = new PdfWriter('portrait');
     $probe->addPage();
@@ -683,9 +683,12 @@ $probeMarks = static function (array $selected): array {
     return $marks;
 };
 
+// Nothing chosen: no ticks, and both options crossed. That shows neither was chosen
+// without claiming either — ticking No for silence would put an answer in the agent's
+// mouth, and the stored column still holds null rather than a false.
 $unanswered = $probeMarks([]);
-equals(0, $unanswered['ticks'], 'An unanswered group carries no tick');
-equals(0, $unanswered['crosses'], 'An unanswered group is not crossed through either');
+equals(0, $unanswered['ticks'], 'A group nobody answered carries no tick');
+equals(4, $unanswered['crosses'], 'Both of its options are crossed, two strokes each');
 
 $answered = $probeMarks(['Yes']);
 equals(2, $answered['ticks'], 'The chosen option gets one two-stroke tick');

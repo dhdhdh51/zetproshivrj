@@ -494,15 +494,6 @@ final class PdfWriter
             $selected
         );
 
-        $anyTicked = false;
-
-        foreach ($options as $option) {
-            if (in_array(strtolower(trim($option)), $ticked, true)) {
-                $anyTicked = true;
-                break;
-            }
-        }
-
         $columns = max(1, $columns);
         $gutter = 4.0;
         $cellWidth = ($this->contentWidth() - ($gutter * ($columns - 1))) / $columns;
@@ -533,12 +524,15 @@ final class PdfWriter
 
             if ($isTicked) {
                 $this->tickMark($boxLeft, $boxTop, $box, self::ink(self::INK_TEAL));
-            } elseif ($anyTicked) {
-                // A cross only where an answer was actually given. Crossing every box
-                // in a group nobody answered would print a "No" against every option
-                // on the reader's behalf — the agent said nothing, and a verification
-                // report that invents a negative is worse than one with a gap in it.
-                // An unanswered group therefore stays visibly unanswered.
+            } else {
+                // Ticked is yes, and everything else is no, at the client's
+                // instruction. A checklist is read that way anyway: an unticked
+                // "PAN Card" means the borrower did not produce one.
+                //
+                // It applies even when nothing in the group was chosen, so a Yes/No
+                // pair that was never answered prints with both boxes crossed. That
+                // shows neither was chosen without claiming either — the alternative,
+                // ticking No for silence, would put an answer in the agent's mouth.
                 $this->crossMark($boxLeft, $boxTop, $box, self::ink(self::INK_MUTED));
             }
 
@@ -595,7 +589,7 @@ final class PdfWriter
     }
 
     /**
-     * The mark an option that was offered and not chosen carries.
+     * The mark every option that was not chosen carries.
      *
      * Muted rather than the tick's colour, so a reader scanning the page sees what was
      * answered first and what was ruled out second.
@@ -624,9 +618,9 @@ final class PdfWriter
      * A Yes / No pair, which the printed form uses for most of section 6.
      *
      * Answered "yes" prints a tick against Yes and a cross against No, and the reverse.
-     * A null value leaves both boxes empty and uncrossed, which is a real answer on a
-     * verification report: it means the question was not reached, not that both answers
-     * are false.
+     * A null value crosses both, which says neither answer was chosen — the question was
+     * not reached. It is not the same as printing "No", and the column behind it still
+     * holds null rather than a false, so a report and the record agree.
      */
     public function yesNoRow(string $label, ?bool $value, int $columns = 3): void
     {
