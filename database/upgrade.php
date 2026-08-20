@@ -42,6 +42,48 @@ if (!Database::isConnected()) {
 }
 
 /**
+ * Whole tables added after the first release.
+ *
+ * Every other pass in this file assumes its table already exists — they add columns,
+ * widen them, set defaults and build indexes. A feature that arrives with a table of its
+ * own has nowhere else to go, and a live database that predates it would otherwise have
+ * to be migrated by hand.
+ *
+ * Keep these statements identical to schema.sql. A fresh install runs schema.sql and an
+ * existing one runs this, and the two must not drift.
+ *
+ * @var array<string, string> $newTables
+ */
+$newTables = [
+    'sss_enrolments' => "CREATE TABLE `sss_enrolments` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `uuid`             CHAR(36) NOT NULL,
+  `bc_supervisor_id` BIGINT UNSIGNED NOT NULL,
+  `branch_id`        BIGINT UNSIGNED NOT NULL,
+  `enrolment_date`   DATE NOT NULL,
+  `apy_count`        SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjjby_count`     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmsby_count`      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjdy_count`      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `remarks`          VARCHAR(500) NULL,
+  `source`           ENUM('app','panel') NOT NULL DEFAULT 'app',
+  `recorded_by`      BIGINT UNSIGNED NULL,
+  `device_id`        BIGINT UNSIGNED NULL,
+  `created_at`       DATETIME NULL,
+  `updated_at`       DATETIME NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_sss_uuid` (`uuid`),
+  UNIQUE KEY `uq_sss_day` (`bc_supervisor_id`, `enrolment_date`),
+  KEY `ix_sss_branch_date` (`branch_id`, `enrolment_date`),
+  KEY `ix_sss_date` (`enrolment_date`),
+  CONSTRAINT `fk_sss_bc` FOREIGN KEY (`bc_supervisor_id`) REFERENCES `bc_supervisors` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sss_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_sss_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_sss_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+];
+
+/**
  * Columns to add, in order. `after` keeps the physical column order readable,
  * which matters when someone inspects the table by hand.
  *
@@ -277,6 +319,30 @@ $pdo = Database::pdo();
 $applied = 0;
 $skipped = 0;
 $failed = 0;
+
+/* Tables ------------------------------------------------------------------- */
+
+foreach ($newTables as $table => $definition) {
+    if (tableExists($database, $table)) {
+        $skipped++;
+        continue;
+    }
+
+    if ($dryRun) {
+        printf("  +  CREATE TABLE `%s`\n", $table);
+        $applied++;
+        continue;
+    }
+
+    try {
+        $pdo->exec($definition);
+        printf("  +  %s table created\n", $table);
+        $applied++;
+    } catch (Throwable $e) {
+        printf("  !! %s table failed: %s\n", $table, $e->getMessage());
+        $failed++;
+    }
+}
 
 /* Columns ------------------------------------------------------------------ */
 

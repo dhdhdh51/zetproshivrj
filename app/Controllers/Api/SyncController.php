@@ -15,6 +15,7 @@ use App\Services\Forms;
 use App\Services\Notify;
 use App\Services\Promises;
 use App\Services\Recoveries;
+use App\Services\Sss;
 use App\Services\Visits;
 
 /**
@@ -266,6 +267,7 @@ final class SyncController extends ApiController
                     'attendance_in' => ['status' => 'accepted', 'id' => (int) ($attendance->checkIn($supervisorId, $userId, $payload, $this->deviceId())['id'] ?? 0)],
                     'attendance_out' => ['status' => 'accepted', 'id' => (int) ($attendance->checkOut($supervisorId, $payload, $this->deviceId())['id'] ?? 0)],
                     'daily_report' => $this->pushDailyReport($supervisorId, $payload),
+                    'sss' => $this->pushSss($supervisorId, $payload),
                     default => throw new \RuntimeException('Unknown item type "' . $type . '".'),
                 };
 
@@ -392,6 +394,26 @@ final class SyncController extends ApiController
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
+    /**
+     * A day's Social Security Scheme figures from the offline outbox.
+     *
+     * Reported as a duplicate when the day already had figures, which is the honest
+     * answer: the write still happened, but it rewrote a day rather than adding one. The
+     * app uses that to stop retrying.
+     *
+     * @param array<string, mixed> $payload
+     * @return array{status: string, id: int}
+     */
+    private function pushSss(int $supervisorId, array $payload): array
+    {
+        $result = Sss::record($supervisorId, $payload, 'app', $this->deviceId());
+
+        return [
+            'status' => $result['created'] ? 'accepted' : 'duplicate',
+            'id' => $result['id'],
+        ];
+    }
+
     private function pushRecovery(int $supervisorId, int $branchId, array $payload): array
     {
         $accountId = (int) ($payload['loan_account_id'] ?? 0);

@@ -126,6 +126,9 @@ function lrms_seed_settings(): void
             'min_inspection_photos' => '0',
             'watermark_photos' => '1',
             'payment_modes' => 'UPI,Bank Transfer,Cheque,Other',
+            // How far back the app may record SSS enrolments. Wider than a day because
+            // the app is offline-first and a supervisor can be out of signal for a while.
+            'sss_backdate_days' => '30',
         ],
         'gps' => [
             'gps_max_accuracy_metres' => '200',

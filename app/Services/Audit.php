@@ -62,6 +62,8 @@ final class Audit
     public const FOLLOWUP_RECORDED = 'followup_recorded';
     public const ATTENDANCE_CHECK_IN = 'attendance_check_in';
     public const ATTENDANCE_CHECK_OUT = 'attendance_check_out';
+    public const SSS_RECORDED = 'sss_recorded';
+    public const SSS_UPDATED = 'sss_updated';
 
     public const FORM_CREATED = 'form_created';
     public const FORM_UPDATED = 'form_updated';

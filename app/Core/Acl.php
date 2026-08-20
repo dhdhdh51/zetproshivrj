@@ -31,6 +31,7 @@ final class Acl
             'promises.view',
             'followups.view',
             'attendance.view',
+            'sss.view',
             'targets.view',
             'reports.view',
             'reports.export',
@@ -46,6 +47,7 @@ final class Acl
             'app.promises.create',
             'app.followups.create',
             'app.attendance.mark',
+            'app.sss.submit',
             'app.reports.submit',
         ],
     ];

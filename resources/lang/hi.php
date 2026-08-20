@@ -97,6 +97,7 @@ return [
     'nav.live_monitoring' => 'लाइव निगरानी',
     'nav.krm_ots' => 'KRM OTS',
     'nav.ckcc' => 'CKCC OD-2',
+    'nav.sss' => 'SSS नामांकन',
     'nav.branches' => 'शाखाएँ',
     'nav.branch_managers' => 'शाखा प्रबंधक',
     'nav.bc_supervisors' => 'बीसी सुपरवाइज़र',

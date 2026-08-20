@@ -98,6 +98,7 @@ return [
     'nav.live_monitoring' => 'Live monitoring',
     'nav.krm_ots' => 'KRM OTS',
     'nav.ckcc' => 'CKCC OD-2',
+    'nav.sss' => 'SSS enrolments',
     'nav.branches' => 'Branches',
     'nav.branch_managers' => 'Branch managers',
     'nav.bc_supervisors' => 'BC supervisors',

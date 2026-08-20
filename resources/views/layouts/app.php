@@ -61,6 +61,9 @@ $badges = $navBadges ?? [];
                 <a class="<?= nav_active('/admin/ckcc') ?>" href="<?= e(url('/admin/ckcc')) ?>">
                     <?= icon('refresh') ?> <?= et('nav.ckcc') ?>
                 </a>
+                <a class="<?= nav_active('/admin/sss') ?>" href="<?= e(url('/admin/sss')) ?>">
+                    <?= icon('shield') ?> <?= et('nav.sss') ?>
+                </a>
 
                 <div class="nav-section"><?= et('nav.section.organisation') ?></div>
                 <a class="<?= nav_active('/admin/branches') ?>" href="<?= e(url('/admin/branches')) ?>">
