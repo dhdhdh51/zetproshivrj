@@ -15,9 +15,11 @@ on:
     # branches, and they are meant to be deleted once the artifact has been collected.
     branches: [main, 'build/**']
     tags: ['v*']
-    paths:
-      - 'android/**'
-      - '.github/workflows/android-build.yml'
+    # No paths filter on push, deliberately. A branch created at a commit that is
+    # already on the remote delivers no new commits, so a paths filter has nothing to
+    # match and the build silently never runs — which is exactly what happened the first
+    # time build/1.5.3 was pushed. A push to main or to a build branch is a request for
+    # a build; the filter stays on pull_request, where the noise actually matters.
   pull_request:
     paths:
       - 'android/**'
