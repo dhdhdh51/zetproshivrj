@@ -1,7 +1,10 @@
 package `in`.lrms.field.data.remote
 
+import android.content.Context
 import `in`.lrms.field.BuildConfig
+import `in`.lrms.field.R
 import `in`.lrms.field.data.prefs.SessionStore
+import `in`.lrms.field.util.Localised
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.Interceptor
@@ -103,6 +106,54 @@ object ApiClient {
     val isDeveloperEndpoint: Boolean =
         host == "10.0.2.2" || host == "127.0.0.1" || host == "localhost"
 
+    /**
+     * Held so a refusal can be explained in the language the supervisor chose.
+     *
+     * A status code on its own is not a message. The server usually sends words with its
+     * errors and those are always preferred; this is for the refusals that arrive with
+     * nothing readable in them — a 403 from the hosting rather than from LRMS, most often —
+     * where the app has to say something useful by itself.
+     *
+     * Nullable because `call()` must keep working if nothing ever attached a context: worse
+     * English is better than a crash.
+     */
+    @Volatile
+    private var appContext: Context? = null
+
+    fun attach(context: Context) {
+        appContext = context.applicationContext
+    }
+
+    /**
+     * A refusal in plain words. The number goes at the end, for whoever they telephone.
+     */
+    private fun humanError(status: Int): String {
+        val context = appContext
+
+        val fallback = when (status) {
+            403 -> "The server refused this request. Tell your Admin — this is usually a setting on the server, not something you did. (403)"
+            404 -> "The app could not find that on the server. The server address may be wrong — tell your Admin. (404)"
+            408 -> "The server took too long to answer. Your work is saved on this phone; try again in a moment."
+            429 -> "Too many attempts. Please wait a minute and try again."
+            in 500..599 -> "There is a problem on the server. Your work is saved on this phone — tell your Admin. ($status)"
+            else -> "The server would not accept this request. Your work is saved on this phone. Tell your Admin if it keeps happening. ($status)"
+        }
+
+        if (context == null) {
+            return fallback
+        }
+
+        return when (status) {
+            401 -> Localised.string(context, R.string.error_session_expired)
+            403 -> Localised.string(context, R.string.error_forbidden)
+            404 -> Localised.string(context, R.string.error_not_found)
+            408 -> Localised.string(context, R.string.error_timeout)
+            429 -> Localised.string(context, R.string.error_too_many)
+            in 500..599 -> Localised.string(context, R.string.error_server_down, status)
+            else -> Localised.string(context, R.string.error_unexpected, status)
+        }
+    }
+
     fun create(session: SessionStore): ApiService {
         val authInterceptor = Interceptor { chain ->
             val builder = chain.request().newBuilder()
@@ -160,7 +211,11 @@ object ApiClient {
                 val errorBody = body ?: parseError(response)
 
                 ApiResult.Failure(
-                    message = errorBody?.message ?: "The server rejected the request (HTTP ${response.code()}).",
+                    // The server's own words first — they name the actual problem, and the
+                    // ones the supervisor sees most (a submitted day, a backdated entry) are
+                    // written to be read. humanError() is for refusals that carry none.
+                    message = errorBody?.message?.takeIf { it.isNotBlank() }
+                        ?: humanError(response.code()),
                     code = errorBody?.code,
                     status = response.code(),
                     errors = errorBody?.errors ?: emptyMap(),

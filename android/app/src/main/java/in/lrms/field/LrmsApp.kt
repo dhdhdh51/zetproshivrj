@@ -61,7 +61,12 @@ object ServiceLocator {
 
     fun api(context: Context): ApiService =
         apiService ?: synchronized(this) {
-            apiService ?: ApiClient.create(session(context)).also { apiService = it }
+            apiService ?: run {
+                // Before the first request, so a refusal that carries no words of its own can
+                // still be explained in the language the supervisor chose.
+                ApiClient.attach(context)
+                ApiClient.create(session(context)).also { apiService = it }
+            }
         }
 
     fun repository(context: Context): FieldRepository =

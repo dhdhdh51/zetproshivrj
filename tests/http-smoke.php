@@ -623,6 +623,76 @@ if ($targetSupervisor === null) {
 }
 
 /* -------------------------------------------------------------------------- */
+section('A bound device can be released from the screen that says it is bound');
+/* -------------------------------------------------------------------------- */
+
+// The action used to be an unlabelled icon in the actions column, shown only while the
+// device was active — so an Admin looking at "bound" had nothing to click, and a released
+// or blocked device offered no way back.
+$deviceSupervisor = Database::selectOne(
+    'SELECT s.id, s.user_id, u.name FROM bc_supervisors s JOIN users u ON u.id = s.user_id
+      WHERE s.branch_id IS NOT NULL ORDER BY s.id LIMIT 1'
+);
+
+if ($deviceSupervisor === null) {
+    ok(false, 'Need a BC Supervisor for the device binding test');
+} else {
+    $deviceUserId = (int) $deviceSupervisor['user_id'];
+    Database::delete('devices', 'user_id = :u', ['u' => $deviceUserId]);
+
+    $deviceId = Database::insert('devices', [
+        'user_id' => $deviceUserId,
+        'device_uuid' => 'smoke-device-' . $deviceUserId,
+        'model' => 'Smoke Handset',
+        'app_version' => '1.6.1',
+        'status' => 'active',
+        'bound_at' => now(),
+        'last_seen_at' => now(),
+        'created_at' => now(),
+    ]);
+
+    foreach ([
+        'active' => ['Bound', 'Release'],
+        'unbound' => ['Unbound', 'Block'],
+        'blocked' => ['Blocked', 'Unblock'],
+    ] as $state => $expected) {
+        Database::update('devices', ['status' => $state, 'updated_at' => now()], 'id = :id', ['id' => $deviceId]);
+        $page = page('/admin/supervisors', 'BC supervisors with a ' . $state . ' device');
+
+        foreach ($expected as $needle) {
+            ok(
+                str_contains($page, '>' . $needle . '<') || str_contains($page, $needle . '</'),
+                sprintf('A %s device shows "%s"', $state, $needle)
+            );
+        }
+    }
+
+    // Released on purpose is not a fault, so it must not be coloured like one.
+    Database::update('devices', ['status' => 'unbound', 'updated_at' => now()], 'id = :id', ['id' => $deviceId]);
+    $unboundPage = page('/admin/supervisors', 'BC supervisors with a released device');
+    ok(
+        str_contains($unboundPage, 'can sign in on any handset'),
+        'A released device says what that means for the supervisor'
+    );
+
+    // And the release actually works from here.
+    Database::update('devices', ['status' => 'active', 'updated_at' => now()], 'id = :id', ['id' => $deviceId]);
+    $listPage = page('/admin/supervisors', 'BC supervisors before releasing');
+    $released = request($base . '/admin/devices/' . $deviceId . '/reset', [
+        'post' => ['_token' => csrfToken($listPage)],
+    ]);
+
+    equals(200, $released['status'], 'Releasing a device from the list succeeds');
+    equals(
+        'unbound',
+        (string) Database::scalar('SELECT status FROM devices WHERE id = :id', ['id' => $deviceId]),
+        'The device is released, so the next handset can bind'
+    );
+
+    Database::delete('devices', 'id = :id', ['id' => $deviceId]);
+}
+
+/* -------------------------------------------------------------------------- */
 section('Every report renders and exports');
 /* -------------------------------------------------------------------------- */
 

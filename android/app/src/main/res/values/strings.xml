@@ -263,6 +263,21 @@
     <string name="msg_checked_out">Checked out at %1$s.</string>
     <string name="msg_report_queued">Daily report queued for submission.</string>
     <string name="msg_server_error">Reached %1$s but it answered with an error: %2$s</string>
+
+    <!--
+      Shown when the server refuses something without saying why in words. A bare status
+      code tells a supervisor in a village nothing they can act on, and "403" is the one
+      they were seeing most: it usually comes from the hosting rather than from LRMS, so
+      the app cannot explain it beyond telling them who to call. The number is kept at the
+      end for whoever they call.
+    -->
+    <string name="error_session_expired">Your session has ended. Please sign in again.</string>
+    <string name="error_forbidden">The server refused this request. Tell your Admin — this is usually a setting on the server, not something you did. (403)</string>
+    <string name="error_not_found">The app could not find that on the server. The server address may be wrong — tell your Admin. (404)</string>
+    <string name="error_timeout">The server took too long to answer. Your work is saved on this phone; try again in a moment.</string>
+    <string name="error_too_many">Too many attempts. Please wait a minute and try again.</string>
+    <string name="error_server_down">There is a problem on the server. Your work is saved on this phone — tell your Admin. (%1$d)</string>
+    <string name="error_unexpected">The server would not accept this request. Your work is saved on this phone. Tell your Admin if it keeps happening. (%1$d)</string>
     <string name="msg_server_refused">Reached %1$s, but it refused the request. Check the server URL.</string>
     <plurals name="msg_offline_waiting">
         <item quantity="one">Offline — %1$d item still waiting.</item>
