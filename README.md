@@ -4,27 +4,35 @@ This branch exists only to give the app a download link. Nothing else lives on i
 
 ## Download
 
-**[LRMS-v1.6.0-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.0-SIGNED.apk)**
+**[LRMS-v1.6.1-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.1-SIGNED.apk)**
 — open that link on the phone and Android will offer to install it.
 
-> ### Read this before installing 1.6.0
+> **Coming from 1.6.0:** it installs straight over it. Nothing to uninstall, nothing lost.
 >
-> **1.6.0 will not install over 1.5.5.** It is signed with a new key, because the old one was
-> lost, and Android identifies an app by the key that signed it. On a phone that already has
-> the app you will get "App not installed" — nothing is damaged, the old app carries on.
->
-> On each handset, in this order:
->
-> 1. **Open the app and sync**, with a signal, until nothing is left waiting. Uninstalling
->    deletes the app's local data, and until a signal returns the outbox is the only copy of
->    that day's work.
-> 2. Uninstall **D2 RECOVERY SOLUTION**.
-> 3. Install 1.6.0 from the link above and sign in again.
->
-> This is a one-off. Every release after 1.6.0 installs straight over it, keeping the data on
-> the handset, as 1.5.5 and earlier did among themselves.
+> **Coming from 1.5.5 or older:** 1.6.0 changed the signing key, so the app has to be
+> replaced once. On each handset: **open the app and sync until nothing is waiting**, then
+> uninstall **D2 RECOVERY SOLUTION**, then install from the link above and sign in again.
+> Uninstalling deletes the phone's local data, and until a signal returns the outbox is the
+> only copy of that day's work. After this one time, every release installs over the last.
 >
 > Certificate: `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4`
+
+## 1.6.1 — errors you can act on
+
+When the server refused something the app used to say *"The server rejected the request
+(HTTP 403)."* A number is not a message, and the 403 people were seeing does not even come
+from LRMS — it comes from the hosting, which is why it arrived with no words in it.
+
+Every refusal now says what happened, whether the work on the phone is safe, and who to
+tell, in whichever language the app is set to. The number stays at the end, for whoever
+gets telephoned about it. Where the server does send its own explanation — a day already
+submitted, an entry too old to backdate — that is what shows, as before.
+
+Nothing else in the app changed. The panel side of this release also puts the device
+**Release** button next to the device it releases, on **Staff ▸ BC supervisors**, with the
+action each state actually has: Release when bound, Unblock when blocked, Block when
+released. A released device now reads as a deliberate act rather than a fault, and says that
+the supervisor can sign in on any handset.
 
 ## 1.6.0 — the day's enrolments, against a target
 
