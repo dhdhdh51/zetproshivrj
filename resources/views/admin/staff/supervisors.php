@@ -79,17 +79,54 @@
                             <td class="right num"><?= e(money((float) $s['recovery_month'])) ?></td>
                             <td class="small">
                                 <?php if ($s['device_id'] !== null): ?>
+                                    <?php $deviceStatus = (string) $s['device_status']; ?>
                                     <span class="dot <?= $online ? 'online' : 'offline' ?>"></span>
                                     <?= e($s['model'] ?: 'device') ?>
                                     <div class="tiny muted">
                                         <?= e($s['app_version'] ? 'v' . $s['app_version'] : '') ?>
                                         · seen <?= e(time_ago($s['last_seen_at'])) ?>
-                                        <?php if ((string) $s['device_status'] !== 'active'): ?>
-                                            · <span class="danger-text"><?= e(enum_label((string) $s['device_status'])) ?></span>
+                                    </div>
+
+                                    <?php
+                                    // The state and the action that goes with it, together, in the
+                                    // column the state is in. This used to be an unlabelled icon
+                                    // among four others in the actions column, and it only appeared
+                                    // while the device was active — so the one screen that says
+                                    // "bound" offered no way to unbind, and an Admin looking for it
+                                    // could not find it.
+                                    ?>
+                                    <div class="tiny" style="margin-top:4px">
+                                        <?php if ($deviceStatus === 'active'): ?>
+                                            <span class="badge badge-success">Bound</span>
+                                            <form method="post" action="<?= e(url('/admin/devices/' . (int) $s['device_id'] . '/reset')) ?>"
+                                                  style="display:inline"
+                                                  data-confirm="Release this device so <?= e($s['name']) ?> can sign in on another handset? They will be signed out of this one.">
+                                                <?= csrf_field() ?>
+                                                <button class="btn btn-link btn-sm" type="submit">Release</button>
+                                            </form>
+                                        <?php elseif ($deviceStatus === 'blocked'): ?>
+                                            <span class="badge badge-danger">Blocked</span>
+                                            <form method="post" action="<?= e(url('/admin/devices/' . (int) $s['device_id'] . '/block')) ?>"
+                                                  style="display:inline"
+                                                  data-confirm="Unblock this device?">
+                                                <?= csrf_field() ?>
+                                                <button class="btn btn-link btn-sm" type="submit">Unblock</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <?php // Released on purpose by an Admin, so not an error. ?>
+                                            <span class="badge badge-warning">Unbound</span>
+                                            <span class="muted">— can sign in on any handset</span>
+                                            <form method="post" action="<?= e(url('/admin/devices/' . (int) $s['device_id'] . '/block')) ?>"
+                                                  style="display:inline"
+                                                  data-confirm="Block this device? It will be refused even after a release.">
+                                                <?= csrf_field() ?>
+                                                <button class="btn btn-link btn-sm" type="submit">Block</button>
+                                            </form>
                                         <?php endif; ?>
                                     </div>
                                 <?php else: ?>
                                     <span class="muted tiny">no device bound</span>
+                                    <div class="tiny muted">nothing to release</div>
                                 <?php endif; ?>
                             </td>
                             <td class="center"><span class="<?= e(badge((string) $s['status'])) ?>"><?= e(enum_label((string) $s['status'])) ?></span></td>
@@ -101,13 +138,7 @@
                                     <?= csrf_field() ?>
                                     <button class="btn btn-link btn-sm" type="submit" title="Reset password"><?= icon('refresh', '', 14) ?></button>
                                 </form>
-                                <?php if ($s['device_id'] !== null && (string) $s['device_status'] === 'active'): ?>
-                                    <form method="post" action="<?= e(url('/admin/devices/' . (int) $s['device_id'] . '/reset')) ?>" style="display:inline"
-                                          data-confirm="Release the device binding so this supervisor can sign in on a new handset?">
-                                        <?= csrf_field() ?>
-                                        <button class="btn btn-link btn-sm" type="submit" title="Reset device binding"><?= icon('smartphone', '', 14) ?></button>
-                                    </form>
-                                <?php endif; ?>
+                                <?php // The device action lives in the Device column, next to the state it acts on. ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
