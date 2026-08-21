@@ -109,7 +109,7 @@ end up testing the previous run.
   `deploy/sign-apk.sh <apk> /projects/keystore/lrms-release.jks` → publish to the `apk`
   branch. Every release must be signed with that same key or it will not install over the
   previous build. Confirm the certificate SHA-256 is
-  `8bb48d4ef31a3504c40d7268a8d2bd3da6b06c19ad5004340354f15c6a324355`.
+  `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4`.
 - **Never commit the keystore or any password.**
 - The GitHub repo has been renamed more than once; read the current name from
   `git remote -v` rather than assuming. Use `gh api` for pull requests and issues —

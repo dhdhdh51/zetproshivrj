@@ -73,29 +73,33 @@ Everything below is on the branch, green in CI, and live-ready.
   `https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.5.5-SIGNED.apk`
   It does **not** contain the target screens. See below.
 
-## Blocking: there is no way to sign v1.6.0
+## The signing key was replaced at v1.6.0
 
-The repository has **no signing secrets**, and no keystore is present in the sandbox. CI
-therefore signed the v1.6.0 build with the Android debug key: certificate
-`402dc5fff243bb4cbf0e34f50158b2f29cd568876defd4403675867b47ed5b38`, not the D2 release
-certificate `8bb48d4ef31a3504c40d7268a8d2bd3da6b06c19ad5004340354f15c6a324355`.
+The original keystore was lost. It was never a repository secret and no copy survived, so CI
+fell back to Android's debug key and the build could not be handed out.
 
-It is on `staging/v1.6.0` as `LRMS-v1.6.0-DEBUGKEY-DO-NOT-DISTRIBUTE.apk` and was
-deliberately **not** published to the `apk` branch. It cannot install over v1.5.5, and
-installing it means uninstalling the old app first — which wipes any unsynced outbox entries
-on that handset.
+On the user's instruction a new key was generated and v1.6.0 signed with it:
 
-To finish the release, one of:
+```
+SHA-256  b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4
+Alias    lrms      RSA 4096      expires 6 January 2054
+```
 
-- put `lrms-release.jks` back on the machine and run
-  `deploy/sign-apk.sh <apk> <keystore>`, or
-- add the `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` secrets to
-  the repository and re-run the workflow.
+`EXPECTED_CERT_SHA256` in the Android workflow, `docs/KEYSTORE-SETUP.md` and the steering
+file all carry that fingerprint now. Releases up to v1.5.5 were signed with the old
+`8bb48d4e…` key, which is why:
 
-Then confirm the certificate SHA-256 matches the D2 fingerprint above before publishing.
+- **v1.6.0 cannot install over v1.5.5.** Handsets must sync, uninstall, then install v1.6.0.
+  Every release after v1.6.0 installs straight over it.
+- Telling supervisors to **sync first** is not optional. Uninstalling takes the local database
+  with it, and until a signal returns the outbox is the only copy of a day's field work.
 
-The server half is complete and needs no APK: the panel, the targets, the register and the
-reports all work today.
+**The keystore is not in this repository and not in the sandbox's git history.** It was written
+to `/projects/keystore/lrms-release.jks` with its password in `/projects/keystore/PASSWORD.txt`,
+and the sandbox is not durable — the user was given the base64 and the password to store, and
+asked to put the four signing secrets on the repository so CI can sign by itself. If a later
+session finds no keystore and no secrets, ask them for it before building a release; do not
+generate a third key without saying what it costs.
 
 ## Open, not blocking
 

@@ -47,7 +47,11 @@ env:
   # The D2 release certificate, the same fingerprint printed in KEYSTORE-SETUP.md and
   # on every published release. Checked after signing, so a build cannot be handed out
   # under a key that could not update the app already installed.
-  EXPECTED_CERT_SHA256: '8bb48d4ef31a3504c40d7268a8d2bd3da6b06c19ad5004340354f15c6a324355'
+  # The D2 release certificate. Replaced on 21 Aug 2026: the original keystore was lost, so
+  # a new 4096-bit key was generated and v1.6.0 signed with it. That release is the one break
+  # in the chain — it has to be installed over an uninstall — and every build after it
+  # installs straight over the last. See docs/KEYSTORE-SETUP.md.
+  EXPECTED_CERT_SHA256: 'b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4'
   ANDROID_COMPILE_SDK: '35'
   ANDROID_BUILD_TOOLS: '35.0.0'
 
