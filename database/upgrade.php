@@ -290,6 +290,20 @@ $modifications = [
     // The section 11 declaration is ~1,100 characters and must be shown verbatim.
     ['visit_form_fields', 'help_text', 'VARCHAR(2000) NULL', 'varchar(2000)'],
     ['inspection_form_fields', 'help_text', 'VARCHAR(2000) NULL', 'varchar(2000)'],
+    // Item 24 of the printed inspection form is the assessment: Excellent, Good,
+    // Satisfactory or Poor. Appended after the ten visit-verification outcomes rather than
+    // replacing them — an ENUM is stored as an integer index, so dropping the old members
+    // would re-map every inspection already recorded, and those records have to keep
+    // reading the way they were answered.
+    [
+        'inspections',
+        'result',
+        "ENUM('work_verified','partially_verified','not_satisfactory','customer_not_found',"
+            . "'bc_not_present','visit_not_genuine','incorrect_information','gps_issue',"
+            . "'photo_issue','other',"
+            . "'excellent','good','satisfactory','poor') NULL",
+        'excellent',
+    ],
 ];
 
 /** Indexes worth adding for the new report filters. */

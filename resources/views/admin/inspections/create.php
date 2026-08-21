@@ -1,13 +1,16 @@
 <?php
 /**
- * Start an inspection: who, what, and the inspector's own GPS.
+ * Start an inspection: which supervisor, which day, and the inspector's own GPS.
+ *
+ * No work is chosen here. This is the monthly inspection of a BC point and its agent — the
+ * Bank's 27-item form asks about the outlet, the registers, the equipment, the earnings and
+ * what the villagers say. None of that belongs to one customer visit, so there is nothing
+ * to pick.
  *
  * @var array      $supervisors
  * @var array|null $supervisor
- * @var array      $visits
- * @var array      $accounts
- * @var int        $selectedVisitId
- * @var int        $selectedAccountId
+ * @var array|null $existingThisMonth  an inspection already recorded for this month, if any
+ * @var string     $monthLabel
  * @var array|null $form
  */
 ?>
@@ -16,8 +19,8 @@
     <div class="grow">
         <h1>Start BC supervisor inspection</h1>
         <div class="subtitle">
-            Verification of field work. Your own GPS position is recorded so the inspection can be
-            compared with what the BC Supervisor reported.
+            The monthly inspection of the BC point and its agent. Your own GPS position is recorded,
+            so the visit can be shown to have happened where it says it did.
         </div>
     </div>
     <div class="page-actions">
@@ -26,9 +29,9 @@
 </div>
 
 <div class="steps">
-    <div class="step active"><span class="n">1</span> Select work</div>
+    <div class="step active"><span class="n">1</span> BC Supervisor</div>
     <div class="step"><span class="n">2</span> GPS &amp; photos</div>
-    <div class="step"><span class="n">3</span> Form &amp; result</div>
+    <div class="step"><span class="n">3</span> The form</div>
     <div class="step"><span class="n">4</span> Submit</div>
 </div>
 
@@ -65,6 +68,40 @@
         </div>
     <?php endif; ?>
 
+    <?php if ($existingThisMonth !== null): ?>
+        <?php
+        // Once a month is the expectation, not a rule the software enforces: a follow-up
+        // visit after a Poor grade is a real thing that happens. So this says so and offers
+        // the existing one, rather than refusing.
+        ?>
+        <div class="alert alert-warning">
+            <?= icon('alert-triangle', '', 17) ?>
+            <div>
+                <strong><?= e($supervisor['name']) ?></strong> already has an inspection recorded for
+                <strong><?= e($monthLabel) ?></strong> —
+                <?= e(format_date((string) $existingThisMonth['inspection_date'])) ?>,
+                <?= e(enum_label((string) $existingThisMonth['status'])) ?><?php
+                    if ($existingThisMonth['result'] !== null) {
+                        echo ', ' . e(inspection_result_label((string) $existingThisMonth['result']));
+                    }
+                ?>.
+                This inspection is expected once a month, so open that one unless you deliberately
+                need a second visit.
+                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+                    <a class="btn btn-sm" href="<?= e(url(
+                        '/admin/inspections/' . (int) $existingThisMonth['id']
+                        . ((string) $existingThisMonth['status'] === 'draft' ? '/edit' : '')
+                    )) ?>">
+                        <?= icon('arrow-right', '', 14) ?>
+                        <?= (string) $existingThisMonth['status'] === 'draft'
+                            ? 'Carry on with that one'
+                            : 'Open that inspection' ?>
+                    </a>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <form method="post" action="<?= e(url('/admin/inspections')) ?>">
         <?= csrf_field() ?>
         <input type="hidden" name="bc_supervisor_id" value="<?= (int) $supervisor['id'] ?>">
@@ -85,40 +122,12 @@
                     </div>
 
                     <div class="field">
-                        <label for="visit_id">Visit being verified</label>
-                        <select id="visit_id" name="visit_id">
-                            <option value="">— not verifying a specific visit —</option>
-                            <?php foreach ($visits as $visit): ?>
-                                <option value="<?= (int) $visit['id'] ?>" <?= $selectedVisitId === (int) $visit['id'] ? 'selected' : '' ?>>
-                                    <?= e(format_date((string) $visit['visit_date'], 'd M')) ?> ·
-                                    <?= e($visit['account_number']) ?> ·
-                                    <?= e(str_excerpt((string) $visit['borrower_name'], 20)) ?> ·
-                                    <?= e(visit_status_label($visit['visit_status'])) ?>
-                                    <?= (int) $visit['inspected'] > 0 ? ' (already inspected)' : '' ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <label>Counts towards</label>
+                        <div class="v"><strong><?= e($monthLabel) ?></strong></div>
                         <div class="help">
-                            Choosing a visit lets LRMS compute the distance between your position and the
-                            point the supervisor recorded.
+                            Taken from the date on the left. This inspection is expected once a month
+                            per BC Supervisor.
                         </div>
-                    </div>
-
-                    <div class="field span-2">
-                        <label for="loan_account_id">Account / customer being checked</label>
-                        <select id="loan_account_id" name="loan_account_id">
-                            <option value="">— select an allocated account —</option>
-                            <?php foreach ($accounts as $account): ?>
-                                <option value="<?= (int) $account['id'] ?>" <?= $selectedAccountId === (int) $account['id'] ? 'selected' : '' ?>>
-                                    <?= e($account['account_number']) ?> ·
-                                    <?= e(str_excerpt((string) $account['borrower_name'], 24)) ?> ·
-                                    <?= e($account['village'] ?: 'no village') ?> ·
-                                    overdue <?= e(money((float) $account['overdue'])) ?>
-                                    <?= (int) $account['visit_count'] === 0 ? ' (never visited)' : '' ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <div class="help">Filled in automatically when you pick a visit above.</div>
                     </div>
                 </div>
 
@@ -126,7 +135,7 @@
                 <fieldset data-gps-capture>
                     <legend>Your location <span class="req">*</span></legend>
                     <p class="help" style="margin-top:0">
-                        Capture your position at the customer's location. The server validates accuracy
+                        Capture your position at the BC point. The server validates accuracy
                         and rejects mock locations.
                     </p>
 

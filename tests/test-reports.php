@@ -1257,6 +1257,9 @@ Database::insert('inspection_photos', [
 
 // Several items are deliberately left unanswered: the page is a form somebody signs, so
 // a gap has to print as a gap rather than vanish.
+// No result is passed. The assessment is item 24 of the form — see `observation` below —
+// and submit() reads it from there. A `result` sent in the payload is ignored on purpose:
+// the grade the Bank's form recorded is the only one there is.
 $inspections->submit($inspectionId, [
     'result' => 'work_verified',
     'remarks' => 'Outlet inspected.',
@@ -1280,6 +1283,14 @@ $inspections->submit($inspectionId, [
     ],
 ]);
 
+// Item 24 said "Satisfactory", so that is what the inspection concluded — not the
+// "work_verified" the payload asked for, which belongs to a form this one replaced.
+equals(
+    'satisfactory',
+    (string) Database::scalar('SELECT result FROM inspections WHERE id = :id', ['id' => $inspectionId]),
+    'The result is item 24, not whatever the caller passed'
+);
+
 $inspectionPdf = RecordExport::inspectionPdf($inspectionId);
 
 ok(is_file($inspectionPdf['path']), 'The inspection PDF is written');
@@ -1298,6 +1309,70 @@ foreach ([
 ] as $needle) {
     ok(str_contains($inspectionText, $needle), 'The printed form carries "' . $needle . '"');
 }
+
+ok(
+    str_contains($inspectionText, 'Observation (item 24)') && str_contains($inspectionText, 'Satisfactory'),
+    'The printed page names the grade by the item it came from'
+);
+
+/* -------------------------------------------------------------------------- */
+section('A Poor grade has to be explained, and only a Poor grade does');
+/* -------------------------------------------------------------------------- */
+
+// The grades come from the Bank's own wording. Only Poor is an accusation, so only Poor has
+// to carry remarks — demanding a justification for "Satisfactory" would teach inspectors to
+// avoid the honest answer.
+ok(inspection_result_is_negative('poor'), 'Poor counts as adverse');
+ok(!inspection_result_is_negative('satisfactory'), 'Satisfactory does not');
+ok(!inspection_result_is_negative('excellent'), 'Excellent does not');
+ok(!inspection_result_is_negative(null), 'An ungraded inspection is not an accusation');
+
+// Historic records keep the words they were filed under.
+equals('Work Verified', inspection_result_label('work_verified'), 'A retired outcome still reads as it was recorded');
+equals('Excellent', inspection_result_label('excellent'), 'A grade reads as the form spells it');
+
+$poorInspection = $inspections->start([
+    'bc_supervisor_id' => $inspectionBcId,
+    'inspection_date' => today(),
+    'gps' => lrms_test_gps(),
+]);
+$poorId = (int) $poorInspection['id'];
+
+Database::insert('inspection_photos', [
+    'inspection_id' => $poorId,
+    'file_path' => 'demo/bc-point-2.jpg',
+    'file_name' => 'bc-point-2.jpg',
+    'photo_type' => 'bc_supervisor',
+    'captured_at' => now(),
+    'created_at' => now(),
+]);
+
+throws(
+    static function () use ($inspections, $poorId): void {
+        $inspections->submit($poorId, [
+            'remarks' => '',
+            'form' => ['bca_name' => 'RAMESH KUMAR', 'observation' => 'Poor'],
+        ]);
+    },
+    'Grading an outlet Poor without saying why is refused',
+    'Remarks are required'
+);
+
+$inspections->submit($poorId, [
+    'remarks' => 'No board displayed and the visit register was two months behind.',
+    'form' => ['bca_name' => 'RAMESH KUMAR', 'observation' => 'Poor'],
+]);
+
+equals(
+    'poor',
+    (string) Database::scalar('SELECT result FROM inspections WHERE id = :id', ['id' => $poorId]),
+    'With remarks, the Poor grade is recorded'
+);
+equals(
+    1,
+    (int) Database::scalar('SELECT followup_required FROM inspections WHERE id = :id', ['id' => $poorId]),
+    'A Poor grade schedules a follow-up by itself'
+);
 
 ok(str_contains($inspectionText, 'RAMESH KUMAR'), 'An answer is printed');
 ok(str_contains($inspectionText, '01 Jun 2019'), 'A date prints as a person writes it, not as 2019-06-01');

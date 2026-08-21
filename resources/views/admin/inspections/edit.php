@@ -1,6 +1,9 @@
 <?php
 /**
- * Inspection in progress: photographs, questionnaire, result, submit.
+ * Inspection in progress: photographs, the Bank's 27-item form, remarks, submit.
+ *
+ * The assessment lives inside the form, at item 24. There is no separate result question
+ * here — see App\Services\Inspections::submit().
  *
  * @var array $inspection
  * @var array $fields
@@ -40,9 +43,9 @@ foreach ($gps as $point) {
 </div>
 
 <div class="steps">
-    <div class="step done"><span class="n"><?= icon('check', '', 12) ?></span> Select work</div>
+    <div class="step done"><span class="n"><?= icon('check', '', 12) ?></span> BC Supervisor</div>
     <div class="step <?= $photos === [] ? 'active' : 'done' ?>"><span class="n"><?= $photos === [] ? '2' : icon('check', '', 12) ?></span> GPS &amp; photos</div>
-    <div class="step active"><span class="n">3</span> Form &amp; result</div>
+    <div class="step active"><span class="n">3</span> The form</div>
     <div class="step"><span class="n">4</span> Submit</div>
 </div>
 
@@ -222,7 +225,7 @@ foreach ($gps as $point) {
     </div>
 </div>
 
-<!-- Questionnaire + result -->
+<!-- The Bank's 27 items, then remarks and submit -->
 <form method="post" action="<?= e(url('/admin/inspections/' . $id . '/submit')) ?>" data-dynamic-form>
     <?= csrf_field() ?>
 
@@ -235,8 +238,9 @@ foreach ($gps as $point) {
         <div class="card-body">
             <?php if ($fields === []): ?>
                 <p class="small muted">
-                    No form fields are configured. You can still record the result and remarks below —
-                    or <a href="<?= e(url('/admin/forms/inspection')) ?>">configure the inspection form</a>.
+                    No form fields are configured, so there is no item 24 to grade this inspection by.
+                    You can still record remarks below — or
+                    <a href="<?= e(url('/admin/forms/inspection')) ?>">configure the inspection form</a>.
                 </p>
             <?php endif; ?>
 
@@ -330,19 +334,18 @@ foreach ($gps as $point) {
     </div>
 
     <div class="card">
-        <div class="card-head"><h2>Verification result</h2></div>
+        <div class="card-head">
+            <div class="grow">
+                <h2>Remarks and follow-up</h2>
+                <div class="tiny muted">
+                    The assessment itself is <strong>item 24, Observation</strong>, in the form above —
+                    Excellent, Good, Satisfactory or Poor. It is not asked again here.
+                    Remarks are mandatory when item 24 is <strong>Poor</strong>.
+                </div>
+            </div>
+        </div>
         <div class="card-body">
             <div class="form-grid">
-                <div class="field">
-                    <label for="result">Result <span class="req">*</span></label>
-                    <select id="result" name="result" required>
-                        <option value="">Select the result…</option>
-                        <?php foreach (inspection_results() as $key => $label): ?>
-                            <option value="<?= e($key) ?>"><?= e($label) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <div class="help">Remarks are mandatory for every result other than "Work Verified".</div>
-                </div>
                 <div class="field">
                     <label for="followup_required">Follow-up required</label>
                     <select id="followup_required" name="followup_required">

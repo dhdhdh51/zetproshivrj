@@ -691,8 +691,115 @@ $supervisorId = (int) Database::scalar('SELECT id FROM bc_supervisors ORDER BY i
 
 if ($supervisorId > 0) {
     page('/admin/inspections/supervisor/' . $supervisorId, 'Supervisor work picture');
-    page('/admin/inspections/create?bc_supervisor_id=' . $supervisorId, 'Start inspection (with supervisor)');
+    $startInspection = page(
+        '/admin/inspections/create?bc_supervisor_id=' . $supervisorId,
+        'Start inspection (with supervisor)'
+    );
     page('/admin/monitoring/route/' . $supervisorId, 'Supervisor route');
+
+    // Nothing is chosen but the supervisor. The Bank's form asks about the outlet — its
+    // board, registers, equipment and earnings — none of which belong to a customer visit,
+    // so a visit or an account to "verify" is the wrong question and used to be step 1.
+    ok(
+        !str_contains($startInspection, 'name="visit_id"'),
+        'Starting an inspection no longer asks which visit is being verified'
+    );
+    ok(
+        !str_contains($startInspection, 'name="loan_account_id"'),
+        'Starting an inspection no longer asks which account is being checked'
+    );
+    ok(
+        !str_contains($startInspection, 'Select work'),
+        'The first step is the supervisor, not the work'
+    );
+    ok(
+        str_contains($startInspection, 'once a month'),
+        'The screen says the inspection is expected monthly'
+    );
+
+    // Once a month is the expectation, not a rule enforced in software: after a Poor grade a
+    // second visit is legitimate. So the screen warns and offers the existing one.
+    $inspectedThisMonth = Database::selectOne(
+        "SELECT bc_supervisor_id FROM inspections
+          WHERE inspection_date >= :month AND status IN ('draft', 'submitted')
+       ORDER BY id DESC LIMIT 1",
+        ['month' => date('Y-m-01')]
+    );
+
+    if ($inspectedThisMonth === null) {
+        ok(true, 'No inspection recorded this month, so the monthly warning cannot be checked (skipped)');
+    } else {
+        $repeat = page(
+            '/admin/inspections/create?bc_supervisor_id=' . (int) $inspectedThisMonth['bc_supervisor_id'],
+            'Start inspection for a supervisor already inspected this month'
+        );
+
+        ok(
+            str_contains($repeat, 'already has an inspection recorded for'),
+            'The screen warns that this month is already accounted for'
+        );
+        // The affordance, not the wording: there is a way through to the existing record, and
+        // the form to start another is still on the page underneath it.
+        ok(
+            str_contains($repeat, 'Open that inspection') || str_contains($repeat, 'Carry on with that one'),
+            'It offers the existing one rather than refusing a second'
+        );
+        ok(
+            str_contains($repeat, 'name="inspection_date"'),
+            'A second inspection is still possible when it is genuinely needed'
+        );
+    }
+}
+
+if ($supervisorId > 0) {
+    // Start one for real: the supervisor and the date are now the whole of step 1, and this
+    // is the POST that used to carry a visit and an account with it.
+    Database::delete(
+        'inspections',
+        "bc_supervisor_id = :bc AND status = 'draft' AND inspection_date = :date",
+        ['bc' => $supervisorId, 'date' => today()]
+    );
+
+    $started = request($base . '/admin/inspections', [
+        'post' => [
+            '_token' => csrfToken($startInspection),
+            'bc_supervisor_id' => $supervisorId,
+            'inspection_date' => today(),
+        ],
+    ]);
+
+    equals(200, $started['status'], 'An inspection starts from the supervisor and the date alone');
+
+    $draft = Database::selectOne(
+        "SELECT id, visit_id, loan_account_id FROM inspections
+          WHERE bc_supervisor_id = :bc AND status = 'draft'
+       ORDER BY id DESC LIMIT 1",
+        ['bc' => $supervisorId]
+    );
+
+    if ($draft === null) {
+        ok(false, 'The draft inspection was created');
+    } else {
+        ok(true, 'The draft inspection was created');
+        ok(
+            $draft['visit_id'] === null && $draft['loan_account_id'] === null,
+            'It is tied to the BC point, not to a visit or an account'
+        );
+
+        // The assessment is item 24 of the form. It used to be asked a second time on this
+        // screen, in the vocabulary of the old form — whether a customer visit had been
+        // verified — on an inspection that has no single visit to verify.
+        $draftPage = $started['body'];
+
+        ok(
+            !str_contains($draftPage, 'name="result"'),
+            'The inspection screen does not ask for a verification result of its own'
+        );
+        ok(
+            str_contains($draftPage, 'item 24'),
+            'It points at item 24 as the assessment instead'
+        );
+    }
 }
 
 /* -------------------------------------------------------------------------- */

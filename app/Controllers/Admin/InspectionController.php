@@ -119,12 +119,10 @@ final class InspectionController extends BaseController
     public function create(Request $request): void
     {
         $bcSupervisorId = (int) $request->query('bc_supervisor_id', 0);
-        $visitId = (int) $request->query('visit_id', 0);
-        $accountId = (int) $request->query('loan_account_id', 0);
 
         $supervisor = null;
-        $visits = [];
-        $accounts = [];
+        $existingThisMonth = null;
+        $monthAnchor = date('Y-m-01');
 
         if ($bcSupervisorId > 0) {
             $supervisor = Database::selectOne(
@@ -140,28 +138,18 @@ final class InspectionController extends BaseController
 
             $this->assertBranch((int) $supervisor['branch_id']);
 
-            // Recent visits are the primary thing to verify.
-            $visits = Database::select(
-                "SELECT v.id, v.visit_date, v.visit_status, v.photo_count, v.gps_verified,
-                        a.id AS account_id, a.account_number, a.borrower_name, a.village,
-                        (SELECT COUNT(*) FROM inspections i WHERE i.visit_id = v.id AND i.status = 'submitted') AS inspected
-                   FROM visits v
-                   JOIN loan_accounts a ON a.id = v.loan_account_id
-                  WHERE v.bc_supervisor_id = :bc AND v.status <> 'draft'
-                    AND v.visit_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-                  ORDER BY v.visit_date DESC, v.id DESC
-                  LIMIT 60",
-                ['bc' => $bcSupervisorId]
-            );
-
-            $accounts = Database::select(
-                "SELECT a.id, a.account_number, a.borrower_name, a.village, a.overdue, a.visit_count
-                   FROM loan_accounts a
-                   JOIN account_assignments x ON x.loan_account_id = a.id AND x.is_active = 1
-                  WHERE x.bc_supervisor_id = :bc AND a.status = 'active'
-                  ORDER BY a.visit_count ASC, a.overdue DESC
-                  LIMIT 80",
-                ['bc' => $bcSupervisorId]
+            // Once a month is the expectation, so the screen has to say when that month is
+            // already accounted for. The most recent one is the one worth offering: after a
+            // Poor grade a second visit is legitimate, and the inspector wants the latest.
+            $existingThisMonth = Database::selectOne(
+                "SELECT id, inspection_date, status, result
+                   FROM inspections
+                  WHERE bc_supervisor_id = :bc
+                    AND inspection_date >= :month
+                    AND inspection_date < DATE_ADD(:month, INTERVAL 1 MONTH)
+               ORDER BY inspection_date DESC, id DESC
+                  LIMIT 1",
+                ['bc' => $bcSupervisorId, 'month' => $monthAnchor]
             );
         }
 
@@ -169,10 +157,8 @@ final class InspectionController extends BaseController
             'title' => 'Start inspection',
             'supervisors' => $this->supervisorOptions(),
             'supervisor' => $supervisor,
-            'visits' => $visits,
-            'accounts' => $accounts,
-            'selectedVisitId' => $visitId,
-            'selectedAccountId' => $accountId,
+            'existingThisMonth' => $existingThisMonth,
+            'monthLabel' => date('F Y', (int) strtotime($monthAnchor)),
             'form' => Forms::defaultForm(Forms::KIND_INSPECTION),
         ]);
     }

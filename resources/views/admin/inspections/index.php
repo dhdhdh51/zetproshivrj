@@ -14,8 +14,9 @@
     <div class="grow">
         <h1>BC supervisor inspections</h1>
         <div class="subtitle">
-            Verify that BC Supervisors are actually performing the allocated field work.
-            This is monitoring — Admin/Supervisor does not carry out customer recovery visits.
+            The Bank's monthly inspection of each BC point and its agent — the board, the registers,
+            the equipment, the earnings and what the villagers say. Expected once a month per
+            BC Supervisor.
         </div>
     </div>
     <div class="page-actions">
@@ -28,7 +29,10 @@
     <div class="stat accent">
         <div class="label">Coverage this month</div>
         <div class="value"><?= e($coverage['coverage_percent']) ?>%</div>
-        <div class="meta"><?= number_format($coverage['visits_inspected']) ?> of <?= number_format($coverage['visits']) ?> visits verified</div>
+        <div class="meta">
+            <?= number_format($coverage['supervisors_inspected']) ?> of
+            <?= number_format($coverage['supervisors']) ?> BC Supervisors inspected
+        </div>
     </div>
     <div class="stat good">
         <div class="label">Inspections submitted</div>
@@ -38,7 +42,7 @@
     <div class="stat <?= $coverage['adverse'] > 0 ? 'bad' : '' ?>">
         <div class="label">Adverse findings</div>
         <div class="value"><?= number_format($coverage['adverse']) ?></div>
-        <div class="meta">anything other than "work verified"</div>
+        <div class="meta">graded "Poor" at item 24</div>
     </div>
     <div class="stat <?= $coverage['inspections_pending'] > 0 ? 'warn' : '' ?>">
         <div class="label">Drafts open</div>

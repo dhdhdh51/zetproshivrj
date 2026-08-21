@@ -41,10 +41,29 @@ Everything below is on the branch, green in CI, and live-ready.
   documented upgrade path needed a terminal and this hosting has none.
 - **Field visit format** — the client's 27-item "New Field Visit Format", added as a new
   version so historic inspections still print the questions they were answered against.
+- **The inspection is monthly, and of the outlet** — the questions were replaced earlier but
+  the workflow around them was not, so it still ran as "verify one customer visit".
+  - Starting one asks for the **BC Supervisor and the date, nothing else**. The visit and
+    account pickers are gone, and `visit_id` / `loan_account_id` are left NULL on new rows.
+    The columns stay, and historic rows still show their links.
+  - **Item 24 (Excellent / Good / Satisfactory / Poor) is the result.** The separate
+    "Work Verified / Customer Not Found" question is gone — it asked the same thing twice, in
+    the vocabulary of a form this one replaced. `Inspections::submit()` derives the grade from
+    the `observation` value; a `result` in the payload is ignored. Only **Poor** demands
+    remarks, and only Poor schedules a follow-up by itself.
+  - The four grades are **appended** to the `result` ENUM, never inserted mid-list: MySQL
+    stores an ENUM as an integer index, so the ten retired outcomes stay where they are and
+    keep reading as they were recorded. Verified on a simulated older database — the values
+    survived the widening unchanged.
+  - **Once a month is the expectation, not a rule.** The start screen warns when that month
+    already has one and offers to open it, but a second visit after a Poor grade is still
+    possible.
+  - Coverage on the dashboards now means **how many BC Supervisors have had their monthly
+    inspection**, not what share of customer visits was verified.
 
 ## Current state
 
-- Suites: `160 / 257 / 200 / 346` (test-import / http-smoke / api-smoke / test-reports).
+- Suites: `160 / 270 / 200 / 357` (test-import / http-smoke / api-smoke / test-reports).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.
 - Room is at **version 6** (`MIGRATION_5_6` adds `status` and `syncMessage` to

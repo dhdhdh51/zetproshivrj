@@ -43,7 +43,7 @@ final class Reports
             ],
             'bc_inspection' => [
                 'name' => 'BC Supervisor Inspection Report',
-                'description' => 'TYPE B — Admin/Supervisor verification of BC field work.',
+                'description' => "TYPE B — the monthly inspection of each BC point and its agent, graded at item 24.",
                 'icon' => 'search-check',
                 'group' => 'Field work',
             ],
@@ -507,7 +507,12 @@ final class Reports
             $params['bc'] = (int) $filters['bc_supervisor_id'];
         }
 
-        $result = self::enumFilter($filters, 'result', array_keys(inspection_results()));
+        // Current grades and the retired verification outcomes, so a register covering a
+        // month from before the form changed can still be filtered by what it recorded.
+        $result = self::enumFilter($filters, 'result', array_merge(
+            array_keys(inspection_results()),
+            array_keys(inspection_results_retired())
+        ));
 
         if ($result !== null) {
             $where[] = 'i.result = :result';
@@ -556,11 +561,12 @@ final class Reports
                 ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.2],
                 ['key' => 'bc_code', 'label' => 'BC Code', 'weight' => 0.7],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
-                ['key' => 'account_number', 'label' => 'Account', 'weight' => 1.2],
-                ['key' => 'borrower_name', 'label' => 'Borrower', 'weight' => 1.3],
-                ['key' => 'visit_date', 'label' => 'Visit checked', 'type' => 'date', 'weight' => 0.9],
-                ['key' => 'result', 'label' => 'Result', 'type' => 'inspection_result', 'weight' => 1.4],
-                ['key' => 'distance_to_visit_metres', 'label' => 'Distance to visit (m)', 'align' => 'right', 'weight' => 1.0],
+                // The account, the borrower, the visit being checked and the distance to it
+                // were the old form's subject. A monthly inspection of a BC point has none
+                // of them, so they would be four empty columns on every new row. They are
+                // still selected above and still shown on the inspection's own screen, which
+                // is where an auditor opening a historic record will be.
+                ['key' => 'result', 'label' => 'Observation', 'type' => 'inspection_result', 'weight' => 1.4],
                 ['key' => 'photo_count', 'label' => 'Photos', 'align' => 'center', 'weight' => 0.6],
                 ['key' => 'followup_required', 'label' => 'Follow-up', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.8],
                 ['key' => 'remarks', 'label' => 'Remarks', 'weight' => 2.0],

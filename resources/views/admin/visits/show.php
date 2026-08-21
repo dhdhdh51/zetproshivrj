@@ -33,8 +33,8 @@ $visitId = (int) $visit['id'];
         <a class="btn btn-secondary" href="<?= e(url($basePath . '/reports/customer_visit')) ?>"><?= icon('arrow-left', '', 15) ?> All visits</a>
         <a class="btn btn-secondary" href="<?= e(url($basePath . '/visits/' . $visitId . '/pdf')) ?>"><?= icon('download', '', 15) ?> PDF</a>
         <?php if ($canReview): ?>
-            <a class="btn" href="<?= e(url('/admin/inspections/create?bc_supervisor_id=' . (int) $visit['supervisor_id'] . '&visit_id=' . $visitId)) ?>">
-                <?= icon('search-check', '', 15) ?> Inspect this visit
+            <a class="btn" href="<?= e(url('/admin/inspections/create?bc_supervisor_id=' . (int) $visit['supervisor_id'])) ?>">
+                <?= icon('search-check', '', 15) ?> Inspect this BC point
             </a>
         <?php endif; ?>
     </div>

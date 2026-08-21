@@ -26,8 +26,8 @@ $basePath = $canManage ? '/admin' : '/manager';
     <div class="page-actions">
         <a class="btn btn-secondary" href="<?= e(url($basePath . '/accounts')) ?>"><?= icon('arrow-left', '', 15) ?> Back</a>
         <?php if ($canManage && $account['bc_supervisor_id'] !== null): ?>
-            <a class="btn btn-secondary" href="<?= e(url('/admin/inspections/create?bc_supervisor_id=' . (int) $account['bc_supervisor_id'] . '&loan_account_id=' . (int) $account['id'])) ?>">
-                <?= icon('search-check', '', 15) ?> Inspect this work
+            <a class="btn btn-secondary" href="<?= e(url('/admin/inspections/create?bc_supervisor_id=' . (int) $account['bc_supervisor_id'])) ?>">
+                <?= icon('search-check', '', 15) ?> Inspect this BC point
             </a>
         <?php endif; ?>
     </div>
