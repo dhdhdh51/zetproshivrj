@@ -421,8 +421,37 @@ if (!function_exists('visit_status_label')) {
 }
 
 if (!function_exists('inspection_results')) {
-    /** @return array<string, string> */
+    /**
+     * What an inspection can conclude, which is item 24 of the printed form.
+     *
+     * The four words are the Bank's, and they are the only assessment the form asks for.
+     * The inspector picks them once, on the form, at item 24 — there is no separate
+     * question here, because there is nothing left for it to ask.
+     *
+     * @return array<string, string>
+     */
     function inspection_results(): array
+    {
+        return [
+            'excellent' => 'Excellent',
+            'good' => 'Good',
+            'satisfactory' => 'Satisfactory',
+            'poor' => 'Poor',
+        ];
+    }
+}
+
+if (!function_exists('inspection_results_retired')) {
+    /**
+     * The outcomes the old form recorded, kept for reading and printing history.
+     *
+     * When an inspection meant "check one customer visit was done properly", these were
+     * the answers. Inspections recorded then still hold them, and an auditor opening one
+     * has to see the words it was actually filed under — not a modern grade it never had.
+     *
+     * @return array<string, string>
+     */
+    function inspection_results_retired(): array
     {
         return [
             'work_verified' => 'Work Verified',
@@ -442,7 +471,9 @@ if (!function_exists('inspection_results')) {
 if (!function_exists('inspection_result_label')) {
     function inspection_result_label(?string $result): string
     {
-        return inspection_results()[$result] ?? enum_label($result);
+        return inspection_results()[$result]
+            ?? inspection_results_retired()[$result]
+            ?? enum_label($result);
     }
 }
 
@@ -450,7 +481,19 @@ if (!function_exists('inspection_result_is_negative')) {
     /** Negative outcomes must always carry remarks. */
     function inspection_result_is_negative(?string $result): bool
     {
-        return $result !== null && $result !== 'work_verified';
+        if ($result === null || $result === '') {
+            return false;
+        }
+
+        // Of the four grades only Poor is an accusation, and only an accusation has to be
+        // explained. Satisfactory is the Bank's own word for acceptable; demanding a
+        // justification for it would teach inspectors to avoid the honest answer.
+        if (array_key_exists($result, inspection_results())) {
+            return $result === 'poor';
+        }
+
+        // On the old form anything but a clean verification was a problem.
+        return $result !== 'work_verified';
     }
 }
 

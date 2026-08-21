@@ -125,7 +125,7 @@ $online = $device !== null && $device['last_seen_at'] !== null
                     <tr>
                         <th>Account</th><th>Borrower</th><th>Village</th><th>Status</th>
                         <th class="center">Photos</th><th class="center">GPS</th><th>Recorded location</th>
-                        <th class="center">Inspected</th><th></th>
+                        <th class="center">Inspected</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -159,11 +159,6 @@ $online = $device !== null && $device['last_seen_at'] !== null
                                 <?php endif; ?>
                             </td>
                             <td class="center"><?= (int) $visit['inspections'] > 0 ? icon('check-circle', 'success-text', 15) : '<span class="muted tiny">—</span>' ?></td>
-                            <td class="nowrap">
-                                <a class="btn btn-sm" href="<?= e(url('/admin/inspections/create?bc_supervisor_id=' . $supervisorId . '&visit_id=' . (int) $visit['id'])) ?>">
-                                    Verify
-                                </a>
-                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -184,7 +179,7 @@ $online = $device !== null && $device['last_seen_at'] !== null
         <?php else: ?>
             <div class="table-wrap">
                 <table class="data compact">
-                    <thead><tr><th>Account</th><th>Borrower</th><th>Village</th><th class="right">Overdue</th><th></th></tr></thead>
+                    <thead><tr><th>Account</th><th>Borrower</th><th>Village</th><th class="right">Overdue</th></tr></thead>
                     <tbody>
                         <?php foreach (array_slice($pending_accounts, 0, 15) as $account): ?>
                             <tr>
@@ -192,12 +187,6 @@ $online = $device !== null && $device['last_seen_at'] !== null
                                 <td class="small"><?= e(str_excerpt((string) $account['borrower_name'], 20)) ?></td>
                                 <td class="small"><?= e($account['village'] ?: '—') ?></td>
                                 <td class="right num small"><?= e(money((float) $account['overdue'])) ?></td>
-                                <td>
-                                    <a class="btn btn-link btn-sm"
-                                       href="<?= e(url('/admin/inspections/create?bc_supervisor_id=' . $supervisorId . '&loan_account_id=' . (int) $account['id'])) ?>">
-                                        Inspect
-                                    </a>
-                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

@@ -704,9 +704,19 @@ CREATE TABLE `inspections` (
   `inspection_date`   DATE NOT NULL,
   `started_at`        DATETIME NULL,
   `submitted_at`      DATETIME NULL,
+  -- The inspection's own assessment, which is item 24 of the printed form: Excellent,
+  -- Good, Satisfactory or Poor. There is no separate "was the work verified" question —
+  -- this is a monthly inspection of an outlet and its agent, not a check on one customer
+  -- visit, so grading the visit was asking the wrong thing twice.
+  --
+  -- The first ten members are the old visit-verification outcomes. They stay, and stay in
+  -- this order: MySQL stores an ENUM as an integer index, so inserting or removing a member
+  -- mid-list would silently re-map every value already recorded. The four grades are
+  -- appended for the same reason.
   `result`            ENUM('work_verified','partially_verified','not_satisfactory','customer_not_found',
                            'bc_not_present','visit_not_genuine','incorrect_information','gps_issue',
-                           'photo_issue','other') NULL,
+                           'photo_issue','other',
+                           'excellent','good','satisfactory','poor') NULL,
   `remarks`           TEXT NULL,
   `followup_required` TINYINT(1) NOT NULL DEFAULT 0,
   `status`            ENUM('draft','submitted') NOT NULL DEFAULT 'draft',

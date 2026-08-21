@@ -139,19 +139,22 @@ $maxRecovery = max(1.0, max(array_map(static fn (array $d): float => $d['recover
         </div>
         <div class="card-body">
             <p class="small muted">
-                Share of this month's customer visits that have been physically verified.
-                Admin/Supervisor field activity is inspection only — customer recovery visits
-                are performed by BC Supervisors.
+                Share of BC Supervisors whose monthly inspection has been carried out. The Bank's
+                form is one visit to the BC point per agent per month — Admin/Supervisor field
+                activity is inspection only, customer recovery visits are the BC Supervisor's work.
             </p>
 
             <div style="display:flex;align-items:baseline;gap:10px;margin:10px 0 6px">
                 <div style="font-size:30px;font-weight:700"><?= e($coverage['coverage_percent']) ?>%</div>
                 <div class="small muted">
-                    <?= number_format($coverage['visits_inspected']) ?> of <?= number_format($coverage['visits']) ?> visits verified
+                    <?= number_format($coverage['supervisors_inspected']) ?> of
+                    <?= number_format($coverage['supervisors']) ?> BC Supervisors inspected this month
                 </div>
             </div>
             <div class="bar">
-                <span class="<?= $coverage['coverage_percent'] >= 20 ? 'good' : ($coverage['coverage_percent'] >= 10 ? 'warn' : 'bad') ?>"
+                <?php // Every supervisor is meant to be inspected, so anything short of all of
+                      // them is behind — not the sampling rate the old visit measure implied. ?>
+                <span class="<?= $coverage['coverage_percent'] >= 100 ? 'good' : ($coverage['coverage_percent'] >= 75 ? 'warn' : 'bad') ?>"
                       style="width:<?= min(100, (float) $coverage['coverage_percent']) ?>%"></span>
             </div>
 

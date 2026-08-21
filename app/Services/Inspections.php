@@ -153,32 +153,15 @@ final class Inspections
             throw new HttpException(422, 'Choose the BC Supervisor being inspected.');
         }
 
-        $visitId = isset($payload['visit_id']) && $payload['visit_id'] !== '' ? (int) $payload['visit_id'] : null;
-        $accountId = isset($payload['loan_account_id']) && $payload['loan_account_id'] !== ''
-            ? (int) $payload['loan_account_id']
-            : null;
-
-        if ($visitId !== null) {
-            $visit = Database::selectOne('SELECT * FROM visits WHERE id = :id', ['id' => $visitId]);
-
-            if ($visit === null) {
-                throw new HttpException(404, 'The visit being inspected was not found.');
-            }
-
-            if ((int) $visit['bc_supervisor_id'] !== $bcSupervisorId) {
-                throw new HttpException(422, 'That visit does not belong to the selected BC Supervisor.');
-            }
-
-            $accountId ??= (int) $visit['loan_account_id'];
-        }
-
-        if ($accountId !== null) {
-            $account = Database::selectOne('SELECT branch_id FROM loan_accounts WHERE id = :id', ['id' => $accountId]);
-
-            if ($account === null) {
-                throw new HttpException(404, 'The account being inspected was not found.');
-            }
-        }
+        // Nothing is chosen but the supervisor. This inspection is of the BC point itself —
+        // the board, the registers, the equipment, the earnings, what the villagers say —
+        // and none of those belong to a customer visit or a loan account.
+        //
+        // The columns stay NULL rather than being dropped: inspections recorded when this
+        // did verify a single visit still point at it, and an auditor opening one of those
+        // needs the link to still work.
+        $visitId = null;
+        $accountId = null;
 
         $inspectionDate = today();
 
@@ -272,22 +255,7 @@ final class Inspections
             return $inspection;
         }
 
-        $result = (string) ($payload['result'] ?? '');
-
-        if (!array_key_exists($result, inspection_results())) {
-            throw new HttpException(422, 'Choose the verification result.');
-        }
-
         $remarks = trim((string) ($payload['remarks'] ?? ''));
-
-        // Every negative outcome must be explained: this is the evidence a
-        // supervisor's appraisal or a disciplinary process would rest on.
-        if (inspection_result_is_negative($result) && $remarks === '') {
-            throw new HttpException(
-                422,
-                sprintf('Remarks are required when the result is "%s".', inspection_result_label($result))
-            );
-        }
 
         $minPhotos = Settings::int('min_inspection_photos', 1);
         $photoCount = (int) Database::scalar(
@@ -332,6 +300,28 @@ final class Inspections
 
         if ($validated['errors'] !== []) {
             throw new HttpException(422, reset($validated['errors']));
+        }
+
+        // The assessment is item 24 of the form, not a separate question. It used to be
+        // asked twice, in two vocabularies: the form graded the outlet Excellent to Poor
+        // while the screen asked whether a customer visit had been verified — on a monthly
+        // inspection of a BC point, where there is no single visit to verify. The form wins,
+        // because the form is what the Bank issued and what the inspector is holding.
+        //
+        // It may also be blank. Item 24 is not a required field, and a monthly inspection
+        // with everything else answered is worth more than one refused over a grade.
+        $result = self::grade($validated['values']['observation'] ?? null);
+
+        // A Poor grade is the evidence an appraisal or a disciplinary process would rest
+        // on, so it has to say why.
+        if (inspection_result_is_negative($result) && $remarks === '') {
+            throw new HttpException(
+                422,
+                sprintf(
+                    'Remarks are required when item 24 is "%s".',
+                    inspection_result_label($result)
+                )
+            );
         }
 
         // A late GPS point (captured on the form page rather than at start).
@@ -409,7 +399,7 @@ final class Inspections
                 'Inspection of %s (%s) submitted: %s.',
                 $supervisor['name'] ?? '',
                 $supervisor['bc_code'] ?? '',
-                inspection_result_label($result)
+                $result === null ? 'no grade recorded at item 24' : inspection_result_label($result)
             ),
             'new' => ['result' => $result, 'remarks' => $remarks, 'photos' => $photoCount],
         ]);
@@ -418,8 +408,10 @@ final class Inspections
         if ($supervisor !== null && $supervisor['user_id'] !== null) {
             Notify::user(
                 (int) $supervisor['user_id'],
-                'Field work inspected: ' . inspection_result_label($result),
-                $remarks !== '' ? $remarks : 'Your field work was inspected by an Admin/Supervisor.',
+                $result === null
+                    ? 'Your BC point was inspected'
+                    : 'BC point inspected: ' . inspection_result_label($result),
+                $remarks !== '' ? $remarks : 'Your BC point was inspected by an Admin/Supervisor.',
                 [
                     'type' => inspection_result_is_negative($result) ? 'alert' : 'inspection',
                     'related_type' => 'inspection',
@@ -447,10 +439,24 @@ final class Inspections
     }
 
     /**
+     * Item 24's answer as a stored grade, or null when it was left blank.
+     *
+     * The form spells the four words out; the column stores them lowercase. Anything else
+     * — a form edited in the panel to offer different words, or an older form with no item
+     * 24 at all — is no grade rather than a wrong one.
+     */
+    private static function grade(mixed $observation): ?string
+    {
+        $value = strtolower(trim((string) ($observation ?? '')));
+
+        return array_key_exists($value, inspection_results()) ? $value : null;
+    }
+
+    /**
      * @param array<string, mixed>  $payload
      * @param array<string, string> $values
      */
-    private static function followupRequired(array $payload, array $values, string $result): bool
+    private static function followupRequired(array $payload, array $values, ?string $result): bool
     {
         if (array_key_exists('followup_required', $payload)) {
             return in_array(strtolower((string) $payload['followup_required']), ['1', 'yes', 'true', 'on'], true);
@@ -460,7 +466,8 @@ final class Inspections
             return strcasecmp($values['followup_required'], 'Yes') === 0;
         }
 
-        // Anything other than a clean verification needs a follow-up by default.
+        // A Poor grade needs following up by default. An ungraded inspection does not:
+        // nobody has said anything is wrong.
         return inspection_result_is_negative($result);
     }
 
@@ -524,8 +531,14 @@ final class Inspections
     }
 
     /**
-     * Coverage statistics for the dashboard: how much of the field work has
-     * actually been inspected.
+     * Coverage for the dashboards: how many BC Supervisors have had their monthly
+     * inspection.
+     *
+     * This used to count customer visits — "how many of the month's visits were verified" —
+     * which measured the old form, where an inspection was a check on one visit. The Bank's
+     * form asks about the outlet, its registers, its equipment and its earnings, once a
+     * month per agent. So the question is how many agents were seen, and the honest
+     * denominator is how many there are.
      *
      * @return array<string, mixed>
      */
@@ -536,21 +549,25 @@ final class Inspections
 
         $params = ['from' => $from, 'to' => $to];
         $branchClause = '';
+        $supervisorParams = [];
+        $supervisorClause = '';
 
         if ($branchId !== null) {
             $branchClause = ' AND branch_id = :branch';
             $params['branch'] = $branchId;
+            $supervisorClause = ' AND s.branch_id = :branch';
+            $supervisorParams['branch'] = $branchId;
         }
 
-        $visits = (int) Database::scalar(
-            "SELECT COUNT(*) FROM visits
-              WHERE visit_date BETWEEN :from AND :to AND status <> 'draft'" . $branchClause,
-            $params
+        $supervisors = (int) Database::scalar(
+            "SELECT COUNT(*) FROM bc_supervisors s JOIN users u ON u.id = s.user_id
+              WHERE s.status = 'active' AND u.status = 'active'" . $supervisorClause,
+            $supervisorParams
         );
 
         $inspected = (int) Database::scalar(
-            "SELECT COUNT(DISTINCT visit_id) FROM inspections
-              WHERE inspection_date BETWEEN :from AND :to AND status = 'submitted' AND visit_id IS NOT NULL"
+            "SELECT COUNT(DISTINCT bc_supervisor_id) FROM inspections
+              WHERE inspection_date BETWEEN :from AND :to AND status = 'submitted'"
             . $branchClause,
             $params
         );
@@ -577,9 +594,9 @@ final class Inspections
         return [
             'from' => $from,
             'to' => $to,
-            'visits' => $visits,
-            'visits_inspected' => $inspected,
-            'coverage_percent' => percent_of($inspected, $visits),
+            'supervisors' => $supervisors,
+            'supervisors_inspected' => $inspected,
+            'coverage_percent' => percent_of($inspected, $supervisors),
             'inspections_submitted' => $submitted,
             'inspections_pending' => $pending,
             'by_result' => $byResult,

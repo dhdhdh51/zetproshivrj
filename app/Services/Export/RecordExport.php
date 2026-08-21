@@ -255,7 +255,10 @@ final class RecordExport
             'Inspection date' => format_date((string) $inspection['inspection_date']),
             'Inspected by' => (string) $inspection['inspector_name'],
             'Submitted at' => format_datetime($inspection['submitted_at']),
-            'Result' => inspection_result_label($inspection['result']),
+            // Item 24 of the form. Printed under its own name so the page and the paper agree.
+            'Observation (item 24)' => $inspection['result'] === null
+                ? 'Not recorded'
+                : inspection_result_label((string) $inspection['result']),
             'Status' => enum_label((string) $inspection['status']),
             'Form used' => (string) $inspection['form_name'],
         ]);
