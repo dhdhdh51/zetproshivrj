@@ -4,11 +4,56 @@ This branch exists only to give the app a download link. Nothing else lives on i
 
 ## Download
 
-**[LRMS-v1.5.5-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.5.5-SIGNED.apk)**
+**[LRMS-v1.6.0-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.0-SIGNED.apk)**
 — open that link on the phone and Android will offer to install it.
 
-Every release here is signed with the same key, so this installs over the previous
-version and keeps the data already on the handset.
+> ### Read this before installing 1.6.0
+>
+> **1.6.0 will not install over 1.5.5.** It is signed with a new key, because the old one was
+> lost, and Android identifies an app by the key that signed it. On a phone that already has
+> the app you will get "App not installed" — nothing is damaged, the old app carries on.
+>
+> On each handset, in this order:
+>
+> 1. **Open the app and sync**, with a signal, until nothing is left waiting. Uninstalling
+>    deletes the app's local data, and until a signal returns the outbox is the only copy of
+>    that day's work.
+> 2. Uninstall **D2 RECOVERY SOLUTION**.
+> 3. Install 1.6.0 from the link above and sign in again.
+>
+> This is a one-off. Every release after 1.6.0 installs straight over it, keeping the data on
+> the handset, as 1.5.5 and earlier did among themselves.
+>
+> Certificate: `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4`
+
+## 1.6.0 — the day's enrolments, against a target
+
+The SSS screen no longer just collects figures; it shows what is expected. The Admin sets a
+target per scheme per working day in the panel, and the phone shows the target, what has been
+done, the percentage and what is left — recalculating as the figures are typed, and cached so
+it still reads with no signal. Sundays and holidays are not counted against anyone.
+
+Once the day is submitted it is closed: the boxes are gone and the screen says to ask the
+Admin to re-open it. That is deliberate — the figures feed a register the branch is measured
+on, so they cannot be moved quietly afterwards. An Admin re-opening the day buys exactly one
+more submission.
+
+If the server refuses something, the screen now says why. Before, a refused day sat reading
+"Sent" for ever and the reason only appeared in the outbox list.
+
+The panel side has the whole picture under **Field work ▸ SSS enrolments**: achievement
+against target with Today, Month to date and Full month, a ranked table showing every
+supervisor's percentage and gap, and an **SSS Target vs Achievement** report that prints and
+exports. Targets are set under **Field work ▸ SSS targets**, one daily figure applied to as
+many supervisors as you like.
+
+Also in this build: the BC Supervisor inspection is the Bank's own monthly form throughout.
+Starting one asks for the supervisor and the date and nothing else — no customer visit or
+account to pick — and the assessment is item 24 of the printed form, Excellent to Poor,
+instead of a second verdict in the old form's words.
+
+Older versions remain below. They are signed with the previous key, so they can be installed
+over one another but not over 1.6.0.
 
 ## 1.5.5 — the day's social security scheme enrolments
 
