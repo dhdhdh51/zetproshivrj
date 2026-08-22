@@ -1892,7 +1892,7 @@ final class Reports
         // leads to the report itself with the same filters applied. Whoever is handed the
         // printout can get the live figures rather than wondering how old the paper is.
         $pdf->verification(
-            url('/admin/reports/' . $slug . self::queryString($filters)),
+            url('/r/report/' . $slug . self::queryString($filters)),
             [
                 sprintf('%s   •   %s', self::name($slug), self::filterSummary($filters)),
                 sprintf('Prepared by %s on %s', Auth::name(), format_datetime(date('Y-m-d H:i:s'))),

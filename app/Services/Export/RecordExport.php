@@ -191,7 +191,7 @@ final class RecordExport
             'BCA signature' => $visit['supervisor_signature'],
         ]);
 
-        $pdf->verification(url('/admin/visits/' . $visitId), [
+        $pdf->verification(url('/r/visit/' . $visitId), [
             sprintf('Visit reference: %s', (string) $visit['uuid']),
             sprintf(
                 'Account %s   •   %s   •   %s',
@@ -365,7 +365,7 @@ final class RecordExport
             'Central Bank of India — Financial Inclusion, Bhopal Zonal Office'
         );
 
-        $pdf->verification(url('/admin/inspections/' . $inspectionId), [
+        $pdf->verification(url('/r/inspection/' . $inspectionId), [
             sprintf('Inspection reference: %s', (string) $inspection['uuid']),
             sprintf(
                 'BCA %s (%s)   •   %s   •   %s',
