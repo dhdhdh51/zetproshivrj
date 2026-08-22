@@ -4,10 +4,10 @@ This branch exists only to give the app a download link. Nothing else lives on i
 
 ## Download
 
-**[LRMS-v1.6.1-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.1-SIGNED.apk)**
+**[LRMS-v1.6.2-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.2-SIGNED.apk)**
 — open that link on the phone and Android will offer to install it.
 
-> **Coming from 1.6.0:** it installs straight over it. Nothing to uninstall, nothing lost.
+> **Coming from 1.6.0 or 1.6.1:** it installs straight over it. Nothing to uninstall, nothing lost.
 >
 > **Coming from 1.5.5 or older:** 1.6.0 changed the signing key, so the app has to be
 > replaced once. On each handset: **open the app and sync until nothing is waiting**, then
@@ -16,6 +16,40 @@ This branch exists only to give the app a download link. Nothing else lives on i
 > only copy of that day's work. After this one time, every release installs over the last.
 >
 > Certificate: `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4`
+
+## 1.6.2 — the app calls you a BCA, because that is what you are
+
+The app had the two job titles the wrong way round. It called the person holding the phone a
+"BC Supervisor" and the office account a "Admin/Supervisor". In the branch it is the other way
+round: the person at the outlet is the **BCA** — the Business Correspondent Agent — and the
+**BC Supervisor** is the one in the panel who sets the targets, inspects the outlet and
+approves a late report.
+
+So every screen that named either of them now names them the way the branch does, in English
+and in Hindi. The sign-in screen, the home page, the device-binding note, the late-report
+warning, the SSS lock message, and every error that tells you who to inform.
+
+Nothing else in the app changed. This build is only worth installing so that what the phone
+says matches what the panel says and what people call each other.
+
+The panel side of this release is larger:
+
+- **A phone can be handed to a second BCA.** It could not before, and the failure was
+  permanent: once a handset had been used by one BCA, releasing it was not enough and the
+  next person's sign-in was refused for ever. Now a released handset moves to whoever signs
+  in next. A handset that is still bound refuses, and says whose it is and their BC code, so
+  you know who to ask. One live handset per account still holds.
+- **The monthly inspection form arrives part-filled.** The BCA's name, qualification, age,
+  address, IIBF number and how long they have been at the outlet come from what was typed
+  when the BCA was added, or from last month's sheet if it was corrected there. Everything
+  the inspection is *for* still starts blank — yesterday's transactions, the remuneration,
+  the villagers' feedback, the boards, the registers, the equipment, the photographs, the
+  grade, and whether the appointment letter and identity card were produced.
+- **Every PDF now carries a QR code.** Scan it and the panel opens the record that sheet was
+  printed from. A panel login is needed, so a printout left on a desk is not a way into
+  customer data. The reference is printed next to the code for whoever has no phone.
+- The inspection report's signature line now reads **Visiting official (BC Supervisor)**,
+  since that is who visits the outlet and signs it.
 
 ## 1.6.1 — errors you can act on
 
@@ -135,18 +169,18 @@ built file.
 
 | | |
 | --- | --- |
-| Version | 1.5.4 |
+| Version | 1.6.2 |
 | Server | https://cvbuilder.bharatseo.site/api/v1/ |
-| Signed by | D2 Recovery Solutions and Services, Katihar, Bihar, IN |
-| Certificate SHA-256 | `8B:B4:8D:4E:F3:1A:35:04:C4:0D:72:68:A8:D2:BD:3D:A6:B0:6C:19:AD:50:04:34:03:54:F1:5C:6A:32:43:55` |
-| File SHA-256 | `027c1fc2e903db8aae0e8534035556ed931773cf0a675cced110694984a22d1e` |
+| Signed by | D2 Recovery Solution, Patna, Bihar, IN |
+| Certificate SHA-256 | `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4` |
+| File SHA-256 | `bc9c02d59900d34afa857f7b54d6935a5ab8fd398b8348c365ed2b24fe2fec3e` |
 | Size | 3.3M |
 
-Same certificate as every build since 1.4.1, so this installs straight over the one on
-the phone without uninstalling.
+Same certificate as 1.6.0 and 1.6.1, so this installs straight over either without
+uninstalling. Builds up to 1.5.5 used a different key — see the note at the top.
 
 ```
-sha256sum LRMS-v1.5.4-SIGNED.apk     # must match the File SHA-256 above
+sha256sum LRMS-v1.6.2-SIGNED.apk     # must match the File SHA-256 above
 ```
 
 If the certificate fingerprint ever differs from the one above, it was signed with a
