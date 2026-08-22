@@ -266,6 +266,142 @@ equals(403, $adminLogin['status'], 'BC Supervisor cannot sign in to the field ap
 equals('wrong_role', $adminLogin['json']['code'] ?? '', 'Admin sign-in reports wrong_role');
 
 /* -------------------------------------------------------------------------- */
+section('A handset handed to another BCA');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A phone gets handed on. The BCA leaves, or the handset is a branch one that two people
+ * share between shifts, and the branch expects the BC Supervisor to release it and the next
+ * person to sign in.
+ *
+ * That did not work. `devices.device_uuid` is unique, so the row for a handset carries the
+ * first user who ever signed in on it, and a release only changed its status. The next BCA's
+ * sign-in still found a row belonging to somebody else and was refused as "registered to
+ * another user" — permanently, and with nothing on any screen to say what would fix it. The
+ * phone was scrap.
+ *
+ * Four things have to hold, and the fourth is the one that is easy to lose while fixing the
+ * other three: an account still cannot end up with two live handsets.
+ */
+$handoverDevice = 'handover-' . substr(sha1((string) getmypid()), 0, 10);
+
+$pair = Database::select(
+    'SELECT s.bc_code, u.username, u.id AS user_id
+       FROM bc_supervisors s JOIN users u ON u.id = s.user_id
+      WHERE u.id <> :used ORDER BY s.id LIMIT 2',
+    ['used' => (int) $supervisor['user_id']]
+);
+
+if (count($pair) < 2) {
+    ok(false, 'Two more BCAs are seeded to hand a handset between');
+} else {
+    [$first, $second] = $pair;
+
+    foreach ($pair as $person) {
+        Database::update('users', [
+            'password' => Auth::hashPassword('AppTest@123'),
+            'must_change_password' => 0,
+            'failed_attempts' => 0,
+            'locked_until' => null,
+        ], 'id = :id', ['id' => (int) $person['user_id']]);
+    }
+
+    $signIn = static function (array $person, string $device): array {
+        return api('POST', '/api/v1/auth/login', [
+            'username' => (string) $person['username'],
+            'password' => 'AppTest@123',
+            'device' => ['uuid' => $device, 'model' => 'Shared Handset', 'manufacturer' => 'LRMS'],
+        ], ['auth' => false]);
+    };
+
+    $firstBind = $signIn($first, $handoverDevice);
+    equals(200, $firstBind['status'], 'The first BCA binds the shared handset');
+
+    // 1. While it is theirs, nobody else gets in — and the refusal says whose it is, because
+    //    "already registered to another user" left the branch with nothing to act on.
+    $blocked = $signIn($second, $handoverDevice);
+    equals(403, $blocked['status'], 'The second BCA cannot sign in on it while it is bound');
+    ok(
+        str_contains((string) ($blocked['json']['message'] ?? ''), (string) $first['bc_code'])
+        || str_contains((string) ($blocked['json']['message'] ?? ''), 'release'),
+        'The refusal names the holder and what to do: ' . (string) ($blocked['json']['message'] ?? '')
+    );
+
+    // 2. The BC Supervisor releases it, exactly as the panel button does.
+    $deviceRow = Database::selectOne(
+        'SELECT * FROM devices WHERE device_uuid = :uuid',
+        ['uuid' => $handoverDevice]
+    );
+    equals((int) $first['user_id'], (int) ($deviceRow['user_id'] ?? 0), 'The row belongs to the first BCA');
+
+    Database::update('devices', ['status' => 'unbound', 'updated_at' => now()], 'id = :id', [
+        'id' => (int) $deviceRow['id'],
+    ]);
+
+    // 3. Now the second BCA can have it, and the row moves to them rather than blocking them.
+    $takeover = $signIn($second, $handoverDevice);
+    equals(200, $takeover['status'], 'After the release the second BCA signs in on the same handset');
+
+    $afterTakeover = Database::selectOne(
+        'SELECT * FROM devices WHERE device_uuid = :uuid',
+        ['uuid' => $handoverDevice]
+    );
+    equals(
+        (int) $second['user_id'],
+        (int) ($afterTakeover['user_id'] ?? 0),
+        'The handset row now belongs to the second BCA'
+    );
+    equals('active', (string) ($afterTakeover['status'] ?? ''), 'And it is active again, not left unbound');
+    equals(
+        1,
+        (int) Database::scalar('SELECT COUNT(*) FROM devices WHERE device_uuid = :uuid', ['uuid' => $handoverDevice]),
+        'One row per handset, not a second one for the new owner'
+    );
+
+    // And the first BCA is now the one locked out of it, which is the point of binding.
+    $firstBack = $signIn($first, $handoverDevice);
+    equals(403, $firstBack['status'], 'The first BCA can no longer sign in on the handset they gave up');
+
+    // 4. The rule that survives all of the above: one live handset per account. The second
+    //    BCA now holds the shared one, so their own phone must still be refused.
+    $ownPhone = $signIn($second, $handoverDevice . '-own');
+    equals(403, $ownPhone['status'], 'The new owner still cannot bind a second handset of their own');
+    equals('device_not_allowed', $ownPhone['json']['code'] ?? '', 'Refused as device_not_allowed');
+
+    // The reverse case: an account that already has a live handset cannot pick up a released
+    // one either. Releasing a phone must not become a way around the one-handset rule.
+    Database::update('devices', ['status' => 'unbound', 'updated_at' => now()], 'device_uuid = :uuid', [
+        'uuid' => $handoverDevice,
+    ]);
+    $secondsOwn = $signIn($second, $handoverDevice . '-own');
+    equals(200, $secondsOwn['status'], 'With the shared handset released they bind their own');
+
+    $greedy = $signIn($second, $handoverDevice);
+    equals(403, $greedy['status'], 'And cannot then also re-take the released shared handset');
+    equals(
+        1,
+        (int) Database::scalar(
+            "SELECT COUNT(*) FROM devices WHERE user_id = :uid AND status = 'active'",
+            ['uid' => (int) $second['user_id']]
+        ),
+        'The account is left with exactly one active handset'
+    );
+
+    // A blocked handset stays blocked for its owner too, not just for strangers.
+    Database::update('devices', ['status' => 'blocked', 'updated_at' => now()], 'device_uuid = :uuid', [
+        'uuid' => $handoverDevice . '-own',
+    ]);
+    $blockedOwn = $signIn($second, $handoverDevice . '-own');
+    equals(403, $blockedOwn['status'], 'A blocked handset is refused to its own owner');
+    ok(
+        str_contains(strtolower((string) ($blockedOwn['json']['message'] ?? '')), 'blocked'),
+        'And the message says it is blocked rather than showing a bare code'
+    );
+
+    Database::delete('devices', 'device_uuid LIKE :like', ['like' => $handoverDevice . '%']);
+}
+
+/* -------------------------------------------------------------------------- */
 section('Profile and sync pull');
 /* -------------------------------------------------------------------------- */
 

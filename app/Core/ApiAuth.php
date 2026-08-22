@@ -209,11 +209,54 @@ final class ApiAuth
 
         if ($existing !== null) {
             if ((string) $existing['status'] === 'blocked') {
-                return [null, 'This device has been blocked. Contact your BC Supervisor.'];
+                return [null, 'This handset has been blocked. Contact your BC Supervisor.'];
             }
 
-            if ((int) $existing['user_id'] !== $userId) {
-                return [null, 'This device is already registered to another user.'];
+            $someoneElses = (int) $existing['user_id'] !== $userId;
+
+            // Somebody else's working handset. Only a release frees it, and until then only
+            // they can be signed in on it — otherwise a phone left on a desk is a way into
+            // another BCA's accounts.
+            if ($someoneElses && (string) $existing['status'] === 'active') {
+                return [null, sprintf(
+                    'This handset is already bound to %s. Ask your BC Supervisor to release it first.',
+                    self::describeHolder((int) $existing['user_id'])
+                )];
+            }
+
+            // Signing in means the handset is in use, so the row has to end up active and
+            // owned by whoever is signing in. Leaving a working phone as 'unbound' would show
+            // it as released on the staff screen and let the account bind a second one.
+            $reactivating = (string) $existing['status'] !== 'active';
+
+            if ($someoneElses || $reactivating) {
+                // Both of those turn this row active for $userId, so the one-handset rule has
+                // to be checked here as well as on the insert below. Without it a BCA with a
+                // working phone could pick up any released handset and end up with two.
+                $clash = self::activeDeviceElsewhere($userId, (int) $existing['id']);
+
+                if ($clash !== null) {
+                    return [null, self::alreadyBoundMessage($clash)];
+                }
+            }
+
+            if ($someoneElses) {
+                /*
+                 * Released by a BC Supervisor, so the handset has been handed on. The row
+                 * moves to its new owner rather than standing in their way.
+                 *
+                 * This is the bug the branch kept hitting: `device_uuid` is unique, so a
+                 * phone that had ever been used by one BCA could never serve another.
+                 * Releasing it was not enough, because the row still named the first one and
+                 * the second BCA's sign-in was refused as "registered to another user" — with
+                 * nothing on any screen to say what would fix it.
+                 */
+                $payload['user_id'] = $userId;
+            }
+
+            if ($someoneElses || $reactivating) {
+                $payload['status'] = 'active';
+                $payload['bound_at'] = now();
             }
 
             Database::update('devices', $payload, 'id = :id', ['id' => (int) $existing['id']]);
@@ -221,18 +264,11 @@ final class ApiAuth
             return [array_merge($existing, $payload), ''];
         }
 
-        // One bound device per BCA unless a BC Supervisor resets it.
-        if ((bool) Config::get('security.device_binding', true)) {
-            $bound = Database::selectOne(
-                "SELECT id, device_uuid FROM devices
-                  WHERE user_id = :uid AND status = 'active'
-                  LIMIT 1",
-                ['uid' => $userId]
-            );
+        // One bound handset per BCA unless a BC Supervisor releases it.
+        $clash = self::activeDeviceElsewhere($userId, null);
 
-            if ($bound !== null) {
-                return [null, 'Your account is already bound to a different device. Ask your BC Supervisor to reset the device binding.'];
-            }
+        if ($clash !== null) {
+            return [null, self::alreadyBoundMessage($clash)];
         }
 
         $id = Database::insert('devices', array_merge($payload, [
@@ -244,5 +280,68 @@ final class ApiAuth
         ]));
 
         return [Database::selectOne('SELECT * FROM devices WHERE id = :id', ['id' => $id]), ''];
+    }
+
+    /**
+     * The user's active handset other than `$exceptDeviceId`, if they have one.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function activeDeviceElsewhere(int $userId, ?int $exceptDeviceId): ?array
+    {
+        if (!(bool) Config::get('security.device_binding', true)) {
+            return null;
+        }
+
+        return Database::selectOne(
+            "SELECT id, device_uuid, model, manufacturer FROM devices
+              WHERE user_id = :uid AND status = 'active' AND id <> :except
+              LIMIT 1",
+            ['uid' => $userId, 'except' => $exceptDeviceId ?? 0]
+        );
+    }
+
+    /**
+     * Name the handset the account is stuck on, and what to do about it.
+     *
+     * The model is the only thing a BCA can recognise their own phone by, so it goes in the
+     * message. A device uuid would be accurate and useless.
+     *
+     * @param array<string, mixed> $device
+     */
+    private static function alreadyBoundMessage(array $device): string
+    {
+        $name = trim(
+            (string) ($device['manufacturer'] ?? '') . ' ' . (string) ($device['model'] ?? '')
+        );
+
+        return sprintf(
+            'Your account is already bound to %s. Ask your BC Supervisor to release that handset, then sign in again.',
+            $name !== '' ? $name : 'another handset'
+        );
+    }
+
+    /**
+     * Who a handset belongs to, for the refusal shown to whoever picked it up.
+     */
+    private static function describeHolder(int $userId): string
+    {
+        $holder = Database::selectOne(
+            'SELECT u.name, s.bc_code FROM users u
+          LEFT JOIN bc_supervisors s ON s.user_id = u.id
+              WHERE u.id = :id',
+            ['id' => $userId]
+        );
+
+        if ($holder === null) {
+            return 'another user';
+        }
+
+        $described = trim(
+            (string) ($holder['name'] ?? '') . ' (' . (string) ($holder['bc_code'] ?? '') . ')',
+            ' ()'
+        );
+
+        return $described !== '' ? $described : 'another user';
     }
 }
