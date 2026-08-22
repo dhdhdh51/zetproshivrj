@@ -131,12 +131,12 @@ object ApiClient {
         val context = appContext
 
         val fallback = when (status) {
-            403 -> "The server refused this request. Tell your Admin — this is usually a setting on the server, not something you did. (403)"
-            404 -> "The app could not find that on the server. The server address may be wrong — tell your Admin. (404)"
+            403 -> "The server refused this request. Tell your BC Supervisor — this is usually a setting on the server, not something you did. (403)"
+            404 -> "The app could not find that on the server. The server address may be wrong — tell your BC Supervisor. (404)"
             408 -> "The server took too long to answer. Your work is saved on this phone; try again in a moment."
             429 -> "Too many attempts. Please wait a minute and try again."
-            in 500..599 -> "There is a problem on the server. Your work is saved on this phone — tell your Admin. ($status)"
-            else -> "The server would not accept this request. Your work is saved on this phone. Tell your Admin if it keeps happening. ($status)"
+            in 500..599 -> "There is a problem on the server. Your work is saved on this phone — tell your BC Supervisor. ($status)"
+            else -> "The server would not accept this request. Your work is saved on this phone. Tell your BC Supervisor if it keeps happening. ($status)"
         }
 
         if (context == null) {

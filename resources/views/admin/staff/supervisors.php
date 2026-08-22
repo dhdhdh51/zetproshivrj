@@ -1,6 +1,6 @@
 <div class="page-head">
     <div class="grow">
-        <h1>BC supervisors</h1>
+        <h1>BCAs</h1>
         <div class="subtitle">
             Field officers who perform customer recovery visits in the Android app.
             <?= count($supervisors) ?> account(s).
@@ -8,7 +8,7 @@
     </div>
     <div class="page-actions">
         <a class="btn btn-secondary" href="<?= e(url('/admin/inspections')) ?>"><?= icon('search-check', '', 15) ?> Inspect field work</a>
-        <a class="btn" href="<?= e(url('/admin/supervisors/create')) ?>"><?= icon('plus', '', 15) ?> Add BC supervisor</a>
+        <a class="btn" href="<?= e(url('/admin/supervisors/create')) ?>"><?= icon('plus', '', 15) ?> Add BCA</a>
     </div>
 </div>
 
@@ -43,18 +43,18 @@
 
     <?php if ($supervisors === []): ?>
         <?= view_partial('partials.empty', [
-            'message' => 'No BC supervisors yet',
+            'message' => 'No BCAs yet',
             'hint' => 'Add supervisors with the BC codes used in your Excel sheets so accounts allocate automatically.',
             'iconName' => 'users',
             'actionUrl' => '/admin/supervisors/create',
-            'actionLabel' => 'Add BC supervisor',
+            'actionLabel' => 'Add BCA',
         ]) ?>
     <?php else: ?>
         <div class="table-wrap">
             <table class="data">
                 <thead>
                     <tr>
-                        <th>BC Supervisor</th><th>Branch</th><th class="right">Accounts</th>
+                        <th>BCA</th><th>Branch</th><th class="right">Accounts</th>
                         <th class="center">Today</th><th class="right">Recovery (MTD)</th>
                         <th>Device</th><th class="center">Status</th><th></th>
                     </tr>
@@ -92,7 +92,7 @@
                                     // column the state is in. This used to be an unlabelled icon
                                     // among four others in the actions column, and it only appeared
                                     // while the device was active — so the one screen that says
-                                    // "bound" offered no way to unbind, and an Admin looking for it
+                                    // "bound" offered no way to unbind, and a BC Supervisor looking for it
                                     // could not find it.
                                     ?>
                                     <div class="tiny" style="margin-top:4px">
@@ -113,7 +113,7 @@
                                                 <button class="btn btn-link btn-sm" type="submit">Unblock</button>
                                             </form>
                                         <?php else: ?>
-                                            <?php // Released on purpose by an Admin, so not an error. ?>
+                                            <?php // Released on purpose by a BC Supervisor, so not an error. ?>
                                             <span class="badge badge-warning">Unbound</span>
                                             <span class="muted">— can sign in on any handset</span>
                                             <form method="post" action="<?= e(url('/admin/devices/' . (int) $s['device_id'] . '/block')) ?>"

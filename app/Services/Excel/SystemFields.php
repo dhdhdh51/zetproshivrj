@@ -226,7 +226,7 @@ final class SystemFields
                 'type' => 'string',
                 'aliases' => ['bc code', 'bc id', 'bc', 'bc_code', 'bccode', 'business correspondent',
                     'bc name', 'csp code', 'csp id', 'agent code'],
-                'help' => 'When present the account is allocated to that BC Supervisor directly.',
+                'help' => 'When present the account is allocated to that BCA directly.',
             ],
         ];
     }

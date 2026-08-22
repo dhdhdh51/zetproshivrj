@@ -30,7 +30,7 @@ data class FieldLocation(
  * GPS capture using the platform LocationManager.
  *
  * Play Services is deliberately not used: the app must work on the cheap handsets
- * BC Supervisors actually carry, including devices with no Google services, and
+ * BCAs actually carry, including devices with no Google services, and
  * the extra dependency buys nothing for a one-shot fix.
  */
 class LocationCapture(private val context: Context) {

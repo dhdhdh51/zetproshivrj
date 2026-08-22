@@ -25,7 +25,7 @@ use App\Services\Excel\SystemFields;
 use App\Services\Excel\ValueParser;
 use App\Services\Export\XlsxWriter;
 
-// Run as the seeded Admin/Supervisor.
+// Run as the seeded BC Supervisor.
 $admin = Database::selectOne(
     "SELECT u.*, r.slug AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE r.slug = 'admin' LIMIT 1"
 );
@@ -134,7 +134,7 @@ $branchCodes = Database::select('SELECT code FROM branches ORDER BY id');
 ok(count($branchCodes) >= 3, 'Demo branches are present');
 
 $bcCodes = Database::select('SELECT bc_code FROM bc_supervisors ORDER BY id');
-ok(count($bcCodes) >= 6, 'Demo BC Supervisors are present');
+ok(count($bcCodes) >= 6, 'Demo BCAs are present');
 
 // BC Codes grouped by their branch code, so the generated sheet only pairs a
 // supervisor with accounts of their own branch (as a real export would).
@@ -301,7 +301,7 @@ $byCode = Database::selectOne(
     ['n' => '31000000000001']
 );
 $expectedFirstBc = $bcByBranch[(string) $branchCodes[0]['code']][0] ?? '';
-equals($expectedFirstBc, (string) ($byCode['bc_code'] ?? ''), 'Row with a BC Code went to that BC Supervisor');
+equals($expectedFirstBc, (string) ($byCode['bc_code'] ?? ''), 'Row with a BC Code went to that BCA');
 
 $methods = Database::select(
     'SELECT method, COUNT(*) AS c FROM account_assignments WHERE is_active = 1 GROUP BY method'

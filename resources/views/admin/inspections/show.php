@@ -25,7 +25,7 @@ $negative = inspection_result_is_negative((string) $inspection['result']);
 
 <div class="page-head">
     <div class="grow">
-        <h1>BC Supervisor Inspection Report</h1>
+        <h1>BCA Inspection Report</h1>
         <div class="subtitle">
             Inspection <span class="mono">#<?= $id ?></span> ·
             <?= e(format_date((string) $inspection['inspection_date'])) ?> ·
@@ -62,8 +62,8 @@ $negative = inspection_result_is_negative((string) $inspection['result']);
             <div class="kv">
                 <div><div class="k">Inspection ID</div><div class="v mono">#<?= $id ?></div></div>
                 <div><div class="k">Reference</div><div class="v mono tiny"><?= e($inspection['uuid']) ?></div></div>
-                <div><div class="k">Admin / Supervisor</div><div class="v"><?= e($inspection['inspector_name']) ?></div></div>
-                <div><div class="k">BC Supervisor</div><div class="v"><?= e($inspection['supervisor_name']) ?> (<?= e($inspection['bc_code']) ?>)</div></div>
+                <div><div class="k">BC Supervisor</div><div class="v"><?= e($inspection['inspector_name']) ?></div></div>
+                <div><div class="k">BCA</div><div class="v"><?= e($inspection['supervisor_name']) ?> (<?= e($inspection['bc_code']) ?>)</div></div>
                 <div><div class="k">Branch</div><div class="v"><?= e($inspection['branch_name']) ?> (<?= e($inspection['branch_code']) ?>)</div></div>
                 <div><div class="k">Date</div><div class="v"><?= e(format_date((string) $inspection['inspection_date'])) ?></div></div>
                 <div><div class="k">Started</div><div class="v"><?= e(format_datetime($inspection['started_at'])) ?></div></div>
@@ -104,7 +104,7 @@ $negative = inspection_result_is_negative((string) $inspection['result']);
 <?php if ($inspection['visit_id'] !== null): ?>
     <div class="card">
         <div class="card-head">
-            <h2>BC Supervisor visit that was verified</h2>
+            <h2>BCA visit that was verified</h2>
             <div class="spacer"></div>
             <a class="btn btn-secondary btn-sm" href="<?= e(url('/admin/visits/' . (int) $inspection['visit_id'])) ?>">Open visit report</a>
         </div>
@@ -226,8 +226,8 @@ $negative = inspection_result_is_negative((string) $inspection['result']);
                     <?php endif; ?>
                     <?php if (!empty($inspection['bc_signature'])): ?>
                         <figure>
-                            <img src="<?= e(url('/files/signature/inspection/' . $id . '/bc')) ?>" alt="BC Supervisor signature" style="object-fit:contain;background:#fff">
-                            <figcaption>BC Supervisor — <?= e($inspection['supervisor_name']) ?></figcaption>
+                            <img src="<?= e(url('/files/signature/inspection/' . $id . '/bc')) ?>" alt="BCA signature" style="object-fit:contain;background:#fff">
+                            <figcaption>BCA — <?= e($inspection['supervisor_name']) ?></figcaption>
                         </figure>
                     <?php endif; ?>
                 </div>
@@ -263,7 +263,7 @@ $negative = inspection_result_is_negative((string) $inspection['result']);
 <?php if ($visit_photos !== []): ?>
     <div class="card">
         <div class="card-head">
-            <h2>Photographs submitted by the BC Supervisor</h2>
+            <h2>Photographs submitted by the BCA</h2>
             <div class="spacer"></div>
             <span class="small muted">For comparison with the inspection evidence above</span>
         </div>

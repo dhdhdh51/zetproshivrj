@@ -2,7 +2,7 @@
 <div class="code">403</div>
 <h1>Access denied</h1>
 <p class="muted">
-    <?= e($message !== null && $message !== '' ? $message : 'You do not have permission to view this page. If you believe this is wrong, contact your Admin/Supervisor.') ?>
+    <?= e($message !== null && $message !== '' ? $message : 'You do not have permission to view this page. If you believe this is wrong, contact your BC Supervisor.') ?>
 </p>
 <p style="margin-top:18px">
     <a class="btn" href="<?= e(url('/')) ?>">Back to LRMS</a>

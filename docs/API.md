@@ -1,7 +1,7 @@
 # LRMS REST API (`/api/v1`)
 
 The API exists for one client: the **LRMS Field** Android application used by BC
-Supervisors. Admin/Supervisor and Branch Manager users work in the web portal and
+Supervisors. BC Supervisor and Branch Manager users work in the web portal and
 have no API surface — a token for either role is refused with `403 wrong_role`.
 
 Routes are defined in [`routes/api.php`](../routes/api.php); the controllers are
@@ -150,7 +150,7 @@ step.
 }
 ```
 
-`username` accepts the username, email, employee code, or — for a BC Supervisor —
+`username` accepts the username, email, employee code, or — for a BCA —
 their **BCBF code** (`bc_supervisors.bc_code`), which is the identifier field staff
 actually know. Matching is case-insensitive, so `BC001` and `bc001` both work.
 `device.uuid` is mandatory (it may also be supplied as the `X-Device-Id` header)
@@ -176,9 +176,9 @@ and the app must call `/auth/verify-otp`. Tokens live
 
 **Device binding.** With `security.device_binding` on, one active device per
 supervisor. A second handset is refused with `403 device_not_allowed` and the
-message tells the supervisor to ask an Admin/Supervisor to reset the binding
-(Staff ▸ BC Supervisor ▸ Reset device). A device registered to another user, or
-blocked by an Admin, is refused the same way.
+message tells the supervisor to ask an BC Supervisor to reset the binding
+(Staff ▸ BCA ▸ Reset device). A device registered to another user, or
+blocked by a BC Supervisor, is refused the same way.
 
 ### `POST /auth/verify-otp`
 
@@ -251,7 +251,7 @@ Each entry in `visit_form.fields`:
 
 `condition` is `null` for an unconditional field. The app renders these
 dynamically and evaluates `condition` locally for visibility, so an
-Admin/Supervisor can change the form without an app release. Field types:
+BC Supervisor can change the form without an app release. Field types:
 `section`, `text`, `textarea`, `number`, `decimal`, `date`, `time`, `dropdown`,
 `radio`, `checkbox`, `yes_no`, `photo`, `signature`, `gps`, `remarks`.
 
@@ -489,7 +489,7 @@ minutes.
 Counts are taken from the database, not from the request. Response `status` is:
 
 - `submitted` — before the deadline;
-- `late_pending` — after it; queued for Admin/Supervisor approval, and
+- `late_pending` — after it; queued for BC Supervisor approval, and
   `late_reason` should be supplied;
 - `late_approved` / `submitted` — already submitted (replay, no side effects);
 - `locked` — after the deadline while `allow_late_submission_requests` is off.

@@ -1,11 +1,11 @@
 # LRMS operations runbook
 
-Day-to-day running of LRMS, for the Admin/Supervisor who owns the system.
+Day-to-day running of LRMS, for the BC Supervisor who owns the system.
 Installation is in [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
-Throughout: **Admin/Supervisor** is one role with full control — there is no
-separate super admin. Admin/Supervisors do **not** perform customer recovery
-visits; their field activity is BC Supervisor inspection only.
+Throughout: **BC Supervisor** is one role with full control — there is no
+separate super admin. BC Supervisors do **not** perform customer recovery
+visits; their field activity is BCA inspection only.
 
 ---
 
@@ -16,7 +16,7 @@ visits; their field activity is BC Supervisor inspection only.
 | 1. Change the seeded admin password | prompted at first sign-in | `admin@lrms.local` / `ChangeMe@123` must not survive day one |
 | 2. Create branches | **Branches ▸ Add** | code, name, district, **Regional office and Zone** (both print on the verification report), and the branch centroid (latitude/longitude) used for GPS drift checks |
 | 3. Create Branch Managers | **Staff ▸ Branch Managers** | one branch each; they see nothing outside it |
-| 4. Create BC Supervisors | **Staff ▸ BC Supervisors** | the **BCBF code** must match the code used in the bank's Excel sheets, or auto-allocation cannot match on it. Fill in SP/CBC name, SSA, IIBF number and DRA ID too — they are printed on every verification report this person files |
+| 4. Create BCAs | **Staff ▸ BCAs** | the **BCBF code** must match the code used in the bank's Excel sheets, or auto-allocation cannot match on it. Fill in SP/CBC name, SSA, IIBF number and DRA ID too — they are printed on every verification report this person files |
 | 5. Review the visit form | **Forms ▸ Visit form** | 21 fields are seeded; add or reorder to suit |
 | 6. Review the two work-stream forms | **Forms ▸ Visit form** | the KRM OTS (42 fields) and CKCC OD-2 (46 fields) verification reports are seeded and kept separate — do not copy fields between them |
 | 7. Review the inspection form | **Forms ▸ Inspection form** | 11 fields seeded |
@@ -118,10 +118,10 @@ anyway.
 
 ---
 
-## BC Supervisor inspection (TYPE B)
+## BCA inspection (TYPE B)
 
 Verification that a supervisor actually did the allocated work. This is an
-**Admin/Supervisor** activity done from the web panel while in the field, and is
+**BC Supervisor** activity done from the web panel while in the field, and is
 kept entirely separate from the customer visit report, from KRM OTS and from CKCC
 OD-2 — separate table, separate form, separate report.
 
@@ -134,7 +134,7 @@ OD-2 — separate table, separate form, separate report.
    supervisor's recorded point for that work, which is the evidence that the
    inspection happened where the work was claimed.
 
-Inspections have their own register and PDF, and feed **BC Supervisor
+Inspections have their own register and PDF, and feed **BCA
 Performance**.
 
 ---
@@ -148,7 +148,7 @@ status, category, amount — and exports to **PDF, Excel or CSV**.
 | Report | Answers |
 | --- | --- |
 | Customer Visit | what was visited, by whom, with what evidence |
-| BC Supervisor Inspection | which supervisors were verified, and the outcome |
+| BCA Inspection | which supervisors were verified, and the outcome |
 | KRM OTS | one-time-settlement tracking |
 | CKCC OD-2 Renewal | renewal tracking |
 | Recovery | money collected, by mode/date/branch/supervisor |
@@ -159,7 +159,7 @@ status, category, amount — and exports to **PDF, Excel or CSV**.
 | Photo | photographic evidence captured |
 | Target | target vs achievement, pending, percentage |
 | Branch Performance | branch visits, recovery, coverage |
-| BC Supervisor Performance | supervisor visits, recovery, inspection outcomes |
+| BCA Performance | supervisor visits, recovery, inspection outcomes |
 
 The day-end submissions themselves live under **Deadline**, not here.
 
@@ -172,7 +172,7 @@ Open any record and use **Download PDF**:
 | A recovery visit | **Customer Visit Report** |
 | A KRM OTS case | **Field Visit Verification Report (KRM OTS)** — sections 1-4, 6-13 |
 | A CKCC OD-2 case | **Field Visit Verification Report (CKCC OD-2 Renewal)** — sections 1-3, 5-13 |
-| An inspection | **BC Supervisor Inspection Report** |
+| An inspection | **BCA Inspection Report** |
 
 The verification report is the bank's own format: numbered sections, tick boxes,
 the RBI / Fair Practices Code declaration and the certification block. It is
@@ -204,7 +204,7 @@ re-run) and their history after 60 days.
 
 ## Staff and device administration
 
-**Staff ▸ BC Supervisors ▸ (supervisor)**
+**Staff ▸ BCAs ▸ (supervisor)**
 
 | Action | When |
 | --- | --- |
@@ -216,7 +216,7 @@ re-run) and their history after 60 days.
 
 Every one of these is audited with your name, the time and the reason.
 
-A BC Supervisor who tries the web portal is told the work happens in the app,
+A BCA who tries the web portal is told the work happens in the app,
 rather than being shown a half-working UI.
 
 ---
@@ -338,7 +338,7 @@ deleted — take a backup first, and never touch `information_schema`, `mysql`,
 
 | Situation | Do this |
 | --- | --- |
-| Supervisor has a new phone | **Staff ▸ BC Supervisors ▸ Reset device**, then they sign in again |
+| Supervisor has a new phone | **Staff ▸ BCAs ▸ Reset device**, then they sign in again |
 | Phone lost | **Block device** — tokens are revoked immediately |
 | Supervisor says the app will not submit a visit | Photograph count below `min_visit_photos`, no valid GPS point, or a required form field empty. The app states which |
 | "GPS rejected" in the field | Accuracy worse than `gps_max_accuracy_metres`, indoors, or mock location on |

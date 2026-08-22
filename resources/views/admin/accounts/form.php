@@ -175,14 +175,14 @@ $input = static function (string $key) use ($fields): void {
                             The least-loaded supervisor in that branch
                         </option>
                         <option value="supervisor" <?= old('allocation_mode', 'auto') === 'supervisor' ? 'selected' : '' ?>>
-                            A specific BC Supervisor
+                            A specific BCA
                         </option>
                     </select>
                     <div class="help">The supervisor is notified as soon as the account is allocated.</div>
                 </div>
 
                 <div class="field">
-                    <label for="bc_supervisor_id">BC Supervisor</label>
+                    <label for="bc_supervisor_id">BCA</label>
                     <select id="bc_supervisor_id" name="bc_supervisor_id">
                         <option value="">— choose —</option>
                         <?php foreach ($supervisors as $supervisor): ?>
@@ -193,7 +193,7 @@ $input = static function (string $key) use ($fields): void {
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    <div class="help">Only used when "A specific BC Supervisor" is selected above.</div>
+                    <div class="help">Only used when "A specific BCA" is selected above.</div>
                 </div>
             </div>
         </div>

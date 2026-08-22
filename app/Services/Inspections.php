@@ -10,10 +10,10 @@ use App\Core\HttpException;
 use App\Core\Settings;
 
 /**
- * TYPE B — Admin/Supervisor inspection of a BC Supervisor's field work.
+ * TYPE B — BC Supervisor inspection of a BCA's field work.
  *
- * This is NOT a customer recovery visit. The Admin/Supervisor goes to the field
- * to verify that the BC Supervisor actually did the allocated work: was the
+ * This is NOT a customer recovery visit. The BC Supervisor goes to the field
+ * to verify that the BCA actually did the allocated work: was the
  * customer visited, was the location right, were the photographs taken, was the
  * recorded information true. Inspections live in their own tables and have their
  * own report, and are never mixed into the customer visit records.
@@ -44,7 +44,7 @@ final class Inspections
         );
 
         if ($supervisor === null) {
-            throw new HttpException(404, 'BC Supervisor not found.');
+            throw new HttpException(404, 'BCA not found.');
         }
 
         $assigned = (int) Database::scalar(
@@ -150,7 +150,7 @@ final class Inspections
         );
 
         if ($supervisor === null) {
-            throw new HttpException(422, 'Choose the BC Supervisor being inspected.');
+            throw new HttpException(422, 'Choose the BCA being inspected.');
         }
 
         // Nothing is chosen but the supervisor. This inspection is of the BC point itself —
@@ -225,7 +225,7 @@ final class Inspections
             'entity_type' => 'inspection',
             'entity_id' => $inspectionId,
             'description' => sprintf(
-                'Inspection started for BC Supervisor #%d%s.',
+                'Inspection started for BCA #%d%s.',
                 $bcSupervisorId,
                 $visitId !== null ? ' against visit #' . $visitId : ''
             ),
@@ -411,7 +411,7 @@ final class Inspections
                 $result === null
                     ? 'Your BC point was inspected'
                     : 'BC point inspected: ' . inspection_result_label($result),
-                $remarks !== '' ? $remarks : 'Your BC point was inspected by an Admin/Supervisor.',
+                $remarks !== '' ? $remarks : 'Your BC point was inspected by an BC Supervisor.',
                 [
                     'type' => inspection_result_is_negative($result) ? 'alert' : 'inspection',
                     'related_type' => 'inspection',
@@ -531,7 +531,7 @@ final class Inspections
     }
 
     /**
-     * Coverage for the dashboards: how many BC Supervisors have had their monthly
+     * Coverage for the dashboards: how many BCAs have had their monthly
      * inspection.
      *
      * This used to count customer visits — "how many of the month's visits were verified" —

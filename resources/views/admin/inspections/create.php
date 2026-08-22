@@ -17,7 +17,7 @@
 
 <div class="page-head">
     <div class="grow">
-        <h1>Start BC supervisor inspection</h1>
+        <h1>Start BCA inspection</h1>
         <div class="subtitle">
             The monthly inspection of the BC point and its agent. Your own GPS position is recorded,
             so the visit can be shown to have happened where it says it did.
@@ -29,7 +29,7 @@
 </div>
 
 <div class="steps">
-    <div class="step active"><span class="n">1</span> BC Supervisor</div>
+    <div class="step active"><span class="n">1</span> BCA</div>
     <div class="step"><span class="n">2</span> GPS &amp; photos</div>
     <div class="step"><span class="n">3</span> The form</div>
     <div class="step"><span class="n">4</span> Submit</div>
@@ -37,11 +37,11 @@
 
 <?php if ($supervisor === null): ?>
     <div class="card content-narrow">
-        <div class="card-head"><h2>Which BC Supervisor are you inspecting?</h2></div>
+        <div class="card-head"><h2>Which BCA are you inspecting?</h2></div>
         <form method="get" action="<?= e(url('/admin/inspections/create')) ?>">
             <div class="card-body">
                 <div class="field">
-                    <label for="bc_supervisor_id">BC Supervisor <span class="req">*</span></label>
+                    <label for="bc_supervisor_id">BCA <span class="req">*</span></label>
                     <select id="bc_supervisor_id" name="bc_supervisor_id" required>
                         <option value="">Select…</option>
                         <?php foreach ($supervisors as $option): ?>
@@ -126,7 +126,7 @@
                         <div class="v"><strong><?= e($monthLabel) ?></strong></div>
                         <div class="help">
                             Taken from the date on the left. This inspection is expected once a month
-                            per BC Supervisor.
+                            per BCA.
                         </div>
                     </div>
                 </div>

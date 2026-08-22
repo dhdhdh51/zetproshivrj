@@ -8,7 +8,7 @@ Two halves of one product, and a change usually touches both:
 - **Android app** — Kotlin, Compose, Room, Retrofit/Moshi, single Activity, single ViewModel,
   no DI framework. Lives in `android/`.
 
-The people using it are BC Supervisors on cheap handsets in villages with bad signal, and
+The people using it are BCAs on cheap handsets in villages with bad signal, and
 branch staff on Windows machines. Both of those shape more decisions here than any
 architectural preference.
 
@@ -39,6 +39,26 @@ These came from the client directly and have each been stated more than once.
   including in a group nobody answered. A bank auditor reads a blank as "not asked".
 - **British spelling** in identifiers and copy: `organisation`, `enrolment`.
 - App name is **D2 RECOVERY SOLUTION**.
+- **Who is called what.** The agent at the outlet is the **BCA** (Business Correspondent
+  Agent) and uses the Android app. The panel account that monitors them, inspects their
+  outlet and approves their visits is the **BC Supervisor** — what the code used to call
+  "Admin / Supervisor". The client was explicit: "Bc Supervisor Ko Hata Ke Har Jagh BCA
+  KARDE AND JO HAMARA ADMIN HAI VO HAI ASLI BC SUPERVISOR."
+
+  The rename is **user-visible text only**. These all keep the old names and must not be
+  "tidied up": the `bc_supervisors` table, every `bc_supervisor_id` column, the `admin` and
+  `bc_supervisor` role slugs, the form field keys, and the API routes. Handsets in the field
+  post to those routes with those keys, and every record already filed points at those
+  columns — renaming them breaks the app mid-shift and rewrites history.
+
+  Three things carry the old wording in the **database** rather than the code —
+  `roles.name`, `report_types.name` and `inspection_forms.name`. A fresh install gets the new
+  wording from `seed.php`; an existing one gets it from the rename step in `upgrade.php`.
+  Note the swap: the admin role takes the name the agent role used to have, so anything
+  matching on the old name must also check the slug or it will rename the wrong row.
+
+  One exception stays: item 11 of the inspection form reads "District Coordinator / BC
+  Supervisor, with contact number" because that is what the client's printed paper says.
 
 ## Updating a live site
 
@@ -67,7 +87,9 @@ constant with extra steps.
 
 ## Tests
 
-Four suites, in this order, always against a freshly migrated database:
+Five suites, in this order, always against a freshly migrated database. The order is not a
+style choice: `test-import.php` is what puts the loan accounts in, and `api-smoke.php` reads
+them — run it first and the API suite quietly reports zero allocated accounts.
 
 ```
 bash /projects/sandbox/mysql-up.sh          # sandbox only; MariaDB is not persistent
@@ -77,7 +99,10 @@ php -S 127.0.0.1:8000 -t public &           # http- and api-smoke need a server
 php tests/http-smoke.php http://127.0.0.1:8000
 php tests/api-smoke.php  http://127.0.0.1:8000
 php tests/test-reports.php
+php tests/test-qr.php                       # pure computation, no server or database
 ```
+
+Counts: `160 / 292 / 216 / 406 / 93`.
 
 Lint everything:
 

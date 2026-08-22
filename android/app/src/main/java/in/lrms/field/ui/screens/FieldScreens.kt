@@ -604,7 +604,7 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
                 Column(Modifier.padding(14.dp)) {
                     Text(viewModel.session.userName(), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "BC Supervisor",
+                        "BCA",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

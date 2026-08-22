@@ -37,12 +37,12 @@ final class Reports
         return [
             'customer_visit' => [
                 'name' => 'Customer Visit Report',
-                'description' => 'TYPE A — BC Supervisor customer recovery visits with GPS, photos and outcome.',
+                'description' => 'TYPE A — BCA customer recovery visits with GPS, photos and outcome.',
                 'icon' => 'clipboard',
                 'group' => 'Field work',
             ],
             'bc_inspection' => [
-                'name' => 'BC Supervisor Inspection Report',
+                'name' => 'BCA Inspection Report',
                 'description' => "TYPE B — the monthly inspection of each BC point and its agent, graded at item 24.",
                 'icon' => 'search-check',
                 'group' => 'Field work',
@@ -120,7 +120,7 @@ final class Reports
                 'group' => 'Performance',
             ],
             'bc_performance' => [
-                'name' => 'BC Supervisor Performance',
+                'name' => 'BCA Performance',
                 'description' => 'Per supervisor visits, recovery, attendance and inspection outcomes.',
                 'icon' => 'user-check',
                 'group' => 'Performance',
@@ -478,7 +478,7 @@ final class Reports
                 ['key' => 'borrower_name', 'label' => 'Borrower', 'weight' => 1.4],
                 ['key' => 'village', 'label' => 'Village', 'weight' => 1.0],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.2],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.2],
                 ['key' => 'bc_code', 'label' => 'BC Code', 'weight' => 0.8],
                 ['key' => 'visit_status', 'label' => 'Visit status', 'type' => 'visit_status', 'weight' => 1.1],
                 ['key' => 'outstanding', 'label' => 'Outstanding', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
@@ -493,7 +493,7 @@ final class Reports
         ];
     }
 
-    /** TYPE B — BC Supervisor inspections. */
+    /** TYPE B — BCA inspections. */
     private static function bcInspection(array $filters): array
     {
         [$scope, $params] = self::scope('i', $filters);
@@ -558,7 +558,7 @@ final class Reports
             'columns' => [
                 ['key' => 'inspection_date', 'label' => 'Date', 'type' => 'date', 'weight' => 0.9],
                 ['key' => 'inspector_name', 'label' => 'Inspector', 'weight' => 1.2],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.2],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.2],
                 ['key' => 'bc_code', 'label' => 'BC Code', 'weight' => 0.7],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
                 // The account, the borrower, the visit being checked and the distance to it
@@ -643,7 +643,7 @@ final class Reports
                 ['key' => 'cif', 'label' => 'CIF', 'weight' => 0.9],
                 ['key' => 'borrower_name', 'label' => 'Borrower', 'weight' => 1.4],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.1],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.1],
                 ['key' => 'ots_eligible', 'label' => 'Eligible', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.7],
                 ['key' => 'scheme', 'label' => 'Scheme', 'type' => 'labels', 'labels' => KrmOts::SCHEMES, 'weight' => 0.9],
                 ['key' => 'outstanding', 'label' => 'Outstanding', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
@@ -708,7 +708,7 @@ final class Reports
         }
 
         // Section 5 and 13 of the verification report. The due bucket is the one
-        // an Admin/Supervisor actually works from: it answers "what falls due
+        // an BC Supervisor actually works from: it answers "what falls due
         // next week".
         $bucket = self::enumFilter($filters, 'renewal_due_bucket', array_keys(CkccRenewals::DUE_BUCKETS));
 
@@ -892,7 +892,7 @@ final class Reports
                 ['key' => 'account_number', 'label' => 'Account', 'weight' => 1.2],
                 ['key' => 'borrower_name', 'label' => 'Borrower', 'weight' => 1.4],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.2],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.2],
                 ['key' => 'amount', 'label' => 'Amount', 'type' => 'money', 'align' => 'right', 'weight' => 1.1],
                 ['key' => 'payment_mode', 'label' => 'Mode', 'weight' => 0.9],
                 ['key' => 'receipt_number', 'label' => 'Receipt', 'weight' => 1.0],
@@ -950,7 +950,7 @@ final class Reports
                 ['key' => 'account_number', 'label' => 'Account', 'weight' => 1.2],
                 ['key' => 'borrower_name', 'label' => 'Borrower', 'weight' => 1.4],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.2],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.2],
                 ['key' => 'promise_amount', 'label' => 'Promised', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
                 ['key' => 'kept_amount', 'label' => 'Paid', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
                 ['key' => 'status', 'label' => 'Status', 'type' => 'enum', 'align' => 'center', 'weight' => 1.0],
@@ -1014,7 +1014,7 @@ final class Reports
                 ['key' => 'account_number', 'label' => 'Account', 'weight' => 1.2],
                 ['key' => 'borrower_name', 'label' => 'Borrower', 'weight' => 1.4],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.2],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.2],
                 ['key' => 'overdue', 'label' => 'Overdue', 'type' => 'money', 'align' => 'right', 'weight' => 1.0],
                 ['key' => 'status', 'label' => 'Status', 'type' => 'enum', 'align' => 'center', 'weight' => 0.9],
                 ['key' => 'notes', 'label' => 'Notes', 'weight' => 1.8],
@@ -1069,7 +1069,7 @@ final class Reports
             'params' => $params,
             'columns' => [
                 ['key' => 'attendance_date', 'label' => 'Date', 'type' => 'date', 'weight' => 0.9],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.3],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.3],
                 ['key' => 'bc_code', 'label' => 'BC Code', 'weight' => 0.8],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
                 ['key' => 'check_in_at', 'label' => 'Check in', 'type' => 'time', 'align' => 'center', 'weight' => 0.8],
@@ -1130,7 +1130,7 @@ final class Reports
             'params' => $params,
             'columns' => [
                 ['key' => 'enrolment_date', 'label' => 'Date', 'type' => 'date', 'weight' => 0.9],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.3],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.3],
                 ['key' => 'bc_code', 'label' => 'BC Code', 'weight' => 0.8],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
                 ['key' => 'apy_count', 'label' => 'APY', 'type' => 'count', 'align' => 'right', 'weight' => 0.6],
@@ -1291,7 +1291,7 @@ final class Reports
             'sql' => $sql,
             'params' => $params,
             'columns' => [
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.3],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.3],
                 ['key' => 'bc_code', 'label' => 'BC Code', 'weight' => 0.8],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.0],
                 ['key' => 'days_reported', 'label' => 'Days', 'type' => 'count', 'align' => 'center', 'weight' => 0.6],
@@ -1353,7 +1353,7 @@ final class Reports
                 ['key' => 'visit_date', 'label' => 'Visit date', 'type' => 'date', 'weight' => 0.9],
                 ['key' => 'account_number', 'label' => 'Account', 'weight' => 1.2],
                 ['key' => 'borrower_name', 'label' => 'Borrower', 'weight' => 1.3],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.2],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.2],
                 ['key' => 'event', 'label' => 'Event', 'type' => 'enum', 'align' => 'center', 'weight' => 0.7],
                 ['key' => 'latitude', 'label' => 'Latitude', 'align' => 'right', 'weight' => 1.0],
                 ['key' => 'longitude', 'label' => 'Longitude', 'align' => 'right', 'weight' => 1.0],
@@ -1413,7 +1413,7 @@ final class Reports
                 ['key' => 'visit_date', 'label' => 'Visit date', 'type' => 'date', 'weight' => 0.9],
                 ['key' => 'account_number', 'label' => 'Account', 'weight' => 1.2],
                 ['key' => 'borrower_name', 'label' => 'Borrower', 'weight' => 1.3],
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.2],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.2],
                 ['key' => 'photo_type', 'label' => 'Type', 'type' => 'enum', 'weight' => 0.9],
                 ['key' => 'captured_at', 'label' => 'Captured', 'type' => 'datetime', 'weight' => 1.2],
                 ['key' => 'watermarked', 'label' => 'Watermark', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.8],
@@ -1538,7 +1538,7 @@ final class Reports
             'columns' => [
                 ['key' => 'branch_code', 'label' => 'Code', 'weight' => 0.7],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.4],
-                ['key' => 'supervisors', 'label' => 'BC Supervisors', 'type' => 'count', 'align' => 'center', 'weight' => 1.0],
+                ['key' => 'supervisors', 'label' => 'BCAs', 'type' => 'count', 'align' => 'center', 'weight' => 1.0],
                 ['key' => 'accounts', 'label' => 'Accounts', 'type' => 'count', 'align' => 'center', 'weight' => 0.9],
                 ['key' => 'allocated', 'label' => 'Allocated', 'type' => 'count', 'align' => 'center', 'weight' => 0.9],
                 ['key' => 'outstanding', 'label' => 'Outstanding', 'type' => 'money', 'align' => 'right', 'weight' => 1.2],
@@ -1607,7 +1607,7 @@ final class Reports
             'sql' => $sql,
             'params' => $params,
             'columns' => [
-                ['key' => 'supervisor_name', 'label' => 'BC Supervisor', 'weight' => 1.4],
+                ['key' => 'supervisor_name', 'label' => 'BCA', 'weight' => 1.4],
                 ['key' => 'bc_code', 'label' => 'BC Code', 'weight' => 0.8],
                 ['key' => 'branch_name', 'label' => 'Branch', 'weight' => 1.1],
                 ['key' => 'allocated', 'label' => 'Allocated', 'type' => 'count', 'align' => 'center', 'weight' => 0.9],
@@ -1914,7 +1914,7 @@ final class Reports
         }
 
         if (!empty($filters['bc_supervisor_id'])) {
-            $parts[] = 'BC Supervisor: ' . (string) Database::scalar(
+            $parts[] = 'BCA: ' . (string) Database::scalar(
                 'SELECT CONCAT(u.name, " (", s.bc_code, ")")
                    FROM bc_supervisors s JOIN users u ON u.id = s.user_id WHERE s.id = :id',
                 ['id' => (int) $filters['bc_supervisor_id']]

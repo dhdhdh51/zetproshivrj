@@ -12,7 +12,7 @@ use App\Services\Notify;
 use App\Services\Sss;
 
 /**
- * What each BC Supervisor is expected to enrol per scheme, per working day.
+ * What each BCA is expected to enrol per scheme, per working day.
  *
  * The Admin sets these and nobody else can: the handset reads its target from the server
  * and has no way to send one back. That is the whole point of the screen — a supervisor
@@ -114,7 +114,7 @@ final class SssTargetController extends BaseController
         }
 
         if ($supervisorIds === []) {
-            $this->error('Choose at least one BC Supervisor.');
+            $this->error('Choose at least one BCA.');
             $this->back('/admin/sss-targets');
 
             return;

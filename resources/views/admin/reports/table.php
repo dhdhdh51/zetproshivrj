@@ -69,7 +69,7 @@ $exportQuery = query_string(['page' => null], ['page']);
 
             <?php if ($has('bc_supervisor_id')): ?>
                 <div class="field">
-                    <label for="bc_supervisor_id">BC Supervisor</label>
+                    <label for="bc_supervisor_id">BCA</label>
                     <select id="bc_supervisor_id" name="bc_supervisor_id">
                         <option value="">All</option>
                         <?php foreach ($supervisors as $supervisor): ?>

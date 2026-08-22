@@ -209,7 +209,7 @@ final class ApiAuth
 
         if ($existing !== null) {
             if ((string) $existing['status'] === 'blocked') {
-                return [null, 'This device has been blocked. Contact your Admin/Supervisor.'];
+                return [null, 'This device has been blocked. Contact your BC Supervisor.'];
             }
 
             if ((int) $existing['user_id'] !== $userId) {
@@ -221,7 +221,7 @@ final class ApiAuth
             return [array_merge($existing, $payload), ''];
         }
 
-        // One bound device per BC Supervisor unless an Admin resets it.
+        // One bound device per BCA unless a BC Supervisor resets it.
         if ((bool) Config::get('security.device_binding', true)) {
             $bound = Database::selectOne(
                 "SELECT id, device_uuid FROM devices
@@ -231,7 +231,7 @@ final class ApiAuth
             );
 
             if ($bound !== null) {
-                return [null, 'Your account is already bound to a different device. Ask your Admin/Supervisor to reset the device binding.'];
+                return [null, 'Your account is already bound to a different device. Ask your BC Supervisor to reset the device binding.'];
             }
         }
 

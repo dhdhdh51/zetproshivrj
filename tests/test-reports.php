@@ -49,7 +49,7 @@ Auth::setUser($admin);
 $supervisor = Database::selectOne('SELECT * FROM bc_supervisors ORDER BY id LIMIT 1');
 
 if ($supervisor === null) {
-    exit("No BC Supervisor found. Run: php database/migrate.php --fresh --demo\n");
+    exit("No BCA found. Run: php database/migrate.php --fresh --demo\n");
 }
 
 $supervisorId = (int) $supervisor['id'];
@@ -626,7 +626,7 @@ ok(
 );
 ok(str_contains($krmText, 'Declaration accepted by the BC Agent'), 'Declaration acceptance shown');
 
-// Section 12: the BC Agent is the BC Supervisor, and an unapproved report must
+// Section 12: the BC Agent is the BCA, and an unapproved report must
 // not look countersigned.
 ok(str_contains($krmText, 'BC Agent / DRA'), 'Certification names the BC Agent');
 
@@ -814,7 +814,7 @@ $sssSupervisor = Database::selectOne(
 );
 
 if ($sssSupervisor === null) {
-    ok(false, 'Need a BC Supervisor with a branch for the SSS report test');
+    ok(false, 'Need a BCA with a branch for the SSS report test');
 } else {
     $sssDate = date('Y-m-d', strtotime('-4 days'));
 
@@ -989,7 +989,7 @@ section('The admin screens can save the same fields from the web');
 /* -------------------------------------------------------------------------- */
 
 // The account page posts enum keys and yes/no strings, which is what the
-// Admin/Supervisor form sends. This is the path used when a case is corrected
+// BC Supervisor form sends. This is the path used when a case is corrected
 // from the office rather than captured in the field.
 $webAccountId = lrms_test_account('9900000006', $branchId, $supervisorId, 'krm_ots');
 
@@ -1072,7 +1072,7 @@ equals(null, $cleared['kyc_status'], 'An empty select clears the KYC status');
 equals(null, $cleared['aadhaar_seeded'], 'An empty select clears a yes/no answer');
 
 /* -------------------------------------------------------------------------- */
-section('BC Supervisor profile feeds the report header');
+section('BCA profile feeds the report header');
 /* -------------------------------------------------------------------------- */
 
 // The BC creation screen collects the identity the report prints in sections 1
@@ -1148,10 +1148,10 @@ equals(5, count(CkccRenewals::RECOMMENDATIONS), 'Five CKCC recommendations (sect
 equals(8, count(CkccRenewals::FINAL_STATUSES), 'Eight CKCC final statuses (section 13)');
 
 /* -------------------------------------------------------------------------- */
-section("The BC Supervisor inspection uses the client's issued format");
+section("The BCA inspection uses the client's issued format");
 /* -------------------------------------------------------------------------- */
 
-// The Admin's inspection of a BC Supervisor is no longer eleven questions about whether
+// The Admin's inspection of a BCA is no longer eleven questions about whether
 // one customer visit was done properly. It is the Bank's own form: 27 numbered items
 // about the outlet itself.
 $inspectionForm = Forms::defaultForm(Forms::KIND_INSPECTION);
@@ -1408,7 +1408,7 @@ section('An inspection recorded on the old format still prints its own questions
 // before the change must print what was actually asked — not the new questions with every
 // answer blank, and not the old answers under new labels.
 $retiredFormId = Database::insert('inspection_forms', [
-    'name' => 'BC Supervisor Field Work Inspection',
+    'name' => 'BCA Field Work Inspection',
     'description' => 'The format used before the client issued the current one.',
     'version' => 1,
     'is_active' => 1,
@@ -1418,7 +1418,7 @@ $retiredFormId = Database::insert('inspection_forms', [
 ]);
 
 $retiredFields = [
-    ['bc_visited_customer', 'Did the BC Supervisor visit the customer?', 'yes_no'],
+    ['bc_visited_customer', 'Did the BCA visit the customer?', 'yes_no'],
     ['customer_confirmation', 'What did the customer confirm?', 'text'],
     ['inspector_remarks', 'Inspector remarks', 'remarks'],
 ];
@@ -1471,7 +1471,7 @@ $historicPdf = RecordExport::inspectionPdf($historicId);
 $historicText = pdf_text_flat($historicPdf['path']);
 
 ok(
-    str_contains($historicText, 'Did the BC Supervisor visit the customer?'),
+    str_contains($historicText, 'Did the BCA visit the customer?'),
     'The old record prints the question it was actually asked'
 );
 ok(

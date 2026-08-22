@@ -108,7 +108,7 @@ class FieldRepository(
     /**
      * Checks the server from the handset that is actually failing.
      *
-     * A BC Supervisor standing in a village cannot read a log, and nobody can fix
+     * A BCA standing in a village cannot read a log, and nobody can fix
      * "no connection" without knowing which step broke. This calls the unauthenticated
      * ping endpoint and reports plainly whether the phone reached the server, so the
      * answer comes back over the phone in one sentence.

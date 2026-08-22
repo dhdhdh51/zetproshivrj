@@ -83,7 +83,7 @@ $visitId = (int) $visit['id'];
         <div class="card-head"><h2>Visit details</h2></div>
         <div class="card-body">
             <div class="kv">
-                <div><div class="k">BC Supervisor</div><div class="v"><?= e($visit['supervisor_name']) ?> (<?= e($visit['bc_code']) ?>)</div></div>
+                <div><div class="k">BCA</div><div class="v"><?= e($visit['supervisor_name']) ?> (<?= e($visit['bc_code']) ?>)</div></div>
                 <div><div class="k">Branch</div><div class="v"><?= e($visit['branch_name']) ?> (<?= e($visit['branch_code']) ?>)</div></div>
                 <div><div class="k">Started</div><div class="v"><?= e(format_datetime($visit['started_at'])) ?></div></div>
                 <div><div class="k">Submitted</div><div class="v"><?= e(format_datetime($visit['submitted_at'])) ?></div></div>
@@ -262,8 +262,8 @@ $visitId = (int) $visit['id'];
                 <?php endif; ?>
                 <?php if (!empty($visit['supervisor_signature'])): ?>
                     <figure>
-                        <img src="<?= e(url('/files/signature/visit/' . $visitId . '/supervisor')) ?>" alt="BC Supervisor signature" style="object-fit:contain;background:#fff">
-                        <figcaption>BC Supervisor signature</figcaption>
+                        <img src="<?= e(url('/files/signature/visit/' . $visitId . '/supervisor')) ?>" alt="BCA signature" style="object-fit:contain;background:#fff">
+                        <figcaption>BCA signature</figcaption>
                     </figure>
                 <?php endif; ?>
             </div>

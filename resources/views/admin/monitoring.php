@@ -12,7 +12,7 @@ $basePath = $isAdmin ? '/admin' : '/manager';
     <div class="grow">
         <h1>Live monitoring</h1>
         <div class="subtitle">
-            Last reported position and today's activity per BC Supervisor.
+            Last reported position and today's activity per BCA.
             A supervisor is shown as online when their device has contacted the server
             within <?= (int) $offlineMinutes ?> minutes.
         </div>
@@ -52,7 +52,7 @@ $basePath = $isAdmin ? '/admin' : '/manager';
 
 <div class="card">
     <div class="card-head">
-        <h2>BC Supervisors</h2>
+        <h2>BCAs</h2>
         <div class="spacer"></div>
         <?php if ($isAdmin): ?>
             <form method="get" action="<?= e(url('/admin/monitoring')) ?>" class="filters">
@@ -69,13 +69,13 @@ $basePath = $isAdmin ? '/admin' : '/manager';
     </div>
 
     <?php if ($rows === []): ?>
-        <?= view_partial('partials.empty', ['message' => 'No BC supervisors to monitor', 'iconName' => 'users']) ?>
+        <?= view_partial('partials.empty', ['message' => 'No BCAs to monitor', 'iconName' => 'users']) ?>
     <?php else: ?>
         <div class="table-wrap">
             <table class="data">
                 <thead>
                     <tr>
-                        <th class="center">State</th><th>BC Supervisor</th><th>Branch</th>
+                        <th class="center">State</th><th>BCA</th><th>Branch</th>
                         <th>Attendance</th><th class="center">Visits</th><th class="right">Recovery</th>
                         <th>Last visit</th><th>Last known location</th><th class="center">Report</th><th></th>
                     </tr>

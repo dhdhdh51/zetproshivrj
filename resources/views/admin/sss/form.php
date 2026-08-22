@@ -45,7 +45,7 @@ $value = static function (string $key, mixed $default = '') use ($entry) {
             <?php if ($editing): ?>
                 <div class="kv">
                     <div>
-                        <div class="k">BC Supervisor</div>
+                        <div class="k">BCA</div>
                         <div class="v">
                             <?= e($entry['supervisor_name']) ?>
                             <span class="tiny muted mono">(<?= e($entry['bc_code']) ?>)</span>
@@ -67,7 +67,7 @@ $value = static function (string $key, mixed $default = '') use ($entry) {
             <?php else: ?>
                 <div class="form-grid">
                     <div class="field <?= has_error('bc_supervisor_id') ? 'has-error' : '' ?>">
-                        <label for="bc_supervisor_id">BC Supervisor <span class="req">*</span></label>
+                        <label for="bc_supervisor_id">BCA <span class="req">*</span></label>
                         <select id="bc_supervisor_id" name="bc_supervisor_id" required>
                             <option value="">Choose a supervisor</option>
                             <?php foreach ($supervisors as $supervisor): ?>

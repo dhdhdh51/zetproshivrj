@@ -20,7 +20,7 @@
                 <div class="field">
                     <label for="scope">Applies to</label>
                     <select id="scope" name="scope">
-                        <option value="bc_supervisor">BC Supervisor(s)</option>
+                        <option value="bc_supervisor">BCA(s)</option>
                         <option value="branch">A whole branch</option>
                     </select>
                 </div>
@@ -54,7 +54,7 @@
                     </select>
                 </div>
                 <div class="field span-2">
-                    <label for="bc_supervisor_ids">BC Supervisors</label>
+                    <label for="bc_supervisor_ids">BCAs</label>
                     <select id="bc_supervisor_ids" name="bc_supervisor_ids[]" multiple size="6">
                         <?php foreach ($supervisors as $supervisor): ?>
                             <option value="<?= (int) $supervisor['id'] ?>">

@@ -8,7 +8,7 @@ use App\Core\Database;
 use App\Core\Settings;
 
 /**
- * Dashboard aggregates for the Admin/Supervisor panel and the Branch Manager
+ * Dashboard aggregates for the BC Supervisor panel and the Branch Manager
  * portal. Both use the same queries with an optional branch constraint, so the
  * numbers a manager sees always reconcile with the organisation-wide totals.
  */

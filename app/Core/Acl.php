@@ -10,7 +10,7 @@ namespace App\Core;
  * Two rules are enforced everywhere:
  *   1. Role permissions — what a role is allowed to do at all.
  *   2. Branch isolation — a Branch Manager may only ever touch rows belonging
- *      to their own branch, and a BC Supervisor only rows assigned to them.
+ *      to their own branch, and a BCA only rows assigned to them.
  *
  * Controllers call these helpers instead of hand-rolling checks so that a
  * missed condition cannot silently expose customer data.
@@ -121,7 +121,7 @@ final class Acl
     }
 
     /**
-     * True when the signed-in BC Supervisor owns the given supervisor row.
+     * True when the signed-in BCA owns the given supervisor row.
      */
     public static function ownsSupervisor(int $bcSupervisorId): bool
     {
@@ -141,9 +141,9 @@ final class Acl
     public static function roleLabels(): array
     {
         return [
-            Auth::ROLE_ADMIN => 'Admin / Supervisor',
+            Auth::ROLE_ADMIN => 'BC Supervisor',
             Auth::ROLE_MANAGER => 'Branch Manager',
-            Auth::ROLE_BC => 'BC Supervisor',
+            Auth::ROLE_BC => 'BCA',
         ];
     }
 }

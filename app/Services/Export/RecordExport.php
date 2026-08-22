@@ -63,7 +63,7 @@ final class RecordExport
             [
                 sprintf('Visit reference: %s', $visit['uuid']),
                 sprintf(
-                    'Branch: %s (%s)   •   BC Supervisor: %s (%s)',
+                    'Branch: %s (%s)   •   BCA: %s (%s)',
                     $visit['branch_name'],
                     $visit['branch_code'],
                     $visit['supervisor_name'],
@@ -112,7 +112,7 @@ final class RecordExport
         }
 
         if (!empty($visit['recommendation'])) {
-            $pdf->heading('BC Supervisor recommendation', 10);
+            $pdf->heading('BCA recommendation', 10);
             $pdf->paragraph((string) $visit['recommendation']);
         }
 
@@ -188,7 +188,7 @@ final class RecordExport
 
         self::signatures($pdf, [
             'Borrower signature' => $visit['borrower_signature'],
-            'BC Supervisor signature' => $visit['supervisor_signature'],
+            'BCA signature' => $visit['supervisor_signature'],
         ]);
 
         $fileName = sprintf('visit-report-%s-%s.pdf', $visit['account_number'], (string) $visit['visit_date']);
@@ -205,18 +205,18 @@ final class RecordExport
     }
 
     /**
-     * BC Supervisor Inspection Report — deliberately a separate document from the
+     * BCA Inspection Report — deliberately a separate document from the
      * customer visit report.
      *
      * @return array{path:string, file_name:string}
      */
     /**
-     * The BC Supervisor inspection, printed in the format the client issued.
+     * The BCA inspection, printed in the format the client issued.
      *
      * Driven by the form definition rather than a hardcoded list of the 27 items. Three
      * things fall out of that and all of them matter: an inspection recorded before the
      * format changed prints the questions it was actually answered against, a question
-     * the Admin adds in the form builder appears here without anyone editing this file,
+     * the BC Supervisor adds in the form builder appears here without anyone editing this file,
      * and an item left blank still prints — the page is a form somebody signs, so a gap
      * has to be visible as a gap rather than silently absent.
      *
@@ -239,11 +239,11 @@ final class RecordExport
         $pdf = new PdfWriter('portrait');
         $pdf->documentHeader(
             org_name(),
-            'BC Supervisor Inspection',
+            'BCA Inspection',
             [
                 sprintf('Reference: %s', $inspection['uuid']),
                 sprintf(
-                    'BC Supervisor: %s (%s)   •   Branch: %s',
+                    'BCA: %s (%s)   •   Branch: %s',
                     $inspection['supervisor_name'],
                     $inspection['bc_code'],
                     $inspection['branch_name']
@@ -269,7 +269,7 @@ final class RecordExport
 
         self::inspectionItems($pdf, $fields, $answers);
 
-        /* Item 23's photographs, and anything the BC Supervisor's own visit carried. */
+        /* Item 23's photographs, and anything the BCA's own visit carried. */
         if ($detail['photos'] !== []) {
             $pdf->heading('Photographs at the BC point');
             $pdf->imageGrid(array_map(static fn (array $photo): array => [
@@ -283,7 +283,7 @@ final class RecordExport
         }
 
         if ($detail['visit_photos'] !== []) {
-            $pdf->heading('Photographs submitted by the BC Supervisor');
+            $pdf->heading('Photographs submitted by the BCA');
             $pdf->imageGrid(array_map(static fn (array $photo): array => [
                 'path' => storage_path((string) $photo['file_path']),
                 'caption' => sprintf(
@@ -351,7 +351,7 @@ final class RecordExport
             'entity_type' => 'inspection',
             'entity_id' => $inspectionId,
             'description' => sprintf(
-                'BC Supervisor Inspection PDF generated for %s (%s).',
+                'BCA Inspection PDF generated for %s (%s).',
                 $inspection['supervisor_name'],
                 $inspection['bc_code']
             ),

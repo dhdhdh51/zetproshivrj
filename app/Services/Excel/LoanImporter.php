@@ -15,7 +15,7 @@ use RuntimeException;
 /**
  * The loan-account Excel pipeline: upload → detect → map → preview → import.
  *
- * Nothing is written to `loan_accounts` until the Admin/Supervisor has confirmed
+ * Nothing is written to `loan_accounts` until the BC Supervisor has confirmed
  * the column mapping on the preview screen. The preview and the import share the
  * same row-translation code (`translateRow`), so what the reviewer sees is
  * exactly what gets stored.
@@ -175,7 +175,7 @@ final class LoanImporter
     }
 
     /**
-     * Persist the mapping the Admin confirmed on screen.
+     * Persist the mapping the BC Supervisor confirmed on screen.
      *
      * @param array<string, string> $mapping system field => header caption
      */
@@ -304,7 +304,7 @@ final class LoanImporter
             ];
         }
 
-        // Total row count is needed so the Admin knows how much is beyond the preview.
+        // Total row count is needed so the BC Supervisor knows how much is beyond the preview.
         $totalRows = $reader->countRows($import['sheet_name'], (int) $import['header_row']);
 
         Database::update('excel_imports', [
@@ -328,7 +328,7 @@ final class LoanImporter
 
         if ($summary['invalid_bc'] > 0) {
             $issues[] = sprintf(
-                '%d row(s) carry a BC Code that is not an active BC Supervisor; those accounts will be allocated by workload instead.',
+                '%d row(s) carry a BC Code that is not an active BCA; those accounts will be allocated by workload instead.',
                 $summary['invalid_bc']
             );
         }
@@ -701,7 +701,7 @@ final class LoanImporter
                     'type' => 'invalid_bc',
                     'column' => 'bc_code',
                     'message' => sprintf(
-                        'BC Code "%s" is not an active BC Supervisor; the account will be allocated by workload.',
+                        'BC Code "%s" is not an active BCA; the account will be allocated by workload.',
                         $bcCode
                     ),
                 ];

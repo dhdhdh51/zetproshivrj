@@ -210,7 +210,7 @@ data class SssEntity(
     val remarks: String?,
     val syncState: String,
     /**
-     * What the server says about the day: submitted, or handed back by an Admin.
+     * What the server says about the day: submitted, or handed back by a BC Supervisor.
      *
      * Defaults to submitted because that is what a day this device has just typed will
      * become the moment it arrives — and because a row written by an older build was

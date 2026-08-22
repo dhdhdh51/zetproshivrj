@@ -123,7 +123,7 @@ $windows = [
                 </select>
             </div>
             <div class="field">
-                <label for="bc_supervisor_id">BC Supervisor</label>
+                <label for="bc_supervisor_id">BCA</label>
                 <select id="bc_supervisor_id" name="bc_supervisor_id" data-auto-submit>
                     <option value="">All supervisors</option>
                     <?php foreach ($supervisors as $supervisor): ?>
@@ -164,7 +164,7 @@ $windows = [
                 <thead>
                     <tr>
                         <th class="center">#</th>
-                        <th>BC Supervisor</th>
+                        <th>BCA</th>
                         <th>Branch</th>
                         <th class="center">Days</th>
                         <?php foreach ($schemes as $column => $abbreviation): ?>
@@ -243,7 +243,7 @@ $windows = [
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th>BC Supervisor</th>
+                        <th>BCA</th>
                         <th>Branch</th>
                         <?php foreach ($schemes as $column => $abbreviation): ?>
                             <th class="right" title="<?= e($schemeNames[$column] ?? '') ?>"><?= e($abbreviation) ?></th>

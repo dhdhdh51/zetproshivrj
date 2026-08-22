@@ -20,12 +20,12 @@
 
     <!-- Sign in -->
     <string name="login_title" translatable="false">D2 Recovery Solutions &amp; Services</string>
-    <string name="login_subtitle">BC Supervisor sign-in</string>
+    <string name="login_subtitle">BCA sign-in</string>
     <string name="login_identifier">BCBF code or username</string>
     <string name="login_password">Password</string>
     <string name="login_button">Sign in</string>
     <string name="login_enter_both">Enter your BCBF code and password.</string>
-    <string name="login_device_note">Your account is bound to this device. Ask your Admin/Supervisor to reset the binding if you change handset.</string>
+    <string name="login_device_note">Your account is bound to this device. Ask your BC Supervisor to reset the binding if you change handset.</string>
     <string name="login_test_connection">Test connection</string>
     <string name="login_testing">Checking the server…</string>
     <string name="login_developer_build">This is a developer build. It is set to %1$s, which only exists on an emulator, so sign-in cannot work on a phone. Install the release APK instead.</string>
@@ -48,7 +48,7 @@
     <string name="password_change">Change password</string>
 
     <!-- Home -->
-    <string name="home_role">BC Supervisor</string>
+    <string name="home_role">BCA</string>
     <string name="home_quick_actions">Quick actions</string>
     <string name="home_start_visit">Start a customer visit</string>
     <string name="home_attendance">Attendance</string>
@@ -67,7 +67,7 @@
     <string name="home_deadline_unknown">Sync once to load today\'s report deadline.</string>
     <string name="home_deadline_countdown">Report deadline %1$s — %2$s.</string>
     <string name="home_deadline_passed">The report deadline (%1$s) has passed.</string>
-    <string name="home_late_needs_approval">A late submission needs Admin/Supervisor approval.</string>
+    <string name="home_late_needs_approval">A late submission needs BC Supervisor approval.</string>
 
     <!-- Accounts -->
     <string name="accounts_title">Allocated accounts</string>
@@ -175,7 +175,7 @@
     <string name="possibility_nil">Nil</string>
     <string name="visit_recommendation">Your recommendation</string>
     <string name="visit_form_title">Visit form</string>
-    <string name="visit_form_note">Configured by your Admin/Supervisor.</string>
+    <string name="visit_form_note">Configured by your BC Supervisor.</string>
     <string name="visit_submit">Submit visit</string>
     <string name="visit_discard">Discard this visit</string>
     <string name="visit_queue_note">Submitting saves the visit on this device and queues it. It reaches LRMS at the next sync, even if you are offline now.</string>
@@ -218,11 +218,11 @@
     </plurals>
 
     <!-- Attendance, daily report, sync queue and sign-out copy -->
-    <string name="attendance_check_in_note">Check in records your location and a selfie, both of which your Admin/Supervisor can see.</string>
+    <string name="attendance_check_in_note">Check in records your location and a selfie, both of which your BC Supervisor can see.</string>
     <string name="attendance_check_out_note">Check out records your location and computes your working hours.</string>
     <string name="attendance_done">Attendance complete for today. Thank you.</string>
     <string name="report_no_deadline">Sync once so the app knows today\'s deadline.</string>
-    <string name="report_deadline_passed">The %1$s deadline has passed. Your report will be submitted as late and needs Admin/Supervisor approval — give a reason below.</string>
+    <string name="report_deadline_passed">The %1$s deadline has passed. Your report will be submitted as late and needs BC Supervisor approval — give a reason below.</string>
     <string name="report_deadline_left">Deadline %1$s — %2$s. Server time decides, not this device.</string>
     <string name="label_date">Date</string>
     <string name="report_visits_recorded">Visits recorded</string>
@@ -272,12 +272,12 @@
       end for whoever they call.
     -->
     <string name="error_session_expired">Your session has ended. Please sign in again.</string>
-    <string name="error_forbidden">The server refused this request. Tell your Admin — this is usually a setting on the server, not something you did. (403)</string>
-    <string name="error_not_found">The app could not find that on the server. The server address may be wrong — tell your Admin. (404)</string>
+    <string name="error_forbidden">The server refused this request. Tell your BC Supervisor — this is usually a setting on the server, not something you did. (403)</string>
+    <string name="error_not_found">The app could not find that on the server. The server address may be wrong — tell your BC Supervisor. (404)</string>
     <string name="error_timeout">The server took too long to answer. Your work is saved on this phone; try again in a moment.</string>
     <string name="error_too_many">Too many attempts. Please wait a minute and try again.</string>
-    <string name="error_server_down">There is a problem on the server. Your work is saved on this phone — tell your Admin. (%1$d)</string>
-    <string name="error_unexpected">The server would not accept this request. Your work is saved on this phone. Tell your Admin if it keeps happening. (%1$d)</string>
+    <string name="error_server_down">There is a problem on the server. Your work is saved on this phone — tell your BC Supervisor. (%1$d)</string>
+    <string name="error_unexpected">The server would not accept this request. Your work is saved on this phone. Tell your BC Supervisor if it keeps happening. (%1$d)</string>
     <string name="msg_server_refused">Reached %1$s, but it refused the request. Check the server URL.</string>
     <plurals name="msg_offline_waiting">
         <item quantity="one">Offline — %1$d item still waiting.</item>
@@ -316,7 +316,7 @@
     <string name="sss_outbox_label">SSS enrolments for %1$s — %2$d in total</string>
     <string name="msg_sss_queued">SSS enrolments saved: %1$d in total.</string>
 
-    <!-- The target the Admin set, and the day against it. None of this can be set here. -->
+    <!-- The target the BC Supervisor set, and the day against it. None of this can be set here. -->
     <string name="sss_target_heading">Today against your target</string>
     <string name="sss_target_today">Target for today</string>
     <string name="sss_achievement">Done</string>
@@ -329,7 +329,7 @@
     <string name="sss_no_target">No target has been set for you yet. Keep recording your enrolments — they are all saved.</string>
 
     <!-- Submitted, and what to do about it. -->
-    <string name="sss_locked">You have already submitted these figures, so they cannot be changed here. Ask your Admin to re-open the day if a figure is wrong.</string>
+    <string name="sss_locked">You have already submitted these figures, so they cannot be changed here. Ask your BC Supervisor to re-open the day if a figure is wrong.</string>
     <string name="sss_reopened">Your Admin has re-opened this day. Correct the figures and submit them once more.</string>
     <string name="sss_state_sending">Sending</string>
     <string name="sss_state_retrying">Not sent yet — will try again</string>

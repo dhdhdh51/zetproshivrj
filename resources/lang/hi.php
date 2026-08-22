@@ -64,14 +64,14 @@ return [
     'auth.intro' => 'एडमिन/सुपरवाइज़र और शाखा प्रबंधक खाते।',
     'auth.login_field' => 'ईमेल, यूज़रनेम, कर्मचारी कोड या BCBF कोड',
     'auth.password' => 'पासवर्ड',
-    'auth.app_only_hint' => 'बीसी सुपरवाइज़र LRMS एंड्रॉइड ऐप में काम करते हैं —',
+    'auth.app_only_hint' => 'बीसीए LRMS एंड्रॉइड ऐप में काम करते हैं —',
     'auth.app_only_link' => 'जानकारी यहाँ',
     'auth.footer_notice' => 'केवल अधिकृत उपयोगकर्ता। हर गतिविधि दर्ज की जाती है।',
     'auth.change_password' => 'पासवर्ड बदलें',
 
-    /* The notice a BC Supervisor sees if they try the web panel ---------- */
+    /* The notice a BCA sees if they try the web panel ---------- */
     'app_only.title' => 'LRMS एंड्रॉइड ऐप इस्तेमाल करें',
-    'app_only.intro' => 'बीसी सुपरवाइज़र का फ़ील्ड कार्य — ग्राहक विज़िट, जीपीएस, फ़ोटो, वसूली, PTP, '
+    'app_only.intro' => 'बीसीए का फ़ील्ड कार्य — ग्राहक विज़िट, जीपीएस, फ़ोटो, वसूली, PTP, '
         . 'हाज़िरी और दैनिक रिपोर्ट — LRMS एंड्रॉइड ऐप में होता है। ऐप बिना इंटरनेट भी चलता है और '
         . 'कनेक्शन आने पर डेटा अपने-आप भेज देता है।',
     'app_only.device_note' => 'ऐप में उसी BCBF कोड और पासवर्ड से साइन इन करें। आपका खाता एक ही डिवाइस से '
@@ -101,7 +101,7 @@ return [
     'nav.sss_targets' => 'SSS लक्ष्य',
     'nav.branches' => 'शाखाएँ',
     'nav.branch_managers' => 'शाखा प्रबंधक',
-    'nav.bc_supervisors' => 'बीसी सुपरवाइज़र',
+    'nav.bc_supervisors' => 'बीसीए',
     'nav.targets' => 'लक्ष्य',
     'nav.reports' => 'रिपोर्ट',
     'nav.report_deadline' => 'रिपोर्ट की समय-सीमा',
@@ -117,7 +117,7 @@ return [
     /* Roles -------------------------------------------------------------- */
     'role.admin' => 'एडमिन / सुपरवाइज़र',
     'role.branch_manager' => 'शाखा प्रबंधक',
-    'role.bc_supervisor' => 'बीसी सुपरवाइज़र',
+    'role.bc_supervisor' => 'बीसीए',
 
     /* Top bar ------------------------------------------------------------ */
     'topbar.menu' => 'मेन्यू',

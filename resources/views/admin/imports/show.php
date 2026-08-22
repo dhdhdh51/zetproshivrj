@@ -54,7 +54,7 @@
     <div class="stat">
         <div class="label">Allocated</div>
         <div class="value"><?= number_format((int) $import['assigned_rows']) ?></div>
-        <div class="meta">to BC Supervisors</div>
+        <div class="meta">to BCAs</div>
     </div>
 </div>
 
@@ -130,7 +130,7 @@
         <?php else: ?>
             <div class="table-wrap">
                 <table class="data compact">
-                    <thead><tr><th>Account</th><th>Borrower</th><th class="right">Overdue</th><th>BC Supervisor</th></tr></thead>
+                    <thead><tr><th>Account</th><th>Borrower</th><th class="right">Overdue</th><th>BCA</th></tr></thead>
                     <tbody>
                         <?php foreach ($accounts as $account): ?>
                             <tr>

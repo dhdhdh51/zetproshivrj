@@ -54,7 +54,7 @@ final class SystemController extends BaseController
         );
 
         if ($supervisor === null) {
-            $this->abort(404, 'BC Supervisor not found.');
+            $this->abort(404, 'BCA not found.');
         }
 
         $this->assertBranch((int) $supervisor['branch_id']);
@@ -371,7 +371,7 @@ final class SystemController extends BaseController
 
         if ($audience === 'all_bc') {
             Notify::role(\App\Core\Auth::ROLE_BC, (string) $data['title'], (string) ($data['body'] ?? ''), ['type' => 'info']);
-            $target = 'all BC Supervisors';
+            $target = 'all BCAs';
         } elseif ($audience === 'all_managers') {
             Notify::role(\App\Core\Auth::ROLE_MANAGER, (string) $data['title'], (string) ($data['body'] ?? ''), ['type' => 'info']);
             $target = 'all Branch Managers';

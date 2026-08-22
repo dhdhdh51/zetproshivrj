@@ -86,7 +86,7 @@ $dayNames = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'S
                     <input type="checkbox" id="allow_late_submission_requests" name="allow_late_submission_requests" value="1"
                            <?= $status['late_requests_allowed'] ? 'checked' : '' ?>>
                     <label for="allow_late_submission_requests">
-                        Allow late submissions with Admin/Supervisor approval
+                        Allow late submissions with BC Supervisor approval
                     </label>
                 </div>
                 <p class="help" style="margin:0">
@@ -137,7 +137,7 @@ $dayNames = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'S
             <table class="data">
                 <thead>
                     <tr>
-                        <th>BC Supervisor</th><th>Branch</th><th>Deadline</th><th>Submitted</th>
+                        <th>BCA</th><th>Branch</th><th>Deadline</th><th>Submitted</th>
                         <th class="center">Visits</th><th class="right">Recovery</th><th class="center">Status</th><th>Reason / decision</th>
                     </tr>
                 </thead>
@@ -181,7 +181,7 @@ $dayNames = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'S
         </div>
         <div class="table-wrap">
             <table class="data compact">
-                <thead><tr><th>BC Supervisor</th><th>BC code</th><th>Branch</th><th></th></tr></thead>
+                <thead><tr><th>BCA</th><th>BC code</th><th>Branch</th><th></th></tr></thead>
                 <tbody>
                     <?php foreach ($missing as $supervisor): ?>
                         <tr>

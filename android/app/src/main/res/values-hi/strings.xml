@@ -21,7 +21,7 @@
     <string name="language_change">भाषा बदलें</string>
 
     <!-- Sign in -->
-    <string name="login_subtitle">बीसी सुपरवाइज़र साइन इन</string>
+    <string name="login_subtitle">बीसीए साइन इन</string>
     <string name="login_identifier">BCBF कोड या यूज़रनेम</string>
     <string name="login_password">पासवर्ड</string>
     <string name="login_button">साइन इन</string>
@@ -49,7 +49,7 @@
     <string name="password_change">पासवर्ड बदलें</string>
 
     <!-- Home -->
-    <string name="home_role">बीसी सुपरवाइज़र</string>
+    <string name="home_role">बीसीए</string>
     <string name="home_quick_actions">तुरंत काम</string>
     <string name="home_start_visit">ग्राहक विज़िट शुरू करें</string>
     <string name="home_attendance">हाज़िरी</string>
@@ -258,12 +258,12 @@
     <!-- सर्वर बिना कारण बताए मना कर दे, तब यही दिखता है। सिर्फ़ नंबर दिखाने से गाँव में बैठे
          सुपरवाइज़र को कुछ समझ नहीं आता, इसलिए नंबर आख़िर में रखा है। -->
     <string name="error_session_expired">आपका सेशन खत्म हो गया है। कृपया दोबारा साइन इन करें।</string>
-    <string name="error_forbidden">सर्वर ने यह अनुरोध मना कर दिया। अपने व्यवस्थापक को बताएं — यह आमतौर पर सर्वर की सेटिंग है, आपकी गलती नहीं। (403)</string>
-    <string name="error_not_found">ऐप को सर्वर पर वह नहीं मिला। सर्वर का पता गलत हो सकता है — व्यवस्थापक को बताएं। (404)</string>
+    <string name="error_forbidden">सर्वर ने यह अनुरोध मना कर दिया। अपने बीसी सुपरवाइज़र को बताएं — यह आमतौर पर सर्वर की सेटिंग है, आपकी गलती नहीं। (403)</string>
+    <string name="error_not_found">ऐप को सर्वर पर वह नहीं मिला। सर्वर का पता गलत हो सकता है — बीसी सुपरवाइज़र को बताएं। (404)</string>
     <string name="error_timeout">सर्वर ने जवाब देने में बहुत देर लगाई। आपका काम इस फ़ोन में सुरक्षित है; थोड़ी देर में दोबारा कोशिश करें।</string>
     <string name="error_too_many">बहुत बार कोशिश हो गई। एक मिनट रुककर दोबारा कोशिश करें।</string>
-    <string name="error_server_down">सर्वर में दिक्कत है। आपका काम इस फ़ोन में सुरक्षित है — व्यवस्थापक को बताएं। (%1$d)</string>
-    <string name="error_unexpected">सर्वर ने यह अनुरोध स्वीकार नहीं किया। आपका काम इस फ़ोन में सुरक्षित है। बार-बार हो तो व्यवस्थापक को बताएं। (%1$d)</string>
+    <string name="error_server_down">सर्वर में दिक्कत है। आपका काम इस फ़ोन में सुरक्षित है — बीसी सुपरवाइज़र को बताएं। (%1$d)</string>
+    <string name="error_unexpected">सर्वर ने यह अनुरोध स्वीकार नहीं किया। आपका काम इस फ़ोन में सुरक्षित है। बार-बार हो तो बीसी सुपरवाइज़र को बताएं। (%1$d)</string>
     <string name="msg_server_refused">%1$s तक पहुँच गए, पर उसने अनुरोध अस्वीकार कर दिया। सर्वर URL जाँचें।</string>
     <plurals name="msg_offline_waiting">
         <item quantity="one">ऑफ़लाइन — %1$d आइटम अभी बाक़ी है।</item>
@@ -302,7 +302,7 @@
     <string name="sss_outbox_label">%1$s के SSS नामांकन — कुल %2$d</string>
     <string name="msg_sss_queued">SSS नामांकन सहेजे गए: कुल %1$d।</string>
 
-    <!-- व्यवस्थापक का तय किया लक्ष्य, और उसके सामने आज का दिन। यहाँ से कुछ भी बदला नहीं जा सकता। -->
+    <!-- बीसी सुपरवाइज़र का तय किया लक्ष्य, और उसके सामने आज का दिन। यहाँ से कुछ भी बदला नहीं जा सकता। -->
     <string name="sss_target_heading">आज का लक्ष्य और प्रगति</string>
     <string name="sss_target_today">आज का लक्ष्य</string>
     <string name="sss_achievement">हुआ</string>
@@ -315,8 +315,8 @@
     <string name="sss_no_target">आपके लिए अभी कोई लक्ष्य तय नहीं हुआ है। अपने नामांकन दर्ज करते रहें — सब सुरक्षित हैं।</string>
 
     <!-- जमा हो चुका है, और अब क्या करें। -->
-    <string name="sss_locked">आप ये आंकड़े पहले ही जमा कर चुके हैं, इसलिए इन्हें यहाँ से बदला नहीं जा सकता। कोई आंकड़ा गलत हो तो अपने व्यवस्थापक से दिन दोबारा खोलने के लिए कहें।</string>
-    <string name="sss_reopened">आपके व्यवस्थापक ने यह दिन दोबारा खोल दिया है। आंकड़े ठीक करके एक बार फिर जमा करें।</string>
+    <string name="sss_locked">आप ये आंकड़े पहले ही जमा कर चुके हैं, इसलिए इन्हें यहाँ से बदला नहीं जा सकता। कोई आंकड़ा गलत हो तो अपने बीसी सुपरवाइज़र से दिन दोबारा खोलने के लिए कहें।</string>
+    <string name="sss_reopened">आपके बीसी सुपरवाइज़र ने यह दिन दोबारा खोल दिया है। आंकड़े ठीक करके एक बार फिर जमा करें।</string>
     <string name="sss_state_sending">भेजा जा रहा है</string>
     <string name="sss_state_retrying">अभी नहीं भेजा गया — दोबारा कोशिश होगी</string>
     <string name="sss_state_rejected">सर्वर ने स्वीकार नहीं किया</string>

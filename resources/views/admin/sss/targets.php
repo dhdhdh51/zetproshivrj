@@ -22,7 +22,7 @@ $monthLabel = date('F Y', (int) strtotime($month));
     <div class="grow">
         <h1>SSS targets</h1>
         <div class="subtitle">
-            What each BC Supervisor is expected to enrol <strong>per working day</strong>, per scheme.
+            What each BCA is expected to enrol <strong>per working day</strong>, per scheme.
             Month to date and the month total are worked out from this, so you set one number and
             never have to keep the longer figures in step.
         </div>
@@ -72,7 +72,7 @@ $monthLabel = date('F Y', (int) strtotime($month));
                 <?php endforeach; ?>
 
                 <div class="field span-2">
-                    <label for="bc_supervisor_ids">BC Supervisors</label>
+                    <label for="bc_supervisor_ids">BCAs</label>
                     <select id="bc_supervisor_ids" name="bc_supervisor_ids[]" multiple size="6" required>
                         <?php foreach ($supervisors as $supervisor): ?>
                             <option value="<?= (int) $supervisor['id'] ?>">
@@ -133,7 +133,7 @@ $monthLabel = date('F Y', (int) strtotime($month));
             <table class="data">
                 <thead>
                     <tr>
-                        <th>BC Supervisor</th>
+                        <th>BCA</th>
                         <th>Branch</th>
                         <?php foreach ($targetSchemes as $column => $abbreviation): ?>
                             <th class="right" title="<?= e($abbreviation) ?> a day"><?= e($abbreviation) ?></th>

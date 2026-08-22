@@ -231,7 +231,7 @@ class SssTest {
     fun `the app has no way to send a target, a percentage or a gap`() {
         val api = source("src/main/java/in/lrms/field/data/remote/ApiService.kt")
 
-        // The target belongs to the Admin. It reaches the handset and stops there: if no
+        // The target belongs to the BC Supervisor. It reaches the handset and stops there: if no
         // request can carry one, no supervisor can move the bar they are measured against,
         // and that is a stronger guarantee than a disabled input.
         assertTrue(

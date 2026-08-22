@@ -158,7 +158,7 @@ $supervisor = Database::selectOne(
 );
 
 if ($supervisor === null) {
-    exit("No BC Supervisor seeded. Run: php database/migrate.php --fresh --demo\n");
+    exit("No BCA seeded. Run: php database/migrate.php --fresh --demo\n");
 }
 
 // Known password for the test.
@@ -185,7 +185,7 @@ $noDevice = api('POST', '/api/v1/auth/login', [
 ], ['auth' => false]);
 equals(422, $noDevice['status'], 'Sign-in without a device id is refused');
 
-// A BC Supervisor knows their BCBF code — it is on their paperwork and in the
+// A BCA knows their BCBF code — it is on their paperwork and in the
 // bank's spreadsheets — better than a username the office invented for them, so
 // the same credentials must work with either. These use the same device uuid as
 // the sign-in below because only one handset may be bound at a time.
@@ -227,7 +227,7 @@ $login = api('POST', '/api/v1/auth/login', [
     ],
 ], ['auth' => false]);
 
-equals(200, $login['status'], 'BC Supervisor sign-in succeeds');
+equals(200, $login['status'], 'BCA sign-in succeeds');
 $apiToken = $login['json']['data']['token'] ?? null;
 ok(is_string($apiToken) && strlen($apiToken) > 40, 'A bearer token was issued');
 equals($supervisor['bc_code'], $login['json']['data']['supervisor']['bc_code'] ?? '', 'Response carries the BC code');
@@ -262,7 +262,7 @@ $adminLogin = api('POST', '/api/v1/auth/login', [
     'password' => 'AdminTest@123',
     'device' => ['uuid' => 'admin-device'],
 ], ['auth' => false]);
-equals(403, $adminLogin['status'], 'Admin/Supervisor cannot sign in to the field app');
+equals(403, $adminLogin['status'], 'BC Supervisor cannot sign in to the field app');
 equals('wrong_role', $adminLogin['json']['code'] ?? '', 'Admin sign-in reports wrong_role');
 
 /* -------------------------------------------------------------------------- */
@@ -1003,7 +1003,7 @@ equals(201, $sssPost['status'], 'Recording a day of enrolments succeeds');
 equals(12, $sssPost['json']['data']['total'] ?? 0, 'The blank scheme counted as none, not as a refusal');
 
 // The same day again, saying something different. Submitted figures are what the target
-// register is measured on, so the handset cannot move them: an Admin has to hand the day
+// register is measured on, so the handset cannot move them: a BC Supervisor has to hand the day
 // back first. Before this rule existed the second report simply overwrote the first.
 $sssAgain = api('POST', '/api/v1/sss', [
     'uuid' => uuid(),
@@ -1136,8 +1136,8 @@ equals(
     'The queued figures survived the round trip intact'
 );
 
-// The target the Admin set, as the handset sees it. The app renders these figures and can
-// produce none of them itself, which is what makes the target the Admin's alone.
+// The target the BC Supervisor set, as the handset sees it. The app renders these figures and can
+// produce none of them itself, which is what makes the target the BC Supervisor's alone.
 \App\Services\Sss::saveTarget((int) $supervisor['id'], today(), [
     'apy_target' => 2,
     'pmjjby_target' => 3,
@@ -1201,7 +1201,7 @@ equals(
         'SELECT apy_target FROM sss_targets WHERE bc_supervisor_id = :bc AND target_month = :month',
         ['bc' => (int) $supervisor['id'], 'month' => date('Y-m-01')]
     ),
-    'A target sent up from the app is ignored — only the Admin sets one'
+    'A target sent up from the app is ignored — only the BC Supervisor sets one'
 );
 
 /* -------------------------------------------------------------------------- */

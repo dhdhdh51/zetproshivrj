@@ -1,6 +1,6 @@
 # LRMS Field — Android build and release
 
-The BC Supervisor field application. Kotlin + Jetpack Compose, offline-first,
+The BCA field application. Kotlin + Jetpack Compose, offline-first,
 built entirely from AndroidX — **no Google Play Services dependency**, so it runs
 on the cheap handsets field staff actually carry.
 
@@ -271,7 +271,7 @@ apps than CameraX). The server re-encodes, strips EXIF, watermarks with name,
 timestamp and coordinates, and hashes for duplicate detection.
 
 **Dynamic forms.** The visit form is fetched from the server and rendered from its
-definition, including conditional fields — an Admin/Supervisor can change the form
+definition, including conditional fields — an BC Supervisor can change the form
 without shipping a new APK. `FormLogic.kt` mirrors the server's validation and
 visibility rules, so the supervisor is told about a problem while still standing
 with the customer.

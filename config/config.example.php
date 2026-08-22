@@ -3,7 +3,7 @@
  * LRMS — configuration template.
  *
  * Copy this file to config/config.php and fill in your credentials.
- * Anything managed from the Admin Panel is stored in `system_settings` and
+ * Anything managed from the BC Supervisor Panel is stored in `system_settings` and
  * transparently overrides these values at runtime (see App\Core\Settings).
  *
  * NEVER commit real credentials. config/config.local.php is git-ignored and
@@ -52,7 +52,7 @@ return [
         'login_decay_minutes' => 15,
         // Per IP address, deliberately far higher. Indian mobile carriers put many
         // subscribers behind one public address, and a branch shares one office
-        // connection, so several BC Supervisors legitimately arrive as the same IP.
+        // connection, so several BCAs legitimately arrive as the same IP.
         // At 5 one person mistyping their password locked out the whole team for
         // fifteen minutes. This ceiling only exists to stop a flood from a single
         // address, not to police individual mistakes.
@@ -71,10 +71,10 @@ return [
         'otp_max_attempts' => 5,
         // Require OTP as a second factor for web (admin/manager) sign-in.
         'otp_web_login' => false,
-        // Require OTP for the Android BC Supervisor sign-in.
+        // Require OTP for the Android BCA sign-in.
         'otp_app_login' => false,
         'api_token_ttl_days' => 30,
-        // A BC Supervisor account may only be used from one bound device.
+        // A BCA account may only be used from one bound device.
         'device_binding' => true,
         'api_rate_per_minute' => 90,
         'upload_max_bytes' => 8388608, // 8 MB per photo

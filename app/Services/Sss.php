@@ -10,7 +10,7 @@ use App\Core\HttpException;
 use App\Core\Settings;
 
 /**
- * Social Security Scheme enrolments: what the BC Supervisor signed people up for at the
+ * Social Security Scheme enrolments: what the BCA signed people up for at the
  * outlet, by day.
  *
  * These are not field work. An enrolment happens over the counter, so there is no account,
@@ -99,14 +99,14 @@ final class Sss
         );
 
         if ($supervisor === null) {
-            throw new HttpException(404, 'That BC Supervisor does not exist.');
+            throw new HttpException(404, 'That BCA does not exist.');
         }
 
         // A supervisor with no branch cannot have figures attributed anywhere, and the
         // column is NOT NULL, so this is caught here with something a person can act on
         // rather than as a constraint violation.
         if ($supervisor['branch_id'] === null) {
-            throw new HttpException(422, 'That BC Supervisor has no branch, so enrolments cannot be recorded.');
+            throw new HttpException(422, 'That BCA has no branch, so enrolments cannot be recorded.');
         }
 
         $date = self::date($payload['enrolment_date'] ?? null);
@@ -123,7 +123,7 @@ final class Sss
 
         // A submitted day is closed to the handset. The figures are what a target register
         // is measured on, so the supervisor who reported them cannot quietly raise them
-        // afterwards — an Admin has to hand the day back first.
+        // afterwards — a BC Supervisor has to hand the day back first.
         if ($existing !== null
             && $source !== 'panel'
             && (string) $existing['status'] === self::STATUS_SUBMITTED
@@ -149,7 +149,7 @@ final class Sss
             // `retryable`), so the outbox entry stays put with this message against it
             // instead of being redelivered for ever or thrown away.
             throw new HttpException(409, sprintf(
-                'The figures for %s were already submitted. Ask an Admin to re-open that day before correcting them.',
+                'The figures for %s were already submitted. Ask a BC Supervisor to re-open that day before correcting them.',
                 format_date($date)
             ));
         }
@@ -158,7 +158,7 @@ final class Sss
             'remarks' => $remarks,
             'source' => $source === 'panel' ? 'panel' : 'app',
             'recorded_by' => Auth::id(),
-            // Any successful write closes the day again, including an Admin typing the
+            // Any successful write closes the day again, including a BC Supervisor typing the
             // figures on a day they had just re-opened. Only reopen() opens one, so there
             // is no state where a day is editable because nobody got round to closing it.
             // `reopened_by` and `reopened_at` are deliberately left alone: they record that
@@ -408,7 +408,7 @@ final class Sss
 
     /**
      * Target, achievement, percentage and gap for every supervisor in scope: the register
-     * the Admin dashboard, the ranking and the export are all built from.
+     * the BC Supervisor dashboard, the ranking and the export are all built from.
      *
      * Two queries regardless of how many supervisors there are — the achievements in one
      * aggregate and every relevant target row in another — because the working-day count
@@ -593,7 +593,7 @@ final class Sss
         );
 
         if ($supervisor === null) {
-            throw new HttpException(404, 'That BC Supervisor does not exist.');
+            throw new HttpException(404, 'That BCA does not exist.');
         }
 
         $month = self::month($month);
@@ -835,7 +835,7 @@ final class Sss
 
         if ($date < $earliest) {
             throw new HttpException(422, sprintf(
-                'That date is more than %d days old. Ask an Admin to record it from the panel.',
+                'That date is more than %d days old. Ask a BC Supervisor to record it from the panel.',
                 $days
             ));
         }

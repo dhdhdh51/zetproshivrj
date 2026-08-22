@@ -7,10 +7,10 @@ LRMS is one system with four parts:
 
 | Part | For | Technology |
 | --- | --- | --- |
-| **Web panel** | Admin/Supervisor | PHP 8.2+, no framework, MySQL |
+| **Web panel** | BC Supervisor | PHP 8.2+, no framework, MySQL |
 | **Branch portal** | Branch Manager | same application, branch-scoped |
 | **REST API** | the Android app | `/api/v1`, bearer tokens |
-| **Android app** | BC Supervisor | Kotlin, Compose, offline-first (`android/`) |
+| **Android app** | BCA | Kotlin, Compose, offline-first (`android/`) |
 
 ---
 
@@ -19,19 +19,19 @@ LRMS is one system with four parts:
 These are deliberately separate throughout the system — separate tables, separate
 screens, separate reports.
 
-**TYPE A — Customer visit.** A **BC Supervisor** visits a borrower to recover
+**TYPE A — Customer visit.** A **BCA** visits a borrower to recover
 money, using the **Android app**: mandatory GPS, watermarked photographs, the
 configurable visit form, recovery, promise to pay, follow-up and signatures.
 
-**TYPE B — BC Supervisor inspection.** An **Admin/Supervisor** goes to the field
-to verify that a BC Supervisor actually did the allocated work, using the **web
+**TYPE B — BCA inspection.** An **BC Supervisor** goes to the field
+to verify that a BCA actually did the allocated work, using the **web
 panel**: their own GPS, inspection photographs, the configurable inspection form,
 a verification result and remarks.
 
-> An Admin/Supervisor never performs customer recovery visits. Their field
+> An BC Supervisor never performs customer recovery visits. Their field
 > activity is inspection and monitoring only.
 
-The BC Supervisor is the **BC Agent** named on the bank's paperwork — one person,
+The BCA is the **BC Agent** named on the bank's paperwork — one person,
 one role. Their KRM OTS and CKCC OD-2 field work produces the **Field Visit
 Verification Report** (below), which is again two separate documents and neither
 of them is the customer visit report.
@@ -40,12 +40,12 @@ of them is the customer visit report.
 
 There are exactly three, and no separate "super admin":
 
-- **Admin / Supervisor** — one role, full control: branches, staff, Excel import,
+- **BC Supervisor** — one role, full control: branches, staff, Excel import,
   allocation, targets, deadline, forms, inspections, reports, audit log.
 - **Branch Manager** — read and report access to **one** branch. Enforced in
   `App\Core\Acl` and covered by tests that assert a cross-branch record returns
   403 and that reports never leak another branch's rows.
-- **BC Supervisor** — the Android app only. Signing in to the web portal tells
+- **BCA** — the Android app only. Signing in to the web portal tells
   them so rather than showing a half-working UI.
 
 ---
@@ -104,7 +104,7 @@ Sign in at `http://localhost:8000/login` with `admin@lrms.local` /
 seeded account with `LRMS_ADMIN_EMAIL` and `LRMS_ADMIN_PASSWORD`.
 
 Add `--demo` instead of `--seed` to also create three branches, three branch
-managers and six BC Supervisors for testing.
+managers and six BCAs for testing.
 
 ### Tests
 
@@ -176,7 +176,7 @@ release process.
 
 **Reporting**
 - 13 reports, each with its own filters and PDF / Excel / CSV export.
-- Per-record PDFs: Customer Visit, BC Supervisor Inspection, and the client's
+- Per-record PDFs: Customer Visit, BCA Inspection, and the client's
   official **Field Visit Verification Report** — 13 numbered sections, tick
   boxes, the RBI / Fair Practices Code declaration and the certification block.
 - The verification report exists as **two separate documents** that never share

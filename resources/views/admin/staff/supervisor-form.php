@@ -19,7 +19,7 @@ $aadhaarValue = old('aadhaar_number', null)
 
 <div class="page-head">
     <div class="grow">
-        <h1><?= $editing ? 'Edit BC supervisor' : 'Add BC supervisor' ?></h1>
+        <h1><?= $editing ? 'Edit BCA' : 'Add BCA' ?></h1>
         <div class="subtitle">
             The BC code must match the code in your Excel sheets — accounts carrying it are
             allocated to this supervisor automatically.

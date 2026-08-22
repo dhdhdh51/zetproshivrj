@@ -10,7 +10,7 @@ use App\Core\HttpException;
 
 /**
  * Follow-up actions queued from a visit, a broken promise, or by an
- * Admin/Supervisor.
+ * BC Supervisor.
  */
 final class Followups
 {

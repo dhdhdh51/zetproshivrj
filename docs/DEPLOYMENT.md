@@ -50,7 +50,7 @@ Edit `config/config.php`:
 `config/config.local.php` is git-ignored and recursively overrides
 `config/config.php`; use it for developer machines, not production.
 
-Anything an Admin/Supervisor can change from **Settings** is stored in
+Anything an BC Supervisor can change from **Settings** is stored in
 `system_settings` and overrides the file at runtime.
 
 ## 3. Permissions
@@ -70,8 +70,8 @@ php database/migrate.php --fresh --seed
 ```
 
 This creates all 40 tables and loads: the three roles, 14 report types, default
-settings, the default customer visit form (21 fields), the default BC Supervisor
-inspection form (11 fields) and the first Admin/Supervisor account.
+settings, the default customer visit form (21 fields), the default BCA
+inspection form (11 fields) and the first BC Supervisor account.
 
 Set the first account's credentials instead of using the defaults:
 
@@ -113,7 +113,7 @@ promises are not swept automatically.
 3. **Report deadline** — working days, deadline time, reminder thresholds.
 4. **Branches** — create every branch, using the branch codes that appear in your
    Excel sheets. Add coordinates if you want the GPS drift check.
-5. **Branch managers** and **BC supervisors** — the BC code must match the code in
+5. **Branch managers** and **BCAs** — the BC code must match the code in
    the sheets so accounts allocate automatically.
 6. **Excel import** — upload, map columns, save the mapping as a template,
    preview, import.

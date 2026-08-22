@@ -131,7 +131,7 @@ ok(is_array($decoded) && ($decoded['status'] ?? '') === 'ok', 'Health check repo
 
 $loginPage = page('/login', 'Login page');
 ok(str_contains($loginPage, 'name="_token"'), 'Login form carries a CSRF token');
-page('/app-only', 'BC Supervisor app-only notice');
+page('/app-only', 'BCA app-only notice');
 page('/no-such-page', 'Unknown URL returns 404', 404);
 
 // CSRF must be enforced.
@@ -139,7 +139,7 @@ $noToken = request($base . '/login', ['post' => ['login' => 'admin@lrms.local', 
 equals(419, $noToken['status'], 'POST without a CSRF token is refused (419)');
 
 /* -------------------------------------------------------------------------- */
-section('Admin/Supervisor sign-in');
+section('BC Supervisor sign-in');
 /* -------------------------------------------------------------------------- */
 
 // Reset the seeded admin to a known password without the forced change.
@@ -233,7 +233,7 @@ ok(str_contains($loginPage, 'Sign in'), 'The login page renders in English again
 section('BCBF code sign-in');
 /* -------------------------------------------------------------------------- */
 
-// A BC Supervisor knows the BCBF code from their paperwork, not a username the
+// A BCA knows the BCBF code from their paperwork, not a username the
 // office invented, so it has to sign them in. The panel then shows them the
 // app-only notice, because recovery visits are recorded in the Android app.
 $bcLogin = Database::selectOne(
@@ -246,7 +246,7 @@ $bcLogin = Database::selectOne(
 );
 
 if ($bcLogin === null) {
-    ok(false, 'No BC Supervisor seeded — cannot test BCBF-code sign-in');
+    ok(false, 'No BCA seeded — cannot test BCBF-code sign-in');
 } else {
     Database::update('users', [
         'password' => Auth::hashPassword('SmokeTest@123'),
@@ -255,7 +255,7 @@ if ($bcLogin === null) {
 
     ok(
         str_contains($loginPage, 'BCBF code'),
-        'The login form tells BC Supervisors they can use their BCBF code'
+        'The login form tells BCAs they can use their BCBF code'
     );
 
     $bcSignIn = request($base . '/login', [
@@ -267,7 +267,7 @@ if ($bcLogin === null) {
     ]);
     equals(200, $bcSignIn['status'], 'Sign-in with the BCBF code succeeds');
     ok(!str_contains($bcSignIn['body'], 'do not match'), 'The BCBF code is accepted as a login identifier');
-    ok(str_contains($bcSignIn['body'], 'Use the LRMS Android app'), 'A BC Supervisor is sent to the app-only notice');
+    ok(str_contains($bcSignIn['body'], 'Use the LRMS Android app'), 'A BCA is sent to the app-only notice');
 
     $loginPage = page('/login', 'Login page after BCBF sign-in');
     $bcLower = request($base . '/login', [
@@ -302,8 +302,8 @@ $screens = [
     '/admin/branches/create' => 'Add branch',
     '/admin/managers' => 'Branch managers',
     '/admin/managers/create' => 'Add branch manager',
-    '/admin/supervisors' => 'BC supervisors',
-    '/admin/supervisors/create' => 'Add BC supervisor',
+    '/admin/supervisors' => 'BCAs',
+    '/admin/supervisors/create' => 'Add BCA',
     '/admin/inspections' => 'BC inspections',
     '/admin/inspections/create' => 'Start inspection (chooser)',
     '/admin/inspections/register' => 'Inspection register',
@@ -341,7 +341,7 @@ $sssSupervisor = Database::selectOne(
 );
 
 if ($sssSupervisor === null) {
-    ok(false, 'Need a BC Supervisor with a branch for the SSS panel test');
+    ok(false, 'Need a BCA with a branch for the SSS panel test');
 } else {
     $sssSupervisorId = (int) $sssSupervisor['id'];
     // Far enough back that nothing else in the suite has written these days.
@@ -460,7 +460,7 @@ if ($sssSupervisor === null) {
     $sssList = page('/admin/sss?from=' . $sssDate . '&to=' . $sssDate, 'SSS list for the recorded day');
     ok(str_contains($sssList, 'Achievement'), 'The list shows the totals strip');
     // The strip is a comparison now, not a count: the figures only mean something next to
-    // the target the Admin set, so both halves have to be on the screen.
+    // the target the BC Supervisor set, so both halves have to be on the screen.
     ok(str_contains($sssList, 'Target'), 'The list shows the target the figures are measured against');
     ok(str_contains($sssList, 'Gap'), 'The list shows the gap left to close');
     ok(str_contains($sssList, (string) $sssSupervisor['name']), 'The list names the supervisor the day belongs to');
@@ -485,7 +485,7 @@ if ($sssSupervisor === null) {
 }
 
 /* -------------------------------------------------------------------------- */
-section('SSS targets are the Admin\'s, and a submitted day only reopens for an Admin');
+section('SSS targets are the BC Supervisor\'s, and a submitted day only reopens for a BC Supervisor');
 /* -------------------------------------------------------------------------- */
 
 $targetSupervisor = Database::selectOne(
@@ -494,7 +494,7 @@ $targetSupervisor = Database::selectOne(
 );
 
 if ($targetSupervisor === null) {
-    ok(false, 'Need a BC Supervisor with a branch for the SSS target test');
+    ok(false, 'Need a BCA with a branch for the SSS target test');
 } else {
     $targetSupervisorId = (int) $targetSupervisor['id'];
     $targetMonth = date('Y-m-01');
@@ -558,7 +558,7 @@ if ($targetSupervisor === null) {
     ok(str_contains($registerPage, 'Target vs achievement'), 'The register compares target with achievement');
     ok(str_contains($registerPage, 'Open as report'), 'The register offers the printable ranking');
 
-    // The lock: a day is submitted the moment it exists, and only an Admin reopens it.
+    // The lock: a day is submitted the moment it exists, and only a BC Supervisor reopens it.
     $reopenForm = page('/admin/sss/create', 'SSS record form for the re-open test');
     request($base . '/admin/sss', [
         'post' => [
@@ -590,7 +590,7 @@ if ($targetSupervisor === null) {
         ok(str_contains($listWithRow, 'Submitted'), 'The list shows a day as submitted');
         ok(
             str_contains($listWithRow, '/reopen'),
-            'The list offers the Admin a way to hand the day back'
+            'The list offers the BC Supervisor a way to hand the day back'
         );
 
         $reopened = request($base . '/admin/sss/' . (int) $reopenRow['id'] . '/reopen', [
@@ -627,7 +627,7 @@ section('A bound device can be released from the screen that says it is bound');
 /* -------------------------------------------------------------------------- */
 
 // The action used to be an unlabelled icon in the actions column, shown only while the
-// device was active — so an Admin looking at "bound" had nothing to click, and a released
+// device was active — so a BC Supervisor looking at "bound" had nothing to click, and a released
 // or blocked device offered no way back.
 $deviceSupervisor = Database::selectOne(
     'SELECT s.id, s.user_id, u.name FROM bc_supervisors s JOIN users u ON u.id = s.user_id
@@ -635,7 +635,7 @@ $deviceSupervisor = Database::selectOne(
 );
 
 if ($deviceSupervisor === null) {
-    ok(false, 'Need a BC Supervisor for the device binding test');
+    ok(false, 'Need a BCA for the device binding test');
 } else {
     $deviceUserId = (int) $deviceSupervisor['user_id'];
     Database::delete('devices', 'user_id = :u', ['u' => $deviceUserId]);
@@ -657,7 +657,7 @@ if ($deviceSupervisor === null) {
         'blocked' => ['Blocked', 'Unblock'],
     ] as $state => $expected) {
         Database::update('devices', ['status' => $state, 'updated_at' => now()], 'id = :id', ['id' => $deviceId]);
-        $page = page('/admin/supervisors', 'BC supervisors with a ' . $state . ' device');
+        $page = page('/admin/supervisors', 'BCAs with a ' . $state . ' device');
 
         foreach ($expected as $needle) {
             ok(
@@ -669,7 +669,7 @@ if ($deviceSupervisor === null) {
 
     // Released on purpose is not a fault, so it must not be coloured like one.
     Database::update('devices', ['status' => 'unbound', 'updated_at' => now()], 'id = :id', ['id' => $deviceId]);
-    $unboundPage = page('/admin/supervisors', 'BC supervisors with a released device');
+    $unboundPage = page('/admin/supervisors', 'BCAs with a released device');
     ok(
         str_contains($unboundPage, 'can sign in on any handset'),
         'A released device says what that means for the supervisor'
@@ -677,7 +677,7 @@ if ($deviceSupervisor === null) {
 
     // And the release actually works from here.
     Database::update('devices', ['status' => 'active', 'updated_at' => now()], 'id = :id', ['id' => $deviceId]);
-    $listPage = page('/admin/supervisors', 'BC supervisors before releasing');
+    $listPage = page('/admin/supervisors', 'BCAs before releasing');
     $released = request($base . '/admin/devices/' . $deviceId . '/reset', [
         'post' => ['_token' => csrfToken($listPage)],
     ]);
@@ -1078,7 +1078,7 @@ section('BC creation form saves the full profile');
 // The BC creation screen collects the identity the field visit verification
 // report prints. This posts the real form, so a field that is not wired through
 // the controller shows up here rather than as a blank on a printed report.
-$createPage = page('/admin/supervisors/create', 'Add BC supervisor');
+$createPage = page('/admin/supervisors/create', 'Add BCA');
 
 foreach (['sp_cbc_name', 'ssa', 'iibf_number', 'dra_id', 'designation', 'aadhaar_number',
     'pan_number', 'block', 'tehsil', 'district', 'state', 'pincode'] as $field) {
@@ -1125,7 +1125,7 @@ $newBc = Database::selectOne(
     ['code' => $bcCode]
 );
 
-if (ok($newBc !== null, 'BC Supervisor created through the form')) {
+if (ok($newBc !== null, 'BCA created through the form')) {
     equals('FIA TECHNOLOGY SERVICES PVT. LTD', (string) $newBc['sp_cbc_name'], 'SP / CBC name saved');
     equals('PATIYALI SSA', (string) $newBc['ssa'], 'SSA saved');
     equals('8014017889', (string) $newBc['iibf_number'], 'IIBF number saved');
@@ -1140,7 +1140,7 @@ if (ok($newBc !== null, 'BC Supervisor created through the form')) {
     equals('207248', (string) $newBc['pincode'], 'Pincode saved');
 
     // The edit screen must show what was saved, including the masked Aadhaar.
-    $editPage = page('/admin/supervisors/' . (int) $newBc['id'] . '/edit', 'Edit BC supervisor');
+    $editPage = page('/admin/supervisors/' . (int) $newBc['id'] . '/edit', 'Edit BCA');
 
     ok(str_contains($editPage, 'FIA TECHNOLOGY SERVICES PVT. LTD'), 'Edit form shows the saved SP / CBC name');
     ok(str_contains($editPage, 'XXXX-XXXX-9012'), 'Edit form shows Aadhaar masked to the last four digits');
@@ -1172,7 +1172,7 @@ if (ok($newBc !== null, 'BC Supervisor created through the form')) {
     // A malformed PAN must be refused rather than stored.
     $badPan = request($base . '/admin/supervisors/' . (int) $newBc['id'], [
         'post' => [
-            '_token' => csrfToken(page('/admin/supervisors/' . (int) $newBc['id'] . '/edit', 'Edit BC supervisor again')),
+            '_token' => csrfToken(page('/admin/supervisors/' . (int) $newBc['id'] . '/edit', 'Edit BCA again')),
             'name' => 'CHANDRA SHEKHAR',
             'bc_code' => $bcCode,
             'branch_id' => (string) $branchForBc,
@@ -1255,6 +1255,69 @@ ok(
 ok(
     !str_starts_with((string) file_get_contents(__DIR__ . '/../database/upgrade.php'), '#!'),
     'upgrade.php carries no shebang, which would break including it'
+);
+
+/*
+ * The update also has to carry the BCA / BC Supervisor rename, because two of the old job
+ * titles live in the database rather than in the code. `roles.name` is what the panel prints
+ * for a role, and it was written once when the database was created — so on an existing
+ * installation the screens would keep saying "Admin / Supervisor" no matter what the code
+ * says.
+ *
+ * The trap here is that the two names swap places. The account that monitors becomes the BC
+ * Supervisor, which is the name the agent used to have. Rename them in the wrong order, or
+ * match on the old name without checking which role it is, and both rows end up called "BC
+ * Supervisor" — which is how this was first written, and it took a database in the old state
+ * to notice.
+ */
+Database::update('roles', [
+    'name' => 'Admin / Supervisor',
+    'description' => 'Full control. Monitors and inspects BC Supervisors; does not perform customer recovery visits.',
+], 'slug = :slug', ['slug' => 'admin']);
+Database::update('roles', [
+    'name' => 'BC Supervisor',
+    'description' => 'Field officer. Performs customer recovery visits through the Android app.',
+], 'slug = :slug', ['slug' => 'bc_supervisor']);
+Database::update('report_types', ['name' => 'BC Supervisor Inspection Report'], 'slug = :slug', [
+    'slug' => 'bc_inspection',
+]);
+
+$renamePage = page('/admin/settings/upgrade', 'Database update screen, before the rename');
+$renamed = request($base . '/admin/settings/upgrade', [
+    'post' => ['_token' => csrfToken($renamePage), 'mode' => 'apply'],
+]);
+
+equals(200, $renamed['status'], 'The update runs against a database with the old job titles');
+
+$roleNames = [];
+
+foreach (Database::select('SELECT slug, name FROM roles') as $role) {
+    $roleNames[(string) $role['slug']] = (string) $role['name'];
+}
+
+equals('BC Supervisor', $roleNames['admin'] ?? '', 'The panel account is renamed to BC Supervisor');
+equals('BCA', $roleNames['bc_supervisor'] ?? '', 'And the field agent to BCA');
+equals(
+    3,
+    count(array_unique($roleNames)),
+    'The three roles still have three distinct names (got: ' . implode(', ', $roleNames) . ')'
+);
+equals(
+    'BCA Inspection Report',
+    (string) Database::scalar('SELECT name FROM report_types WHERE slug = :slug', ['slug' => 'bc_inspection']),
+    'The report the BC Supervisor files on a BCA is named after who it is about'
+);
+
+// Run it again: a rename that fires twice would be a rename that could undo itself.
+$again = request($base . '/admin/settings/upgrade', [
+    'post' => ['_token' => csrfToken($renamePage), 'mode' => 'apply'],
+]);
+
+equals(200, $again['status'], 'The update runs a second time');
+equals(
+    'BCA',
+    (string) Database::scalar('SELECT name FROM roles WHERE slug = :slug', ['slug' => 'bc_supervisor']),
+    'And leaves the already-renamed role alone'
 );
 
 /* -------------------------------------------------------------------------- */

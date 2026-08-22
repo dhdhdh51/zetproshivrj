@@ -14,9 +14,9 @@ use App\Services\Sss;
 /**
  * SOCIAL SECURITY SCHEME ENROLMENTS.
  *
- * What the BC Supervisor signed people up for at the outlet, by day: APY, PMJJBY, PMSBY
+ * What the BCA signed people up for at the outlet, by day: APY, PMJJBY, PMSBY
  * and PMJDY. Supervisors report their own figures from the handset; this screen is for
- * reading them against the target the Admin set, and for filling in a day the handset
+ * reading them against the target the BC Supervisor set, and for filling in a day the handset
  * could not.
  *
  * A day belongs to a supervisor, so there is no delete. Correcting the figures is an edit

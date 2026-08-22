@@ -385,7 +385,7 @@ final class AccountController extends BaseController
         );
 
         if ($supervisors === 0) {
-            $this->error('That branch has no active BC Supervisor to allocate to.');
+            $this->error('That branch has no active BCA to allocate to.');
             $this->back('/admin/allocation');
 
             return;
@@ -449,7 +449,7 @@ final class AccountController extends BaseController
         $reason = trim((string) $request->input('reason', 'Bulk reassignment'));
 
         if ($ids === [] || $supervisorId <= 0) {
-            $this->error('Select at least one account and a BC Supervisor.');
+            $this->error('Select at least one account and a BCA.');
             $this->back('/admin/accounts');
 
             return;

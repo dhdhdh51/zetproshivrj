@@ -93,7 +93,7 @@ final class TargetController extends BaseController
             }
 
             if ($supervisorIds === []) {
-                $this->error('Choose at least one BC Supervisor.');
+                $this->error('Choose at least one BCA.');
                 $this->back('/admin/targets');
 
                 return;

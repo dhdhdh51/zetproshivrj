@@ -43,7 +43,7 @@ foreach ($gps as $point) {
 </div>
 
 <div class="steps">
-    <div class="step done"><span class="n"><?= icon('check', '', 12) ?></span> BC Supervisor</div>
+    <div class="step done"><span class="n"><?= icon('check', '', 12) ?></span> BCA</div>
     <div class="step <?= $photos === [] ? 'active' : 'done' ?>"><span class="n"><?= $photos === [] ? '2' : icon('check', '', 12) ?></span> GPS &amp; photos</div>
     <div class="step active"><span class="n">3</span> The form</div>
     <div class="step"><span class="n">4</span> Submit</div>
@@ -54,7 +54,7 @@ foreach ($gps as $point) {
     <div class="card-head"><h2>What you are verifying</h2></div>
     <div class="card-body">
         <div class="kv">
-            <div><div class="k">BC Supervisor</div><div class="v"><?= e($inspection['supervisor_name']) ?> (<?= e($inspection['bc_code']) ?>)</div></div>
+            <div><div class="k">BCA</div><div class="v"><?= e($inspection['supervisor_name']) ?> (<?= e($inspection['bc_code']) ?>)</div></div>
             <div><div class="k">Inspection date</div><div class="v"><?= e(format_date((string) $inspection['inspection_date'])) ?></div></div>
             <div><div class="k">Account</div><div class="v"><?= e($inspection['account_number'] ?: 'not linked') ?></div></div>
             <div><div class="k">Borrower</div><div class="v"><?= e($inspection['borrower_name'] ?: '—') ?></div></div>
@@ -63,7 +63,7 @@ foreach ($gps as $point) {
         </div>
 
         <?php if ($inspection['visit_id'] !== null): ?>
-            <h3 style="margin-top:16px">The visit reported by the BC Supervisor</h3>
+            <h3 style="margin-top:16px">The visit reported by the BCA</h3>
             <div class="kv">
                 <div><div class="k">Visit date</div><div class="v"><?= e(format_date((string) $inspection['visit_date'])) ?></div></div>
                 <div><div class="k">Reported status</div><div class="v"><?= e(visit_status_label($inspection['visit_status'])) ?></div></div>
@@ -388,7 +388,7 @@ foreach ($gps as $point) {
                     <button type="button" class="btn btn-link btn-sm" id="clear_inspector">Clear</button>
                 </div>
                 <div>
-                    <label>BC Supervisor signature (if present)</label>
+                    <label>BCA signature (if present)</label>
                     <canvas class="signature" data-target="#bc_signature" data-clear="#clear_bc"></canvas>
                     <input type="hidden" id="bc_signature" name="bc_signature" value="">
                     <button type="button" class="btn btn-link btn-sm" id="clear_bc">Clear</button>

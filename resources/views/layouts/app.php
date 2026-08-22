@@ -114,7 +114,7 @@ $badges = $navBadges ?? [];
                     <?= icon('database') ?> <?= et('nav.accounts') ?>
                 </a>
                 <a class="<?= nav_active('/manager/supervisors') ?>" href="<?= e(url('/manager/supervisors')) ?>">
-                    <?= icon('users') ?> BC supervisors
+                    <?= icon('users') ?> BCAs
                 </a>
                 <a class="<?= nav_active('/manager/visits') ?>" href="<?= e(url('/manager/visits')) ?>">
                     <?= icon('clipboard') ?> <?= et('nav.visits') ?>

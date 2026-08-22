@@ -1,6 +1,6 @@
 <?php
 /**
- * A BC Supervisor's work picture, as the inspector sees it before going out.
+ * A BCA's work picture, as the inspector sees it before going out.
  *
  * @var array  $supervisor
  * @var string $date

@@ -41,7 +41,7 @@ $maxRecovery = max(1.0, max(array_map(static fn (array $d): float => $d['recover
     <div class="alert alert-info">
         <?= icon('layers', '', 17) ?>
         <div>
-            <strong><?= number_format($summary['accounts_unassigned']) ?></strong> loan account(s) are not allocated to any BC Supervisor.
+            <strong><?= number_format($summary['accounts_unassigned']) ?></strong> loan account(s) are not allocated to any BCA.
             <a href="<?= e(url('/admin/allocation')) ?>">Allocate now</a>.
         </div>
     </div>
@@ -78,7 +78,7 @@ $maxRecovery = max(1.0, max(array_map(static fn (array $d): float => $d['recover
         </div>
     </div>
     <div class="stat">
-        <div class="label"><?= icon('users', '', 14) ?> BC Supervisors</div>
+        <div class="label"><?= icon('users', '', 14) ?> BCAs</div>
         <div class="value"><?= number_format($summary['supervisors_active']) ?></div>
         <div class="meta">
             <span class="dot online"></span> <?= (int) $summary['supervisors_online'] ?> online ·
@@ -130,25 +130,25 @@ $maxRecovery = max(1.0, max(array_map(static fn (array $d): float => $d['recover
         </div>
     </div>
 
-    <!-- Inspection coverage: the Admin/Supervisor's own KPI -->
+    <!-- Inspection coverage: the BC Supervisor's own KPI -->
     <div class="card">
         <div class="card-head">
-            <h2>BC Supervisor inspection coverage</h2>
+            <h2>BCA inspection coverage</h2>
             <div class="spacer"></div>
             <a class="btn btn-secondary btn-sm" href="<?= e(url('/admin/inspections')) ?>">Open inspections</a>
         </div>
         <div class="card-body">
             <p class="small muted">
-                Share of BC Supervisors whose monthly inspection has been carried out. The Bank's
-                form is one visit to the BC point per agent per month — Admin/Supervisor field
-                activity is inspection only, customer recovery visits are the BC Supervisor's work.
+                Share of BCAs whose monthly inspection has been carried out. The Bank's
+                form is one visit to the BC point per agent per month — BC Supervisor field
+                activity is inspection only, customer recovery visits are the BCA's work.
             </p>
 
             <div style="display:flex;align-items:baseline;gap:10px;margin:10px 0 6px">
                 <div style="font-size:30px;font-weight:700"><?= e($coverage['coverage_percent']) ?>%</div>
                 <div class="small muted">
                     <?= number_format($coverage['supervisors_inspected']) ?> of
-                    <?= number_format($coverage['supervisors']) ?> BC Supervisors inspected this month
+                    <?= number_format($coverage['supervisors']) ?> BCAs inspected this month
                 </div>
             </div>
             <div class="bar">
@@ -232,11 +232,11 @@ $maxRecovery = max(1.0, max(array_map(static fn (array $d): float => $d['recover
         <div class="table-wrap">
             <table class="data compact">
                 <thead>
-                    <tr><th>BC Supervisor</th><th>Branch</th><th class="right">Accounts</th><th class="right">Today</th></tr>
+                    <tr><th>BCA</th><th>Branch</th><th class="right">Accounts</th><th class="right">Today</th></tr>
                 </thead>
                 <tbody>
                     <?php if ($distribution === []): ?>
-                        <tr><td colspan="4"><?= view_partial('partials.empty', ['message' => 'No BC Supervisors yet', 'iconName' => 'users']) ?></td></tr>
+                        <tr><td colspan="4"><?= view_partial('partials.empty', ['message' => 'No BCAs yet', 'iconName' => 'users']) ?></td></tr>
                     <?php else: ?>
                         <?php foreach ($distribution as $row): ?>
                             <tr>
@@ -316,7 +316,7 @@ $maxRecovery = max(1.0, max(array_map(static fn (array $d): float => $d['recover
         <div class="table-wrap">
             <table class="data compact">
                 <thead>
-                    <tr><th>Report date</th><th>BC Supervisor</th><th>Branch</th><th>Submitted</th><th>Reason</th></tr>
+                    <tr><th>Report date</th><th>BCA</th><th>Branch</th><th>Submitted</th><th>Reason</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($pendingLate as $row): ?>

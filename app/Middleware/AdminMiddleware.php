@@ -11,7 +11,7 @@ use App\Core\Response;
 use App\Core\Session;
 
 /**
- * Admin / Supervisor only. There is deliberately no separate "super admin"
+ * BC Supervisor only. There is deliberately no separate "super admin"
  * role in LRMS: Admin and Supervisor are the same role.
  */
 final class AdminMiddleware
@@ -26,7 +26,7 @@ final class AdminMiddleware
         }
 
         if (!Auth::isAdmin()) {
-            throw new HttpException(403, 'The admin panel is limited to Admin/Supervisor accounts.');
+            throw new HttpException(403, 'The admin panel is limited to BC Supervisor accounts.');
         }
     }
 }

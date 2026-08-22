@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 /**
- * Runtime settings: values managed from the Admin Panel are stored in
+ * Runtime settings: values managed from the BC Supervisor Panel are stored in
  * `system_settings` and override the matching config/config.php defaults.
  */
 final class Settings

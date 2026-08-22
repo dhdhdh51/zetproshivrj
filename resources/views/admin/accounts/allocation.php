@@ -82,7 +82,7 @@
 <?php else: ?>
     <div class="alert alert-success">
         <?= icon('check-circle', '', 17) ?>
-        <div>Every active account is allocated to a BC Supervisor.</div>
+        <div>Every active account is allocated to a BCA.</div>
     </div>
 <?php endif; ?>
 
@@ -105,13 +105,13 @@
     </div>
 
     <?php if ($distribution === []): ?>
-        <?= view_partial('partials.empty', ['message' => 'No active BC supervisors', 'iconName' => 'users']) ?>
+        <?= view_partial('partials.empty', ['message' => 'No active BCAs', 'iconName' => 'users']) ?>
     <?php else: ?>
         <?php $maxLoad = max(1, max(array_map(static fn (array $r): int => (int) $r['accounts'], $distribution))); ?>
         <div class="table-wrap">
             <table class="data">
                 <thead>
-                    <tr><th>BC Supervisor</th><th>Branch</th><th class="right">Accounts</th><th style="width:180px">Load</th><th class="center">Visits today</th><th class="center">Status</th><th></th></tr>
+                    <tr><th>BCA</th><th>Branch</th><th class="right">Accounts</th><th style="width:180px">Load</th><th class="center">Visits today</th><th class="center">Status</th><th></th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($distribution as $row): ?>

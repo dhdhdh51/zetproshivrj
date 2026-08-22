@@ -14,7 +14,7 @@ use App\Services\Forms;
  * The two form builders.
  *
  * The same controller serves the customer visit form (TYPE A, rendered in the
- * Android app) and the BC Supervisor inspection form (TYPE B, rendered on the
+ * Android app) and the BCA inspection form (TYPE B, rendered on the
  * web), because both are the same structure in different tables. This is what
  * lets the final inspection questionnaire be decided later without touching code.
  */

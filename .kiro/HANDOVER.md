@@ -10,7 +10,7 @@ Working branch: `feat/lrms-loan-recovery-system`, open as PR #2.
 Everything below is on the branch, green in CI, and live-ready.
 
 - **SSS enrolments** — the four Social Security Scheme counts (APY, PMJJBY, PMSBY, PMJDY)
-  per BC Supervisor per day, in the app and the panel. One row per supervisor per day,
+  per BCA per day, in the app and the panel. One row per supervisor per day,
   enforced by a unique key; every write is an upsert, because the offline outbox can deliver
   the same day twice and appending would double every total built on it.
   - Backdating window is a setting (`sss_backdate_days`, default 30).
@@ -43,7 +43,7 @@ Everything below is on the branch, green in CI, and live-ready.
   version so historic inspections still print the questions they were answered against.
 - **The inspection is monthly, and of the outlet** — the questions were replaced earlier but
   the workflow around them was not, so it still ran as "verify one customer visit".
-  - Starting one asks for the **BC Supervisor and the date, nothing else**. The visit and
+  - Starting one asks for the **BCA and the date, nothing else**. The visit and
     account pickers are gone, and `visit_id` / `loan_account_id` are left NULL on new rows.
     The columns stay, and historic rows still show their links.
   - **Item 24 (Excellent / Good / Satisfactory / Poor) is the result.** The separate
@@ -58,7 +58,7 @@ Everything below is on the branch, green in CI, and live-ready.
   - **Once a month is the expectation, not a rule.** The start screen warns when that month
     already has one and offers to open it, but a second visit after a Poor grade is still
     possible.
-  - Coverage on the dashboards now means **how many BC Supervisors have had their monthly
+  - Coverage on the dashboards now means **how many BCAs have had their monthly
     inspection**, not what share of customer visits was verified.
 
 ## Current state
