@@ -132,6 +132,16 @@ final class FieldVisitReport
         self::sectionFinalStatus($pdf, $case, $stream);
         self::closingNote($pdf, $stream);
 
+        $pdf->verification(url('/admin/visits/' . $visitId), [
+            sprintf('Report reference: %s', (string) $visit['uuid']),
+            sprintf(
+                'Account %s   •   %s   •   %s',
+                (string) $visit['account_number'],
+                (string) $visit['borrower_name'],
+                format_date((string) $visit['visit_date'])
+            ),
+        ]);
+
         $fileName = sprintf(
             '%s-verification-report-%s-%s.pdf',
             $stream === 'krm_ots' ? 'krm-ots' : 'ckcc-od2',

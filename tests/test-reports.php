@@ -1703,4 +1703,83 @@ ok(
 );
 ok(array_key_exists('bca_name', $blank), 'The name is still filled in, because a user always has one');
 
+/* -------------------------------------------------------------------------- */
+section('Every exported PDF carries a QR code back to its record');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A printed page leaves the system when it is printed. It gets photocopied, carried to a
+ * branch and filed, and after that nothing on it can be checked against what was submitted.
+ * The QR is what puts the paper back in touch with the record.
+ *
+ * The encoder itself is tested in tests/test-qr.php, against an independent implementation
+ * and with a reader that walks the finished matrix. What is checked here is that all four
+ * kinds of document actually carry one, since "every PDF" was the requirement and it is the
+ * kind of thing that gets added to three places out of four.
+ */
+
+/**
+ * The QR module fill PdfWriter draws, if the document has one.
+ */
+function lrms_pdf_has_qr(string $path): bool
+{
+    if (!is_file($path)) {
+        return false;
+    }
+
+    $raw = (string) file_get_contents($path);
+
+    // One black fill containing many rectangles: the merged modules of a code. A tick or a
+    // table rule is a stroke or a single rectangle, so neither can be mistaken for this.
+    return preg_match('/q 0 0 0 rg (?:[\d.]+ [\d.]+ [\d.]+ [\d.]+ re ){40,}f Q/', $raw) === 1;
+}
+
+// 1. The BCA inspection, in the client's issued format.
+$inspectionQrPdf = RecordExport::inspectionPdf($inspectionId);
+$inspectionQrText = pdf_text_flat($inspectionQrPdf['path']);
+
+ok(lrms_pdf_has_qr($inspectionQrPdf['path']), 'The inspection report carries a QR code');
+ok(str_contains($inspectionQrText, 'Scan to open this record'), 'With a caption saying what it is for');
+ok(
+    str_contains($inspectionQrText, (string) Database::scalar(
+        'SELECT uuid FROM inspections WHERE id = :id',
+        ['id' => $inspectionId]
+    )),
+    'And the reference printed too, for whoever has no phone to hand'
+);
+
+// 2. The customer visit report.
+$visitQrId = (int) Database::scalar('SELECT id FROM visits ORDER BY id LIMIT 1');
+$visitQrPdf = RecordExport::visitPdf($visitQrId);
+
+ok(lrms_pdf_has_qr($visitQrPdf['path']), 'The customer visit report carries a QR code');
+
+// 3. The client's official field visit verification report.
+$fvrVisitId = (int) Database::scalar(
+    "SELECT id FROM visits WHERE visit_type = 'krm_ots' AND status = 'submitted' ORDER BY id LIMIT 1"
+);
+
+if ($fvrVisitId > 0) {
+    $fvrPdf = FieldVisitReport::pdf($fvrVisitId);
+    ok(lrms_pdf_has_qr((string) ($fvrPdf['path'] ?? '')), 'The field visit verification report carries a QR code');
+} else {
+    ok(false, 'A KRM OTS visit exists to print the verification report from');
+}
+
+// 4. A tabular management report, where the code leads to the live figures rather than to one
+//    record — a report is a filter, not a row.
+//
+// Back to the signed-in user the top of this file set up: the inspection sections above
+// replaced it with a bare `users` row, and running a report needs the role joined on.
+Auth::setUser($admin);
+
+$tabularExport = \App\Services\Reports::export('customer_visit', [], 'pdf');
+$tabularPath = storage_path((string) $tabularExport['file_path']);
+
+ok(lrms_pdf_has_qr($tabularPath), 'A tabular report PDF carries a QR code');
+ok(
+    str_contains(pdf_text_flat($tabularPath), 'Scan for the live figures'),
+    'And says the code leads to the current figures, not to this sheet'
+);
+
 exit(TestRunner::summary());

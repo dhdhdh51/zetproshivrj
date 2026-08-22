@@ -1888,7 +1888,57 @@ final class Reports
             ), 8);
         }
 
+        // A management report is a snapshot of a filter, not a record with an id, so the code
+        // leads to the report itself with the same filters applied. Whoever is handed the
+        // printout can get the live figures rather than wondering how old the paper is.
+        $pdf->verification(
+            url('/admin/reports/' . $slug . self::queryString($filters)),
+            [
+                sprintf('%s   •   %s', self::name($slug), self::filterSummary($filters)),
+                sprintf('Prepared by %s on %s', Auth::name(), format_datetime(date('Y-m-d H:i:s'))),
+            ],
+            'Scan for the live figures',
+            'Opens this report in the LRMS panel with the same filters. A panel login is required.'
+        );
+
         $pdf->save($path);
+    }
+
+    /**
+     * The filters as a query string, for the link a printed report's QR code carries.
+     *
+     * Only scalar filters go in, and `format` is dropped: the link is meant to open the
+     * report on screen, not to hand back the same PDF. If the result would be too long to
+     * encode comfortably the filters are dropped altogether and the bare report is linked —
+     * a code that scans and needs the dates re-entered beats one that is too dense to read.
+     *
+     * @param array<string, mixed> $filters
+     */
+    private static function queryString(array $filters): string
+    {
+        $pairs = [];
+
+        foreach ($filters as $key => $value) {
+            if ($key === 'format' || $key === 'page' || !is_scalar($value)) {
+                continue;
+            }
+
+            $value = (string) $value;
+
+            if ($value === '' || $value === '0') {
+                continue;
+            }
+
+            $pairs[(string) $key] = $value;
+        }
+
+        if ($pairs === []) {
+            return '';
+        }
+
+        $query = '?' . http_build_query($pairs);
+
+        return strlen($query) > 120 ? '' : $query;
     }
 
     /**

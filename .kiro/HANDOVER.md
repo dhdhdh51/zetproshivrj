@@ -60,18 +60,58 @@ Everything below is on the branch, green in CI, and live-ready.
     possible.
   - Coverage on the dashboards now means **how many BCAs have had their monthly
     inspection**, not what share of customer visits was verified.
+- **A handset can be handed to a second BCA.** It could not before, and the failure was
+  permanent. `devices.device_uuid` is unique, so the row for a phone carried whoever first
+  signed in on it, and a release only changed its `status` — the next BCA still hit "already
+  registered to another user", with nothing on any screen to say what would fix it. The phone
+  was scrap. `ApiAuth::registerDevice()` now reassigns a **released** row to the new owner and
+  sets it active again; an **active** row still refuses, and names the holder and their BC
+  code so the branch knows who to ask.
+  - The one rule that had to survive the fix: **one live handset per account.** Every path
+    that turns a row active — a fresh bind, a re-activation, a takeover — goes through the
+    same check, so picking up a released phone while holding your own is still refused.
+    `tests/api-smoke.php` walks the whole handover and both ways of trying to get two.
+- **The inspection form arrives part-filled.** The client's complaint was retyping the BCA's
+  name, age, address and IIBF number twelve times a year. Three sources, in order: this
+  inspection's own answers (a resumed draft wins), **then** last month's for standing facts
+  only, **then** the BCA's staff record.
+  - Last month beats the staff record on purpose: a detail corrected on the form stays
+    corrected instead of being overwritten by the same stale master data every month.
+  - `Inspections::CARRIED_FORWARD` is the whole list and everything absent from it is
+    deliberately absent — transactions, remuneration, feedback, boards, registers, equipment,
+    photographs and the item 24 grade all start blank. Items **9 and 10** read like standing
+    facts and are not: the inspector is being asked to be *shown* the appointment letter and
+    the identity card. Item 25 comes from whoever is signed in, not from last month's name.
+- **Every exported PDF carries a QR code** back to its record: both record reports, the
+  client's official verification report, and every tabular report (where it leads to the live
+  figures with the same filters, since a report is a filter and not a row). It needs a panel
+  login, so it is not a way of reading customer data off a discarded printout. The reference
+  is printed beside it for whoever has no phone.
+  - The encoder is hand-written (`app/Services/Export/QrCode.php`) — no Composer on this
+    hosting, and `gd` can draw a QR but not encode one. Byte mode, level M, versions 1–10.
+  - It is verified three ways in `tests/test-qr.php`: against matrices captured from Python's
+    `qrcode` library, against the specification's function-pattern geometry for all ten
+    versions, and by a **reader in the test that shares no code with the writer** — it
+    unmasks, follows the snake and de-interleaves to recover the payload, which is what a
+    scanner does. Regenerate the fixtures with
+    `python3 tests/fixtures/regenerate-qr-reference.py`.
+  - The format bits were the one thing that had to be got right by brute force: rows and
+    columns were transposed, which produces a code that looks entirely convincing and cannot
+    be scanned at all. Nothing about the picture tells you.
 
 ## Current state
 
-- Suites: `160 / 270 / 200 / 357` (test-import / http-smoke / api-smoke / test-reports).
+- Suites: `160 / 292 / 216 / 406 / 93`
+  (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.
 - Room is at **version 6** (`MIGRATION_5_6` adds `status` and `syncMessage` to
   `sss_enrolments`). 42 tables server-side; a fresh install needs **0** upgrade steps.
 - Web panel published to the `web-app` branch — the server pulls from it.
-- APK **v1.5.5** is still the published build:
-  `https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.5.5-SIGNED.apk`
-  It does **not** contain the target screens. See below.
+- APK **v1.6.1** is the published build, signed with the new key:
+  `https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.1-SIGNED.apk`
+  It has the target screens. It does **not** yet carry the BCA rename in
+  `values/strings.xml` and `values-hi/strings.xml` — that needs a **v1.6.2** build.
 
 ## The signing key was replaced at v1.6.0
 
