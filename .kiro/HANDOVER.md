@@ -101,7 +101,7 @@ Everything below is on the branch, green in CI, and live-ready.
 
 ## Current state
 
-- Suites: `160 / 292 / 216 / 406 / 93`
+- Suites: `160 / 309 / 216 / 406 / 93`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.
@@ -157,10 +157,15 @@ generate a third key without saying what it costs.
   `config/config.php`. On a site where that is still `https://yourdomain.com` the code will
   encode a host nobody can reach. It falls back to the request host, so a panel-generated PDF
   is right either way; a PDF generated from the command line on a misconfigured site is not.
-- No public `/verify/{uuid}` route was added. A code scanned by somebody without a panel login
-  lands on the sign-in page. That was the safe default — an open route would publish borrower
-  detail — but if the client asks for a page a branch officer can check without signing in,
-  it needs to be a page that confirms the document exists and says nothing else.
+- No **public** verify route was added. A code resolves through `/r/{type}/{reference}`, which
+  requires a login and sends whoever scans it to the panel they are allowed to use — the admin
+  record for a BC Supervisor, the branch portal for a Branch Manager, `/app-only` for a BCA.
+  Scanned while signed out it stores the intended URL and goes to sign-in, so they still land
+  on the record. That was the safe default: an open route would publish borrower detail off a
+  discarded printout. If the client asks for something a branch officer can check without
+  signing in, it has to be a page that confirms the document exists and says nothing else.
+- `/r/` is deliberately short because every character is another module in a code somebody has
+  to scan off a photocopy. Do not lengthen it for tidiness.
 
 ## Things that will waste your time otherwise
 

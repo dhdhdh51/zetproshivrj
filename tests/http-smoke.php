@@ -1383,10 +1383,59 @@ if ($installer['status'] === 200) {
 }
 
 /* -------------------------------------------------------------------------- */
-section('Branch Manager portal and branch isolation');
+section('The QR code on a printed PDF opens the record');
 /* -------------------------------------------------------------------------- */
 
+/*
+ * The code carries `/r/inspection/{id}`, not the panel path, and where that goes is decided
+ * when somebody scans it. It has to be: the same visit report is printed from the admin panel
+ * and from the branch portal, and the sheet outlives the session that printed it, so a code
+ * carrying the printer's own path would 403 for the person at the other end — for doing
+ * exactly what the caption on the sheet told them to.
+ */
+$qrInspectionId = (int) Database::scalar('SELECT id FROM inspections ORDER BY id LIMIT 1');
+
+$hop = static function (string $path) use ($base): array {
+    return request($base . $path, ['follow' => false]);
+};
+
+$inspectionHop = $hop('/r/inspection/' . $qrInspectionId);
+equals(302, $inspectionHop['status'], 'A record code redirects rather than rendering');
+ok(
+    str_contains($inspectionHop['headers'], '/admin/inspections/' . $qrInspectionId),
+    'For a BC Supervisor it resolves to the admin panel'
+);
+page('/r/inspection/' . $qrInspectionId, 'Scanned inspection code (followed through)');
+
+// A report code carries the filters it was printed with, so it opens the report that was on
+// the paper rather than the same report with no dates on it.
+$reportHop = $hop('/r/report/customer_visit?from=2026-08-01&to=2026-08-31');
+equals(302, $reportHop['status'], 'A report code redirects');
+ok(
+    str_contains($reportHop['headers'], '/admin/reports/customer_visit'),
+    'To the report in the admin panel'
+);
+ok(
+    str_contains($reportHop['headers'], 'from=2026-08-01') && str_contains($reportHop['headers'], 'to=2026-08-31'),
+    'Carrying the filters through, so the printed figures can be reproduced'
+);
+
+// A sheet whose record has since been deleted says the record is gone. Falling through to the
+// panel's own 404 would read as a broken link instead of a missing record.
+equals(404, $hop('/r/visit/99999999')['status'], 'A code for a record that is gone is a 404');
+equals(404, $hop('/r/teapot/1')['status'], 'A code for a kind of record that does not exist is a 404');
+
 request($base . '/logout', ['post' => ['_token' => csrfToken(page('/admin', 'Dashboard before logout'))]]);
+
+// Signed out, a scan has to reach the sign-in page and then land on the record — being
+// dropped on a dashboard after scanning is worse than typing the reference by hand.
+$anonymous = $hop('/r/report/customer_visit');
+equals(302, $anonymous['status'], 'A scan while signed out redirects');
+ok(str_contains($anonymous['headers'], '/login'), 'To the sign-in page');
+
+/* -------------------------------------------------------------------------- */
+section('Branch Manager portal and branch isolation');
+/* -------------------------------------------------------------------------- */
 
 $manager = Database::selectOne(
     "SELECT u.id, u.email, u.branch_id FROM users u JOIN roles r ON r.id = u.role_id
@@ -1426,6 +1475,31 @@ if ($manager === null) {
     // The admin panel must be closed to a manager.
     $forbidden = request($base . '/admin');
     equals(403, $forbidden['status'], 'Branch Manager cannot open the admin panel');
+
+    // The same printed code, scanned by a manager, has to open the branch portal's copy — not
+    // the admin path it would carry if the code named where it was printed from. This is the
+    // reason /r/ exists rather than the QR holding a panel URL.
+    $managerHop = request($base . '/r/report/customer_visit', ['follow' => false]);
+    equals(302, $managerHop['status'], 'A manager scanning a report code is redirected');
+    ok(
+        str_contains($managerHop['headers'], '/manager/reports/customer_visit'),
+        'To the branch portal, not to the admin panel they cannot open'
+    );
+    page('/r/report/customer_visit', 'Manager scanned a report code (followed through)');
+
+    // Inspections are not in the branch portal at all. The code has to say so, because a bare
+    // 403 for scanning what the page told you to scan is the thing this route exists to avoid.
+    $managerInspection = request($base . '/r/inspection/' . $qrInspectionId, ['follow' => false]);
+    equals(302, $managerInspection['status'], 'A manager scanning an inspection code is redirected');
+    ok(
+        str_contains($managerInspection['headers'], '/manager')
+        && !str_contains($managerInspection['headers'], '/admin'),
+        'Into the branch portal rather than at a refusal'
+    );
+    ok(
+        str_contains(page('/manager', 'Branch dashboard after scanning an inspection'), 'does not show inspection'),
+        'And told why, with the reference on the sheet offered as the way round it'
+    );
 
     // An account from another branch must not be readable.
     $otherAccount = (int) Database::scalar(

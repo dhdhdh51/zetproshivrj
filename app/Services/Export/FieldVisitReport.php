@@ -132,7 +132,7 @@ final class FieldVisitReport
         self::sectionFinalStatus($pdf, $case, $stream);
         self::closingNote($pdf, $stream);
 
-        $pdf->verification(url('/admin/visits/' . $visitId), [
+        $pdf->verification(url('/r/visit/' . $visitId), [
             sprintf('Report reference: %s', (string) $visit['uuid']),
             sprintf(
                 'Account %s   •   %s   •   %s',

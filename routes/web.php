@@ -11,6 +11,7 @@ declare(strict_types=1);
 use App\Controllers\AuthController;
 use App\Controllers\FileController;
 use App\Controllers\LocaleController;
+use App\Controllers\RecordLinkController;
 use App\Core\Auth;
 use App\Core\Response;
 
@@ -40,6 +41,16 @@ $router->post('/locale', [LocaleController::class, 'update']);
 
 $router->get('/password/change', [AuthController::class, 'showChangePassword'], ['auth']);
 $router->post('/password/change', [AuthController::class, 'changePassword'], ['auth']);
+
+/* ------------------------------------------------------- Printed QR codes -- */
+
+// The other end of the QR code on every exported PDF. It resolves to whichever panel the
+// person scanning it is allowed to use, because the same report is printed from both the
+// admin and the branch portal and the paper outlives the session that printed it.
+//
+// Kept short: this ends up encoded on paper, and every character is another module in a code
+// somebody has to scan off a photocopy.
+$router->get('/r/{type:[a-z]+}/{reference:[A-Za-z0-9_-]+}', [RecordLinkController::class, 'show'], ['auth']);
 
 /* ------------------------------------------------- Authorised file access -- */
 
