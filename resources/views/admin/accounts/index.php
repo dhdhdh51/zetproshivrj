@@ -52,7 +52,7 @@ $basePath = $isAdmin ? '/admin' : '/manager';
             <?php endif; ?>
 
             <div class="field">
-                <label for="bc_supervisor_id">BC Supervisor</label>
+                <label for="bc_supervisor_id">BCA</label>
                 <select id="bc_supervisor_id" name="bc_supervisor_id">
                     <option value="">All</option>
                     <?php foreach ($supervisors as $supervisor): ?>
@@ -116,7 +116,7 @@ $basePath = $isAdmin ? '/admin' : '/manager';
         ]) ?>
     <?php else: ?>
         <form method="post" action="<?= e(url('/admin/accounts/bulk-reassign')) ?>"
-              data-confirm="Reassign the selected accounts to the chosen BC Supervisor?">
+              data-confirm="Reassign the selected accounts to the chosen BCA?">
             <?= csrf_field() ?>
             <div class="table-wrap">
                 <table class="data">
@@ -128,7 +128,7 @@ $basePath = $isAdmin ? '/admin' : '/manager';
                             <th>Village / branch</th>
                             <th class="right"><a href="<?= e(query_string(['sort' => 'outstanding', 'direction' => sort_link_direction('outstanding', $f('sort', 'overdue'), $f('direction', 'desc'))])) ?>">Outstanding</a></th>
                             <th class="right"><a href="<?= e(query_string(['sort' => 'overdue', 'direction' => sort_link_direction('overdue', $f('sort', 'overdue'), $f('direction', 'desc'))])) ?>">Overdue</a></th>
-                            <th>BC Supervisor</th>
+                            <th>BCA</th>
                             <th class="center"><a href="<?= e(query_string(['sort' => 'visits', 'direction' => sort_link_direction('visits', $f('sort', 'overdue'), $f('direction', 'desc'))])) ?>">Visits</a></th>
                             <th>Recovery status</th>
                         </tr>

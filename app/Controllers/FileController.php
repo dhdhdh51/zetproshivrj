@@ -116,7 +116,7 @@ final class FileController extends Controller
 
     /**
      * Download a generated report export. Only the user who produced it (or an
-     * Admin/Supervisor) may fetch it, because the file already contains data that
+     * BC Supervisor) may fetch it, because the file already contains data that
      * was filtered for that user.
      */
     public function export(Request $request): void

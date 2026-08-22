@@ -405,7 +405,7 @@ tail /home/lrms.example.com/public_html/storage/logs/cron.log
 3. **Settings** — set the report deadline, working days and GPS limits.
 4. **Branches ▸ Add** — include the Regional Office and Zone; both print on the
    verification report.
-5. **Staff ▸ BC Supervisors** — the BCBF code must match the code in your Excel
+5. **Staff ▸ BCAs** — the BCBF code must match the code in your Excel
    sheets, or automatic allocation cannot match on it.
 
 Then build the Android app against this server. In GitHub, add the repository

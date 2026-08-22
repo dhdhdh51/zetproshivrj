@@ -61,21 +61,21 @@ return [
     'auth.sign_in' => 'Sign in',
     'auth.sign_in_and_get_code' => 'Sign in and get code',
     'auth.sign_out' => 'Sign out',
-    'auth.intro' => 'Admin/Supervisor and Branch Manager accounts.',
+    'auth.intro' => 'BC Supervisor and Branch Manager accounts.',
     'auth.login_field' => 'Email, username, employee code or BCBF code',
     'auth.password' => 'Password',
-    'auth.app_only_hint' => 'BC Supervisors work in the LRMS Android app —',
+    'auth.app_only_hint' => 'BCAs work in the LRMS Android app —',
     'auth.app_only_link' => 'details here',
     'auth.footer_notice' => 'Authorised users only. All activity is logged.',
     'auth.change_password' => 'Change password',
 
-    /* The notice a BC Supervisor sees if they try the web panel ---------- */
+    /* The notice a BCA sees if they try the web panel ---------- */
     'app_only.title' => 'Use the LRMS Android app',
-    'app_only.intro' => 'BC Supervisor field work — customer visits, GPS, photographs, recovery, PTP, '
+    'app_only.intro' => 'BCA field work — customer visits, GPS, photographs, recovery, PTP, '
         . 'attendance and the daily report — is done in the LRMS Android app, which also works offline '
         . 'and syncs when a connection returns.',
     'app_only.device_note' => 'Sign in to the app with the same BCBF code and password. Your account is '
-        . 'bound to one device; if you have a new handset, ask your Admin/Supervisor to reset the device '
+        . 'bound to one device; if you have a new handset, ask your BC Supervisor to reset the device '
         . 'binding.',
     'app_only.back' => 'Back to sign in',
 
@@ -102,7 +102,7 @@ return [
     'nav.sss_targets' => 'SSS targets',
     'nav.branches' => 'Branches',
     'nav.branch_managers' => 'Branch managers',
-    'nav.bc_supervisors' => 'BC supervisors',
+    'nav.bc_supervisors' => 'BCAs',
     'nav.targets' => 'Targets',
     'nav.reports' => 'Reports',
     'nav.report_deadline' => 'Report deadline',
@@ -116,9 +116,9 @@ return [
     'nav.performance' => 'Performance',
 
     /* Roles -------------------------------------------------------------- */
-    'role.admin' => 'Admin / Supervisor',
+    'role.admin' => 'BC Supervisor',
     'role.branch_manager' => 'Branch Manager',
-    'role.bc_supervisor' => 'BC Supervisor',
+    'role.bc_supervisor' => 'BCA',
 
     /* Top bar ------------------------------------------------------------ */
     'topbar.menu' => 'Menu',

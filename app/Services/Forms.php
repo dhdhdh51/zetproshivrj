@@ -13,7 +13,7 @@ use App\Core\Settings;
  * The configurable form engine behind both builders.
  *
  * The same code drives the customer visit form (TYPE A, filled on Android) and
- * the BC Supervisor inspection form (TYPE B, filled on the web), because the two
+ * the BCA inspection form (TYPE B, filled on the web), because the two
  * differ only in which tables they live in. That is what lets the final
  * inspection questionnaire be changed from the admin panel later without
  * touching application code.

@@ -15,7 +15,7 @@ namespace App\Services\Excel;
  *    60+ token overlap / similarity above the threshold
  *
  * Anything below `CERTAIN_THRESHOLD` is still suggested but flagged so the
- * Admin/Supervisor is asked to confirm it on the mapping screen.
+ * BC Supervisor is asked to confirm it on the mapping screen.
  */
 final class ColumnMatcher
 {

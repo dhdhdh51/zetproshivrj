@@ -85,7 +85,7 @@ $basePath = $canManage ? '/admin' : '/manager';
         <div class="card-body">
             <?php if ($account['supervisor_name'] !== null): ?>
                 <div class="kv">
-                    <div><div class="k">BC Supervisor</div><div class="v"><?= e($account['supervisor_name']) ?></div></div>
+                    <div><div class="k">BCA</div><div class="v"><?= e($account['supervisor_name']) ?></div></div>
                     <div><div class="k">BC code</div><div class="v"><?= e($account['bc_code']) ?></div></div>
                     <div><div class="k">Allocated</div><div class="v"><?= e(format_datetime($account['assigned_at'])) ?></div></div>
                     <div><div class="k">Method</div><div class="v"><?= e(enum_label((string) $account['allocation_method'])) ?></div></div>
@@ -93,7 +93,7 @@ $basePath = $canManage ? '/admin' : '/manager';
             <?php else: ?>
                 <div class="alert alert-warning" style="margin:0">
                     <?= icon('alert-triangle', '', 16) ?>
-                    <div>This account has no BC Supervisor. It will not appear on any device until allocated.</div>
+                    <div>This account has no BCA. It will not appear on any device until allocated.</div>
                 </div>
             <?php endif; ?>
 
@@ -103,7 +103,7 @@ $basePath = $canManage ? '/admin' : '/manager';
                     <div class="field">
                         <label for="bc_supervisor_id">Reassign to</label>
                         <select id="bc_supervisor_id" name="bc_supervisor_id" required>
-                            <option value="">Select BC Supervisor…</option>
+                            <option value="">Select BCA…</option>
                             <?php foreach ($supervisors as $supervisor): ?>
                                 <option value="<?= (int) $supervisor['id'] ?>"
                                     <?= (int) $supervisor['id'] === (int) ($account['bc_supervisor_id'] ?? 0) ? 'disabled' : '' ?>>
@@ -136,7 +136,7 @@ $basePath = $canManage ? '/admin' : '/manager';
     <div class="card-head">
         <h2>Customer visits</h2>
         <div class="spacer"></div>
-        <span class="small muted">Performed by BC Supervisors</span>
+        <span class="small muted">Performed by BCAs</span>
     </div>
     <?php if ($visits === []): ?>
         <?= view_partial('partials.empty', ['message' => 'No visits recorded yet', 'iconName' => 'clipboard']) ?>
@@ -145,7 +145,7 @@ $basePath = $canManage ? '/admin' : '/manager';
             <table class="data compact">
                 <thead>
                     <tr>
-                        <th>Date</th><th>BC Supervisor</th><th>Status</th><th>Possibility</th>
+                        <th>Date</th><th>BCA</th><th>Status</th><th>Possibility</th>
                         <th class="center">Photos</th><th class="center">GPS</th><th class="center">Inspected</th>
                         <th>Remarks</th><th></th>
                     </tr>

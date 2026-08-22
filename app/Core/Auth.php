@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Core;
 
 /**
- * Session authentication for the web application (Admin/Supervisor and Branch
- * Manager). BC Supervisors authenticate against the same `users` table but
+ * Session authentication for the web application (BC Supervisor and Branch
+ * Manager). BCAs authenticate against the same `users` table but
  * receive API tokens instead of a cookie session — see App\Core\ApiAuth.
  */
 final class Auth
@@ -31,7 +31,7 @@ final class Auth
     /**
      * Resolve a user from whatever they typed in the login field.
      *
-     * A BC Supervisor knows their BCBF code — it is on their paperwork and in the
+     * A BCA knows their BCBF code — it is on their paperwork and in the
      * bank's spreadsheets — far better than a username invented when their
      * account was created, so it signs them in too. The join is safe: one
      * bc_supervisors row per user is enforced by `uq_bc_user`, and `uq_bc_code`
@@ -261,7 +261,7 @@ final class Auth
     }
 
     /**
-     * Branch the signed-in user is restricted to, or null for Admin/Supervisor
+     * Branch the signed-in user is restricted to, or null for BC Supervisor
      * (who legitimately sees every branch).
      */
     public static function branchId(): ?int
@@ -322,7 +322,7 @@ final class Auth
         return match ($role ?? self::role()) {
             self::ROLE_ADMIN => '/admin',
             self::ROLE_MANAGER => '/manager',
-            // BC Supervisors work in the Android app; the web portal only tells
+            // BCAs work in the Android app; the web portal only tells
             // them so rather than pretending to offer a field UI.
             self::ROLE_BC => '/app-only',
             default => '/login',

@@ -61,14 +61,14 @@ final class PortalController extends BaseController
     }
 
     /**
-     * BC Supervisors of this branch, read-only.
+     * BCAs of this branch, read-only.
      */
     public function supervisors(Request $request): void
     {
         $branchId = (int) Auth::branchId();
 
         $this->page('manager.supervisors', [
-            'title' => 'BC supervisors',
+            'title' => 'BCAs',
             'supervisors' => Database::select(
                 "SELECT s.*, u.name, u.email, u.last_login_at,
                         (SELECT COUNT(*) FROM account_assignments x WHERE x.bc_supervisor_id = s.id AND x.is_active = 1) AS accounts,

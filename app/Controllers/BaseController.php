@@ -70,7 +70,7 @@ abstract class BaseController extends Controller
     }
 
     /**
-     * BC Supervisors the current user may filter by.
+     * BCAs the current user may filter by.
      *
      * @return array<int, array<string, mixed>>
      */

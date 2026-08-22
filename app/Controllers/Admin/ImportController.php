@@ -17,7 +17,7 @@ use App\Services\Excel\SystemFields;
 /**
  * The Excel upload wizard: upload → map columns → preview → import.
  *
- * Nothing is written to the loan book until the Admin/Supervisor confirms the
+ * Nothing is written to the loan book until the BC Supervisor confirms the
  * mapping and the preview, and the same translation code powers both the preview
  * and the import so there are no surprises.
  */

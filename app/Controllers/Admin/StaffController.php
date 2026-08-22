@@ -15,7 +15,7 @@ use App\Services\Audit;
 use App\Services\Notify;
 
 /**
- * Branch Manager and BC Supervisor accounts.
+ * Branch Manager and BCA accounts.
  *
  * Both are `users` rows plus a role-specific profile row, created in one
  * transaction so a half-made account can never exist. Temporary passwords are
@@ -202,7 +202,7 @@ final class StaffController extends BaseController
     }
 
     /* ------------------------------------------------------------------ */
-    /* BC Supervisors                                                     */
+    /* BCAs                                                     */
     /* ------------------------------------------------------------------ */
 
     public function supervisors(Request $request): void
@@ -251,7 +251,7 @@ final class StaffController extends BaseController
         );
 
         $this->page('admin.staff.supervisors', [
-            'title' => 'BC supervisors',
+            'title' => 'BCAs',
             'supervisors' => $supervisors,
             'branches' => $this->branchOptions(),
             'search' => $search,
@@ -263,7 +263,7 @@ final class StaffController extends BaseController
     public function createSupervisor(Request $request): void
     {
         $this->page('admin.staff.supervisor-form', [
-            'title' => 'Add BC supervisor',
+            'title' => 'Add BCA',
             'branches' => $this->branchOptions(),
             'supervisor' => null,
         ]);
@@ -331,7 +331,7 @@ final class StaffController extends BaseController
             'entity_type' => 'bc_supervisor',
             'entity_id' => $result['supervisor_id'],
             'description' => sprintf(
-                'BC Supervisor %s (%s) created for branch #%d.',
+                'BCA %s (%s) created for branch #%d.',
                 $data['name'],
                 strtoupper((string) $data['bc_code']),
                 (int) $data['branch_id']
@@ -347,7 +347,7 @@ final class StaffController extends BaseController
         );
 
         $this->success(sprintf(
-            'BC Supervisor created. App username: %s · password: %s (share securely).',
+            'BCA created. App username: %s · password: %s (share securely).',
             $data['username'],
             $password
         ));
@@ -364,11 +364,11 @@ final class StaffController extends BaseController
         );
 
         if ($supervisor === null) {
-            $this->abort(404, 'BC Supervisor not found.');
+            $this->abort(404, 'BCA not found.');
         }
 
         $this->page('admin.staff.supervisor-form', [
-            'title' => 'Edit BC supervisor',
+            'title' => 'Edit BCA',
             'branches' => $this->branchOptions(),
             'supervisor' => $supervisor,
             'devices' => Database::select(
@@ -384,7 +384,7 @@ final class StaffController extends BaseController
         $supervisor = Database::selectOne('SELECT * FROM bc_supervisors WHERE id = :id', ['id' => $id]);
 
         if ($supervisor === null) {
-            $this->abort(404, 'BC Supervisor not found.');
+            $this->abort(404, 'BCA not found.');
         }
 
         $userId = (int) $supervisor['user_id'];
@@ -456,10 +456,10 @@ final class StaffController extends BaseController
             $id,
             $supervisor,
             ['bc_code' => $data['bc_code'], 'branch_id' => $newBranch, 'status' => $data['status']],
-            sprintf('BC Supervisor %s updated.', $data['name'])
+            sprintf('BCA %s updated.', $data['name'])
         );
 
-        $this->success('BC supervisor updated.');
+        $this->success('BCA updated.');
         $this->redirect('/admin/supervisors');
     }
 
@@ -477,7 +477,7 @@ final class StaffController extends BaseController
         }
 
         if ((string) $user['role'] === Auth::ROLE_ADMIN && $userId !== auth_id()) {
-            $this->abort(403, 'Another Admin/Supervisor password can only be reset by its owner.');
+            $this->abort(403, 'Another BC Supervisor password can only be reset by its owner.');
         }
 
         $password = $this->temporaryPassword();
@@ -619,7 +619,7 @@ final class StaffController extends BaseController
     /* ------------------------------------------------------------------ */
 
     /* ------------------------------------------------------------------ */
-    /* BC Supervisor profile fields                                       */
+    /* BCA profile fields                                       */
     /* ------------------------------------------------------------------ */
 
     /**

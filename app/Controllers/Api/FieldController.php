@@ -138,7 +138,7 @@ final class FieldController extends ApiController
         $form = Forms::defaultForm(Forms::KIND_VISIT, in_array($type, ['customer', 'krm_ots', 'ckcc_od2'], true) ? $type : 'customer');
 
         if ($form === null) {
-            $this->fail('No active visit form is configured. Contact your Admin/Supervisor.', 503, 'no_form');
+            $this->fail('No active visit form is configured. Contact your BC Supervisor.', 503, 'no_form');
 
             return;
         }
@@ -202,7 +202,7 @@ final class FieldController extends ApiController
         }
 
         if ((int) $visit['bc_supervisor_id'] !== $supervisorId) {
-            $this->fail('That visit belongs to another BC Supervisor.', 403, 'forbidden');
+            $this->fail('That visit belongs to another BCA.', 403, 'forbidden');
 
             return;
         }
@@ -468,7 +468,7 @@ final class FieldController extends ApiController
             // Month to date, so the supervisor can see the running figure they are
             // measured on without waiting for a report to be run in the panel.
             'month' => Sss::summary(date('Y-m-01', strtotime($date)), $date, $supervisorId),
-            // The target the Admin set, and the arithmetic against it. Computed here and
+            // The target the BC Supervisor set, and the arithmetic against it. Computed here and
             // never sent up: the handset has no way to send a target, a percentage or a
             // gap, so there is nothing for a supervisor to move. It also means the phone
             // and the panel cannot disagree about the same day — they run the same code.
@@ -488,7 +488,7 @@ final class FieldController extends ApiController
      * Submit a day's figures.
      *
      * A day is closed once submitted: posting different figures for it comes back 409 with
-     * a message telling the supervisor to ask an Admin to re-open it. Posting the *same*
+     * a message telling the supervisor to ask a BC Supervisor to re-open it. Posting the *same*
      * figures again is a redelivery, not an edit, and is accepted — the outbox delivers at
      * least once, and a retry must never be reported as an error or double a day's total.
      */

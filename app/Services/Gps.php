@@ -141,7 +141,7 @@ final class Gps
     }
 
     /**
-     * Persist a validated point for a BC Supervisor inspection. When the
+     * Persist a validated point for a BCA inspection. When the
      * inspection is linked to a visit, the distance between the inspector and
      * the supervisor's own recorded point is computed — that number is the core
      * evidence for the "was the visit genuine" question.

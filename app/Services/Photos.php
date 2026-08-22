@@ -113,7 +113,7 @@ final class Photos
     }
 
     /**
-     * Attach a photo to a BC Supervisor inspection (TYPE B).
+     * Attach a photo to a BCA inspection (TYPE B).
      */
     public function storeForInspection(int $inspectionId, mixed $source, array $meta = []): array
     {

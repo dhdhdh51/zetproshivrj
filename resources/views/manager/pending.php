@@ -21,7 +21,7 @@
         <div class="table-wrap">
             <table class="data">
                 <thead>
-                    <tr><th>Account</th><th>Borrower</th><th>Village</th><th class="right">Outstanding</th><th class="right">Overdue</th><th>NPA date</th><th>BC Supervisor</th></tr>
+                    <tr><th>Account</th><th>Borrower</th><th>Village</th><th class="right">Outstanding</th><th class="right">Overdue</th><th>NPA date</th><th>BCA</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($accounts as $account): ?>

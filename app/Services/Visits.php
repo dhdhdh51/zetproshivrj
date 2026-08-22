@@ -10,7 +10,7 @@ use App\Core\HttpException;
 use App\Core\Settings;
 
 /**
- * TYPE A — BC Supervisor customer recovery visits.
+ * TYPE A — BCA customer recovery visits.
  *
  * The flow is deliberately three steps so a field device on a bad connection can
  * make progress and resume:
@@ -43,7 +43,7 @@ final class Visits
 
         if ($existing !== null) {
             if ((int) $existing['bc_supervisor_id'] !== $bcSupervisorId) {
-                throw new HttpException(403, 'That visit belongs to another BC Supervisor.');
+                throw new HttpException(403, 'That visit belongs to another BCA.');
             }
 
             return ['visit' => $existing, 'created' => false, 'gps' => []];
@@ -142,7 +142,7 @@ final class Visits
         }
 
         if ((int) $visit['bc_supervisor_id'] !== $bcSupervisorId) {
-            throw new HttpException(403, 'That visit belongs to another BC Supervisor.');
+            throw new HttpException(403, 'That visit belongs to another BCA.');
         }
 
         $visitId = (int) $visit['id'];
@@ -748,7 +748,7 @@ final class Visits
     }
 
     /* ------------------------------------------------------------------ */
-    /* Review actions (Admin/Supervisor)                                  */
+    /* Review actions (BC Supervisor)                                  */
     /* ------------------------------------------------------------------ */
 
     public static function approve(int $visitId, string $remarks = ''): void

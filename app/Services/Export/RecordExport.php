@@ -63,7 +63,7 @@ final class RecordExport
             [
                 sprintf('Visit reference: %s', $visit['uuid']),
                 sprintf(
-                    'Branch: %s (%s)   •   BC Supervisor: %s (%s)',
+                    'Branch: %s (%s)   •   BCA: %s (%s)',
                     $visit['branch_name'],
                     $visit['branch_code'],
                     $visit['supervisor_name'],
@@ -112,7 +112,7 @@ final class RecordExport
         }
 
         if (!empty($visit['recommendation'])) {
-            $pdf->heading('BC Supervisor recommendation', 10);
+            $pdf->heading('BCA recommendation', 10);
             $pdf->paragraph((string) $visit['recommendation']);
         }
 
@@ -188,7 +188,17 @@ final class RecordExport
 
         self::signatures($pdf, [
             'Borrower signature' => $visit['borrower_signature'],
-            'BC Supervisor signature' => $visit['supervisor_signature'],
+            'BCA signature' => $visit['supervisor_signature'],
+        ]);
+
+        $pdf->verification(url('/admin/visits/' . $visitId), [
+            sprintf('Visit reference: %s', (string) $visit['uuid']),
+            sprintf(
+                'Account %s   •   %s   •   %s',
+                (string) $visit['account_number'],
+                (string) $visit['borrower_name'],
+                format_date((string) $visit['visit_date'])
+            ),
         ]);
 
         $fileName = sprintf('visit-report-%s-%s.pdf', $visit['account_number'], (string) $visit['visit_date']);
@@ -205,18 +215,18 @@ final class RecordExport
     }
 
     /**
-     * BC Supervisor Inspection Report — deliberately a separate document from the
+     * BCA Inspection Report — deliberately a separate document from the
      * customer visit report.
      *
      * @return array{path:string, file_name:string}
      */
     /**
-     * The BC Supervisor inspection, printed in the format the client issued.
+     * The BCA inspection, printed in the format the client issued.
      *
      * Driven by the form definition rather than a hardcoded list of the 27 items. Three
      * things fall out of that and all of them matter: an inspection recorded before the
      * format changed prints the questions it was actually answered against, a question
-     * the Admin adds in the form builder appears here without anyone editing this file,
+     * the BC Supervisor adds in the form builder appears here without anyone editing this file,
      * and an item left blank still prints — the page is a form somebody signs, so a gap
      * has to be visible as a gap rather than silently absent.
      *
@@ -239,11 +249,11 @@ final class RecordExport
         $pdf = new PdfWriter('portrait');
         $pdf->documentHeader(
             org_name(),
-            'BC Supervisor Inspection',
+            'BCA Inspection',
             [
                 sprintf('Reference: %s', $inspection['uuid']),
                 sprintf(
-                    'BC Supervisor: %s (%s)   •   Branch: %s',
+                    'BCA: %s (%s)   •   Branch: %s',
                     $inspection['supervisor_name'],
                     $inspection['bc_code'],
                     $inspection['branch_name']
@@ -253,12 +263,22 @@ final class RecordExport
 
         $pdf->keyValues([
             'Inspection date' => format_date((string) $inspection['inspection_date']),
-            'Inspected by' => (string) $inspection['inspector_name'],
+            // The panel account that carried out the inspection. Named BC Supervisor because
+            // that is who they are: the BCA is the agent at the outlet, below.
+            'BC Supervisor' => (string) $inspection['inspector_name'],
             'Submitted at' => format_datetime($inspection['submitted_at']),
             // Item 24 of the form. Printed under its own name so the page and the paper agree.
             'Observation (item 24)' => $inspection['result'] === null
                 ? 'Not recorded'
                 : inspection_result_label((string) $inspection['result']),
+            // The BCA whose outlet this is, next to the official who visited it. Item 25 of
+            // the form carries the visiting official's own name and number; this is the
+            // account the inspection is filed against, which is what anybody checking the
+            // register looks for first.
+            'BCA' => trim(
+                (string) $inspection['supervisor_name']
+                . ' (' . (string) $inspection['bc_code'] . ')'
+            ),
             'Status' => enum_label((string) $inspection['status']),
             'Form used' => (string) $inspection['form_name'],
         ]);
@@ -269,7 +289,7 @@ final class RecordExport
 
         self::inspectionItems($pdf, $fields, $answers);
 
-        /* Item 23's photographs, and anything the BC Supervisor's own visit carried. */
+        /* Item 23's photographs, and anything the BCA's own visit carried. */
         if ($detail['photos'] !== []) {
             $pdf->heading('Photographs at the BC point');
             $pdf->imageGrid(array_map(static fn (array $photo): array => [
@@ -283,7 +303,7 @@ final class RecordExport
         }
 
         if ($detail['visit_photos'] !== []) {
-            $pdf->heading('Photographs submitted by the BC Supervisor');
+            $pdf->heading('Photographs submitted by the BCA');
             $pdf->imageGrid(array_map(static fn (array $photo): array => [
                 'path' => storage_path((string) $photo['file_path']),
                 'caption' => sprintf(
@@ -295,7 +315,7 @@ final class RecordExport
         }
 
         /* The inspector's own remarks, kept separate from item 22 and item 27. */
-        $pdf->heading('Inspector remarks');
+        $pdf->heading('BC Supervisor remarks');
         $pdf->paragraph((string) ($inspection['remarks'] ?: 'No remarks recorded.'));
 
         /*
@@ -304,7 +324,7 @@ final class RecordExport
          * was filed from is part of that.
          */
         if ($detail['gps'] !== []) {
-            $pdf->heading('Inspector position');
+            $pdf->heading('BC Supervisor position');
             $pdf->table(
                 ['Event', 'Latitude', 'Longitude', 'Accuracy', 'Captured', 'Valid'],
                 array_map(static fn (array $point): array => [
@@ -324,8 +344,14 @@ final class RecordExport
          * Item 26. Ruled lines, because the form is signed by hand on the printed copy —
          * the same reason the field visit report stopped trying to capture a signature.
          */
+        /*
+         * The client's form calls item 26 "the visiting official", and that wording stays
+         * because the printed paper says it. Who that official is, though, is named next to
+         * the line: the person who visits the outlet and signs this sheet is the BC
+         * Supervisor. The BCA is the agent being inspected and does not sign here.
+         */
         $pdf->heading('26. Signature of the visiting official');
-        $pdf->signatureLines(['Visiting official', 'Date']);
+        $pdf->signatureLines(['Visiting official (BC Supervisor)', 'Date']);
 
         // From the letterhead of the form the client issued, so a printed copy carries
         // the office it belongs to rather than looking like a document of our own.
@@ -339,6 +365,17 @@ final class RecordExport
             'Central Bank of India — Financial Inclusion, Bhopal Zonal Office'
         );
 
+        $pdf->verification(url('/admin/inspections/' . $inspectionId), [
+            sprintf('Inspection reference: %s', (string) $inspection['uuid']),
+            sprintf(
+                'BCA %s (%s)   •   %s   •   %s',
+                (string) $inspection['supervisor_name'],
+                (string) $inspection['bc_code'],
+                (string) $inspection['branch_name'],
+                format_date((string) $inspection['inspection_date'])
+            ),
+        ]);
+
         $fileName = sprintf(
             'inspection-report-%s-%s.pdf',
             $inspection['bc_code'],
@@ -351,7 +388,7 @@ final class RecordExport
             'entity_type' => 'inspection',
             'entity_id' => $inspectionId,
             'description' => sprintf(
-                'BC Supervisor Inspection PDF generated for %s (%s).',
+                'BCA Inspection PDF generated for %s (%s).',
                 $inspection['supervisor_name'],
                 $inspection['bc_code']
             ),

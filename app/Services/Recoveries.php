@@ -9,7 +9,7 @@ use App\Core\Database;
 use App\Core\HttpException;
 
 /**
- * Repayments the borrower made to the bank, recorded by the BC Supervisor who
+ * Repayments the borrower made to the bank, recorded by the BCA who
  * followed them up.
  *
  * Not money the agent took, and no longer something the app records at all. The field
@@ -23,7 +23,7 @@ use App\Core\HttpException;
  * panel reports read them.
  *
  * Every row is idempotent on its client uuid and keeps its full history: recoveries
- * are never edited in place, they are verified or rejected by an Admin/Supervisor.
+ * are never edited in place, they are verified or rejected by an BC Supervisor.
  */
 final class Recoveries
 {

@@ -72,7 +72,7 @@ final class AuthController extends ApiController
             $this->fail(
                 match ($result['reason']) {
                     'locked' => 'This account is temporarily locked after repeated failed attempts.',
-                    'inactive' => 'This account is not active. Contact your Admin/Supervisor.',
+                    'inactive' => 'This account is not active. Contact your BC Supervisor.',
                     default => 'Incorrect username or password.',
                 },
                 401,
@@ -89,7 +89,7 @@ final class AuthController extends ApiController
 
         if ((string) $user['role'] !== Auth::ROLE_BC) {
             $this->fail(
-                'This app is for BC Supervisors. Admin/Supervisor and Branch Manager accounts use the web portal.',
+                'This app is for BCAs. BC Supervisor and Branch Manager accounts use the web portal.',
                 403,
                 'wrong_role'
             );

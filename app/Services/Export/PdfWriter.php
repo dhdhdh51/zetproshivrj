@@ -1051,6 +1051,137 @@ final class PdfWriter
     }
 
     /* ------------------------------------------------------------------ */
+    /* Verification                                                       */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The verification panel that closes every exported document.
+     *
+     * A printed page leaves the system the moment it is printed: it gets photocopied,
+     * faxed, carried to a branch and filed, and from then on nothing about it can be
+     * checked. The QR is what puts the paper back in touch with the record — scan it and
+     * the panel opens the entry this sheet was printed from, where the submitted answers,
+     * the photographs and the GPS fix all still are.
+     *
+     * The panel requires a login, so the code is not a way of reading customer data off a
+     * discarded printout; it is a way for staff who already have access to get from the
+     * paper to the source without typing a reference. The reference is printed underneath
+     * anyway, for whoever has no phone to hand.
+     *
+     * @param array<int, string> $lines Reference lines printed beside the code.
+     */
+    public function verification(
+        string $url,
+        array $lines = [],
+        string $heading = 'Scan to open this record',
+        string $note = 'Opens the entry in the LRMS panel. A panel login is required.'
+    ): void {
+        $codeSize = 62.0;
+        $padding = 9.0;
+        $height = $codeSize + ($padding * 2);
+
+        // Keep the code and its caption together: a QR alone on a page, or a caption whose
+        // code went over the fold, is worse than either on the previous page.
+        $this->ensurePage($height + 10);
+
+        $top = $this->y;
+        $this->rect($this->marginLeft, $top, $this->contentWidth(), $height, self::ink(self::FILL_NOTE), true);
+
+        $this->drawQr($url, $this->marginLeft + $padding, $top + $padding, $codeSize);
+
+        $textLeft = $this->marginLeft + $padding + $codeSize + 12;
+        $textWidth = $this->contentWidth() - ($textLeft - $this->marginLeft) - $padding;
+        $y = $top + $padding + 9;
+
+        $this->setFont(self::FONT_BOLD, 8.5);
+        $this->drawText($textLeft, $y, $heading, self::ink(self::INK_NAVY));
+        $y += 12;
+
+        $this->setFont(self::FONT_REGULAR, 7.5);
+        $this->drawText($textLeft, $y, $this->fit($note, $textWidth, 7.5, self::FONT_REGULAR), self::ink(self::INK_MUTED));
+        $y += 11;
+
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+
+            $this->drawText($textLeft, $y, $this->fit($line, $textWidth, 7.5, self::FONT_REGULAR), self::ink(self::INK_BODY));
+            $y += 10;
+        }
+
+        $this->y = $top + $height + 10;
+    }
+
+    /**
+     * Draw a QR code for `$data` as a square of `$size` points with its top-left corner at
+     * `$x`, `$y`.
+     *
+     * `$size` is the whole footprint, quiet zone included. The specification wants four
+     * modules of clear space around a code and a scanner really does need it, so the four
+     * modules are drawn here as white rather than left to whatever the code happens to be
+     * placed on — which on these pages is a tinted panel.
+     *
+     * The dark modules of a row are merged into runs before being drawn. That keeps the
+     * content stream small, and it removes the hairline seams that abutting rectangles can
+     * show, which is exactly the artefact that makes a printed code fail to scan.
+     */
+    private function drawQr(string $data, float $x, float $y, float $size): void
+    {
+        $matrix = QrCode::encode($data)->matrix();
+        $modules = count($matrix);
+
+        // Four modules of quiet zone on each side.
+        $step = $size / ($modules + 8);
+        $originX = $x + ($step * 4);
+        $originY = $y + ($step * 4);
+
+        $this->rect($x, $y, $size, $size, self::ink(self::INK_WHITE), true);
+
+        $path = '';
+
+        foreach ($matrix as $row => $cells) {
+            $runStart = null;
+
+            // One past the end, so a run that reaches the right edge is still closed.
+            for ($col = 0; $col <= $modules; $col++) {
+                $dark = $col < $modules && $cells[$col];
+
+                if ($dark && $runStart === null) {
+                    $runStart = $col;
+
+                    continue;
+                }
+
+                if ($dark || $runStart === null) {
+                    continue;
+                }
+
+                $left = $originX + ($runStart * $step);
+                $top = $originY + ($row * $step);
+
+                $path .= sprintf(
+                    '%.3F %.3F %.3F %.3F re ',
+                    $left,
+                    $this->pageHeight - ($top + $step),
+                    ($col - $runStart) * $step,
+                    $step
+                );
+
+                $runStart = null;
+            }
+        }
+
+        if ($path === '') {
+            return;
+        }
+
+        // One fill for the whole code: hundreds of separate fills would be the same picture
+        // and several times the file.
+        $this->currentContent .= 'q 0 0 0 rg ' . $path . "f Q\n";
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Drawing helpers (y measured from the top)                          */
     /* ------------------------------------------------------------------ */
 

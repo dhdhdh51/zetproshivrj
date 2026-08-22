@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Admin / Supervisor panel.
+ * BC Supervisor panel.
  *
  * Admin and Supervisor are the same role; there is deliberately no separate
  * super-admin. Every route here requires that role plus a changed password.
@@ -117,7 +117,7 @@ $router->group(['prefix' => 'admin', 'middleware' => ['admin', 'password']], sta
     $router->post('/sss-targets', [SssTargetController::class, 'store']);
     $router->post('/sss-targets/{id:\d+}/delete', [SssTargetController::class, 'destroy']);
 
-    /* ------------------------------------------ BC Supervisor inspections (TYPE B) */
+    /* ------------------------------------------ BCA inspections (TYPE B) */
     $router->get('/inspections', [InspectionController::class, 'index']);
     $router->get('/inspections/create', [InspectionController::class, 'create']);
     $router->post('/inspections', [InspectionController::class, 'store']);

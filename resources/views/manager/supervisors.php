@@ -1,16 +1,16 @@
 <div class="page-head">
     <div class="grow">
-        <h1>BC supervisors</h1>
+        <h1>BCAs</h1>
         <div class="subtitle">
             Field officers working in this branch. Read-only — accounts, credentials and devices are
-            managed by the Admin/Supervisor.
+            managed by the BC Supervisor.
         </div>
     </div>
 </div>
 
 <div class="card">
     <?php if ($supervisors === []): ?>
-        <?= view_partial('partials.empty', ['message' => 'No BC supervisors in this branch', 'iconName' => 'users']) ?>
+        <?= view_partial('partials.empty', ['message' => 'No BCAs in this branch', 'iconName' => 'users']) ?>
     <?php else: ?>
         <div class="table-wrap">
             <table class="data">

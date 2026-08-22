@@ -30,7 +30,7 @@ final class ManagerMiddleware
         }
 
         if (Auth::branchId() === null) {
-            throw new HttpException(403, 'Your account is not linked to a branch yet. Contact your Admin/Supervisor.');
+            throw new HttpException(403, 'Your account is not linked to a branch yet. Contact your BC Supervisor.');
         }
     }
 }

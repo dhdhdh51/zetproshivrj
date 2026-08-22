@@ -23,7 +23,7 @@ declare(strict_types=1);
 // (section 5), the rest of physical verification (section 6), the documents and
 // evidence checklists (sections 7 and 10), the declaration and certification
 // (sections 11 and 12) and the per-stream final status (section 13) — plus the
-// BC Supervisor identity fields from the BC creation screen.
+// BCA identity fields from the BCA creation screen.
 
 // The panel can run this too, because the hosting this is deployed on often has no
 // terminal at all. That route defines LRMS_UPGRADE_IN_APP and has already checked that
@@ -38,6 +38,7 @@ if (PHP_SAPI !== 'cli' && !defined('LRMS_UPGRADE_IN_APP')) {
 // and bootstrap.php defines constants and registers handlers that must not run twice.
 require_once __DIR__ . '/../app/bootstrap.php';
 
+use App\Core\Auth;
 use App\Core\Config;
 use App\Core\Database;
 use App\Core\Settings;
@@ -133,7 +134,7 @@ $columns = [
     /* Branch: Regional Office is `region`; Zone is new. --------------------- */
     ['branches', 'zone', 'VARCHAR(120) NULL', 'region'],
 
-    /* BC Supervisor identity (the BC Agent is the BC Supervisor). ----------- */
+    /* BCA identity, from the Add BCA screen. -------------------------------- */
     ['bc_supervisors', 'sp_cbc_name', 'VARCHAR(190) NULL', 'bc_code'],
     ['bc_supervisors', 'ssa', 'VARCHAR(160) NULL', 'sp_cbc_name'],
     ['bc_supervisors', 'iibf_number', 'VARCHAR(60) NULL', 'ssa'],
@@ -636,9 +637,108 @@ if (tableExists($database, 'visit_forms') && tableExists($database, 'visit_form_
     }
 }
 
+/* The BCA / BC Supervisor rename ------------------------------------------- */
+
+/*
+ * Two job titles swapped places, and some of the old ones are stored in the database rather
+ * than written in the code.
+ *
+ * The agent at the outlet is a BCA; the panel account that monitors and inspects them is the
+ * BC Supervisor. Until now the code called the agent "BC Supervisor" and the panel account
+ * "Admin / Supervisor", which is not what the branch calls them and made every screen and
+ * every printed report read wrongly.
+ *
+ * The screens were renamed in the code. These rows cannot be: `roles.name` is what the panel
+ * prints for a role and `report_types.name` titles a report, and both were written once by
+ * seed.php when the database was created. A fresh install gets the new wording from seed.php;
+ * an existing one gets it here.
+ *
+ * Only exact matches for the old text are touched. Anything else is a name somebody chose,
+ * and this is not the place to overrule it. That also makes the step idempotent: run it
+ * twice and the second run finds nothing to do.
+ *
+ * The `bc_supervisors` table, its `bc_supervisor_id` foreign keys, the form field keys and
+ * the API routes all keep their names. Renaming those would break every handset in the field
+ * mid-shift — the app posts to those routes with those keys — and would rewrite the history
+ * of records that were filed under them. The rename is what people read, not what the
+ * columns are called.
+ */
+$renames = [
+    ['roles', 'name', 'Admin / Supervisor', 'BC Supervisor'],
+    ['roles', 'description', 'Full control. Monitors and inspects BC Supervisors; does not perform customer recovery visits.',
+        'Full control. Monitors and inspects BCAs; does not perform customer recovery visits.'],
+    ['roles', 'description', 'Field officer. Performs customer recovery visits through the Android app.',
+        'Business Correspondent Agent. Performs customer recovery visits through the Android app.'],
+    ['report_types', 'name', 'BC Supervisor Inspection Report', 'BCA Inspection Report'],
+    ['report_types', 'name', 'BC Supervisor Performance', 'BCA Performance'],
+    ['report_types', 'description', 'The BC Supervisor day-end submission the report deadline applies to.',
+        'The BCA day-end submission the report deadline applies to.'],
+    ['report_types', 'description', 'TYPE A — BC Supervisor customer recovery visits.',
+        'TYPE A — BCA customer recovery visits.'],
+    ['report_types', 'description', 'TYPE B — Admin/Supervisor verification of BC field work.',
+        'TYPE B — BC Supervisor verification of BCA field work.'],
+    ['report_types', 'description', 'Supervisor level visits, recovery and inspection outcomes.',
+        'BCA level visits, recovery and inspection outcomes.'],
+    ['inspection_forms', 'name', 'BC Supervisor Inspection', 'BCA Inspection'],
+    ['inspection_forms', 'description', 'TYPE B: the Admin/Supervisor inspection of a BC outlet and its agent.',
+        'TYPE B: the BC Supervisor inspection of a BC outlet and its agent.'],
+];
+
+/*
+ * The agent role also loses the name 'BC Supervisor', but by the time the first rule above
+ * has run there are two rows carrying that name — the admin role has just been given it. So
+ * this one is matched on the slug as well. Without that guard the rename would depend on
+ * which order the two rules happened to run in, and would rename the wrong role half the
+ * time.
+ */
+$renames[] = ['roles', 'name', 'BC Supervisor', 'BCA', 'slug = :slug', ['slug' => Auth::ROLE_BC]];
+
+foreach ($renames as $rename) {
+    [$table, $column, $from, $to] = $rename;
+    $extra = $rename[4] ?? null;
+    $extraParams = $rename[5] ?? [];
+
+    if (!tableExists($database, $table) || !columnExists($database, $table, $column)) {
+        $skipped++;
+
+        continue;
+    }
+
+    $where = sprintf('`%s` = :from', $column) . ($extra !== null ? ' AND ' . $extra : '');
+    $whereParams = array_merge(['from' => $from], $extraParams);
+
+    $matches = (int) Database::scalar(
+        sprintf('SELECT COUNT(*) FROM `%s` WHERE %s', $table, $where),
+        $whereParams
+    );
+
+    if ($matches === 0) {
+        $skipped++;
+
+        continue;
+    }
+
+    if ($dryRun) {
+        printf("  +  %s.%s: %d row(s) renamed to \"%s\"\n", $table, $column, $matches, mb_strimwidth($to, 0, 52, '...'));
+        $applied++;
+
+        continue;
+    }
+
+    try {
+        Database::update($table, [$column => $to, 'updated_at' => now()], $where, $whereParams);
+
+        printf("  +  %s.%s: %d row(s) renamed to \"%s\"\n", $table, $column, $matches, mb_strimwidth($to, 0, 52, '...'));
+        $applied++;
+    } catch (Throwable $e) {
+        printf("  !! %s.%s rename failed: %s\n", $table, $column, $e->getMessage());
+        $failed++;
+    }
+}
+
 /* Inspection form ---------------------------------------------------------- */
 
-// The Admin's inspection of a BC Supervisor was replaced with the format the client
+// The BC Supervisor's inspection of a BCA was replaced with the format the client
 // issued: 27 numbered items about the BC outlet itself, in place of eleven questions
 // about whether one customer visit had been done properly.
 //
@@ -668,7 +768,7 @@ if (tableExists($database, 'inspection_forms') && tableExists($database, 'inspec
         $skipped++;
     } elseif ($dryRun) {
         printf(
-            "  +  inspection_forms: BC Supervisor inspection, %d fields, and the default moves to it\n",
+            "  +  inspection_forms: BCA inspection, %d fields, and the default moves to it\n",
             count($inspectionFields)
         );
         $applied++;
@@ -677,8 +777,8 @@ if (tableExists($database, 'inspection_forms') && tableExists($database, 'inspec
             $version = 1 + (int) Database::scalar('SELECT COALESCE(MAX(version), 0) FROM inspection_forms');
 
             $formId = Database::insert('inspection_forms', [
-                'name' => 'BC Supervisor Inspection',
-                'description' => 'TYPE B: the Admin/Supervisor inspection of a BC outlet and its agent.',
+                'name' => 'BCA Inspection',
+                'description' => 'TYPE B: the BC Supervisor inspection of a BC outlet and its agent.',
                 'version' => $version,
                 'is_active' => 1,
                 'is_default' => 1,
@@ -701,7 +801,7 @@ if (tableExists($database, 'inspection_forms') && tableExists($database, 'inspec
             Settings::set('default_inspection_form_id', (string) $formId, 'forms');
 
             printf(
-                "  +  inspection_forms: BC Supervisor inspection #%d v%d with %d fields, now the default\n",
+                "  +  inspection_forms: BCA inspection #%d v%d with %d fields, now the default\n",
                 $formId,
                 $version,
                 count($inspectionFields)

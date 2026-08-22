@@ -44,9 +44,9 @@ function lrms_seed(bool $demo = false): void
 function lrms_seed_roles(): void
 {
     $roles = [
-        ['slug' => Auth::ROLE_ADMIN, 'name' => 'Admin / Supervisor', 'description' => 'Full control. Monitors and inspects BC Supervisors; does not perform customer recovery visits.'],
+        ['slug' => Auth::ROLE_ADMIN, 'name' => 'BC Supervisor', 'description' => 'Full control. Monitors and inspects BCAs; does not perform customer recovery visits.'],
         ['slug' => Auth::ROLE_MANAGER, 'name' => 'Branch Manager', 'description' => 'Read and report access limited to their own branch.'],
-        ['slug' => Auth::ROLE_BC, 'name' => 'BC Supervisor', 'description' => 'Field officer. Performs customer recovery visits through the Android app.'],
+        ['slug' => Auth::ROLE_BC, 'name' => 'BCA', 'description' => 'Business Correspondent Agent. Performs customer recovery visits through the Android app.'],
     ];
 
     foreach ($roles as $role) {
@@ -63,9 +63,9 @@ function lrms_seed_roles(): void
 function lrms_seed_report_types(): void
 {
     $types = [
-        ['daily_field_report', 'Daily Field Report', 'The BC Supervisor day-end submission the report deadline applies to.', 1],
-        ['customer_visit', 'Customer Visit Report', 'TYPE A — BC Supervisor customer recovery visits.', 0],
-        ['bc_inspection', 'BC Supervisor Inspection Report', 'TYPE B — Admin/Supervisor verification of BC field work.', 0],
+        ['daily_field_report', 'Daily Field Report', 'The BCA day-end submission the report deadline applies to.', 1],
+        ['customer_visit', 'Customer Visit Report', 'TYPE A — BCA customer recovery visits.', 0],
+        ['bc_inspection', 'BCA Inspection Report', 'TYPE B — BC Supervisor verification of BCA field work.', 0],
         ['krm_ots', 'KRM OTS Report', 'One Time Settlement tracking.', 0],
         ['ckcc_od2', 'CKCC OD-2 Renewal Report', 'CKCC OD-2 renewal tracking.', 0],
         ['recovery', 'Recovery Report', 'Amounts collected by mode, date, branch and supervisor.', 0],
@@ -76,7 +76,7 @@ function lrms_seed_report_types(): void
         ['photo', 'Photo Report', 'Photographic evidence captured in the field.', 0],
         ['target', 'Target Report', 'Target versus achievement with pending and percentage.', 0],
         ['branch_performance', 'Branch Performance', 'Branch level visits, recovery and coverage.', 0],
-        ['bc_performance', 'BC Supervisor Performance', 'Supervisor level visits, recovery and inspection outcomes.', 0],
+        ['bc_performance', 'BCA Performance', 'BCA level visits, recovery and inspection outcomes.', 0],
     ];
 
     $order = 0;
@@ -167,7 +167,7 @@ function lrms_seed_settings(): void
 }
 
 /**
- * TYPE A — the customer visit form the BC Supervisor fills in the Android app.
+ * TYPE A — the customer visit form the BCA fills in the Android app.
  * Everything here is editable later from the Visit Form Builder.
  */
 function lrms_seed_visit_form(): int
@@ -182,7 +182,7 @@ function lrms_seed_visit_form(): int
 
     $formId = Database::insert('visit_forms', [
         'name' => 'Customer Recovery Visit',
-        'description' => 'Default TYPE A form: BC Supervisor customer field visit.',
+        'description' => 'Default TYPE A form: BCA customer field visit.',
         'visit_type' => 'customer',
         'version' => 1,
         'is_active' => 1,
@@ -194,7 +194,7 @@ function lrms_seed_visit_form(): int
     // [key, label, type, required, options, help]
     $fields = [
         ['account_context', 'Account details (auto-filled from the allocation)', 'section', 0, null,
-            'Branch, BC Supervisor, borrower, father name, address, loan account, loan type, outstanding, overdue and NPA date are filled in by the app.'],
+            'Branch, BCA, borrower, father name, address, loan account, loan type, outstanding, overdue and NPA date are filled in by the app.'],
         ['visit_status', 'Visit status', 'dropdown', 0,
             "Customer met\nFamily met\nPhone contact only\nHouse locked\nCustomer not available\nAddress not found\nDeceased\nShifted\nRefused to pay\nOther", null],
         ['customer_available', 'Customer available', 'yes_no', 0, null, null],
@@ -209,7 +209,7 @@ function lrms_seed_visit_form(): int
         ['promise_amount', 'Promise amount', 'decimal', 0, null, 'Leave blank when the customer gave no promise.'],
         ['promise_date', 'Promise date', 'date', 0, null, null],
         ['reason', 'Reason for non-payment', 'textarea', 0, null, null],
-        ['recommendation', 'BC Supervisor recommendation', 'textarea', 0, null, null],
+        ['recommendation', 'BCA recommendation', 'textarea', 0, null, null],
         ['remarks', 'Remarks', 'remarks', 0, null, null],
         ['evidence_section', 'Evidence', 'section', 0, null, null],
         ['gps', 'Visit location', 'gps', 0, null, 'Captured automatically when the visit starts.'],
@@ -259,7 +259,7 @@ function lrms_seed_visit_form(): int
 }
 
 /**
- * TYPE B — the BC Supervisor inspection form used by Admin/Supervisor on the web.
+ * TYPE B — the BCA inspection form used by the BC Supervisor on the web.
  */
 /* -------------------------------------------------------------------------- */
 /* Field Visit Verification Report forms (KRM OTS and CKCC OD-2)              */
@@ -384,7 +384,7 @@ function lrms_report_declaration_fields(): array
 
         ['certification_section', '12. Certification', 'section', 0, null,
             'Your name, BC code, DRA ID and mobile number are printed from your profile. '
-            . 'The Admin/Supervisor countersigns when the report is approved.'],
+            . 'The BC Supervisor countersigns when the report is approved.'],
     ];
 }
 
@@ -591,9 +591,9 @@ function lrms_seed_ckcc_form(): int
 }
 
 /**
- * TYPE B — the Admin's inspection of a BC Supervisor, in the format the client issued.
+ * TYPE B — the BC Supervisor's inspection of a BCA, in the format the client issued.
  *
- * This replaces an eleven-question form that asked whether the BC Supervisor had done a
+ * This replaces an eleven-question form that asked whether the BCA had done a
  * particular customer visit properly. That is not what the Bank's form is for: this one
  * inspects the BC outlet itself — who the agent is, whether they are certified and hold an
  * appointment letter, what is on the walls, how many transactions ran yesterday, which of
@@ -621,8 +621,8 @@ function lrms_seed_inspection_form(): int
     }
 
     $formId = Database::insert('inspection_forms', [
-        'name' => 'BC Supervisor Inspection',
-        'description' => 'TYPE B: the Admin/Supervisor inspection of a BC outlet and its agent.',
+        'name' => 'BCA Inspection',
+        'description' => 'TYPE B: the BC Supervisor inspection of a BC outlet and its agent.',
         'version' => 2,
         'is_active' => 1,
         'is_default' => 1,
@@ -632,7 +632,7 @@ function lrms_seed_inspection_form(): int
 
     lrms_insert_inspection_fields($formId, lrms_inspection_fields());
 
-    echo "  inspection_forms: BC Supervisor inspection #{$formId} with "
+    echo "  inspection_forms: BCA inspection #{$formId} with "
         . count(lrms_inspection_fields()) . " fields\n";
 
     return $formId;
@@ -792,7 +792,7 @@ function lrms_insert_inspection_fields(int $formId, array $fields): array
 }
 
 /**
- * First Admin/Supervisor account. The password must be changed at first login.
+ * First BC Supervisor account. The password must be changed at first login.
  * Override with LRMS_ADMIN_EMAIL / LRMS_ADMIN_PASSWORD environment variables.
  */
 function lrms_seed_admin(): void
@@ -827,7 +827,7 @@ function lrms_seed_admin(): void
         'updated_at' => now(),
     ]);
 
-    echo "  users: created Admin/Supervisor {$email} (password must be changed at first login)\n";
+    echo "  users: created BC Supervisor {$email} (password must be changed at first login)\n";
 }
 
 /**
@@ -888,7 +888,7 @@ function lrms_seed_demo(): void
         ]);
     }
 
-    // Two BC Supervisors per branch.
+    // Two BCAs per branch.
     $bcIds = [];
     $n = 0;
 
@@ -900,7 +900,7 @@ function lrms_seed_demo(): void
             $userId = Database::insert('users', [
                 'role_id' => $bcRole,
                 'branch_id' => $branchId,
-                'name' => 'BC Supervisor ' . $n,
+                'name' => 'BCA ' . $n,
                 'email' => 'bc' . $n . '@lrms.local',
                 'username' => 'bc' . $n,
                 'employee_code' => $bcCode,
@@ -1003,8 +1003,8 @@ function lrms_seed_demo(): void
             ]
         );
 
-        echo "  demo: 1 submitted BC Supervisor inspection on form #{$form['id']}\n";
+        echo "  demo: 1 submitted BCA inspection on form #{$form['id']}\n";
     }
 
-    echo "  demo: " . count($branchIds) . " branches, " . count($bcIds) . " BC Supervisors\n";
+    echo "  demo: " . count($branchIds) . " branches, " . count($bcIds) . " BCAs\n";
 }

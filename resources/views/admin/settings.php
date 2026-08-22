@@ -51,7 +51,7 @@
                 </div>
                 <div class="check">
                     <input type="checkbox" id="maintenance_mode" name="maintenance_mode" value="1" <?= setting('maintenance_mode') === '1' ? 'checked' : '' ?>>
-                    <label for="maintenance_mode">Maintenance mode (Admin/Supervisor sign-in stays open)</label>
+                    <label for="maintenance_mode">Maintenance mode (BC Supervisor sign-in stays open)</label>
                 </div>
             </div>
         </div>
@@ -143,7 +143,7 @@
             <div class="card-body">
                 <div class="check">
                     <input type="checkbox" id="otp_web_login" name="otp_web_login" value="1" <?= setting('otp_web_login') === '1' ? 'checked' : '' ?>>
-                    <label for="otp_web_login">Require OTP for web sign-in (Admin/Supervisor, Branch Manager)</label>
+                    <label for="otp_web_login">Require OTP for web sign-in (BC Supervisor, Branch Manager)</label>
                 </div>
                 <div class="check">
                     <input type="checkbox" id="otp_app_login" name="otp_app_login" value="1" <?= setting('otp_app_login') === '1' ? 'checked' : '' ?>>
@@ -151,7 +151,7 @@
                 </div>
                 <div class="check">
                     <input type="checkbox" id="device_binding" name="device_binding" value="1" <?= setting('device_binding') === '1' ? 'checked' : '' ?>>
-                    <label for="device_binding">Bind each BC Supervisor account to one device</label>
+                    <label for="device_binding">Bind each BCA account to one device</label>
                 </div>
                 <div class="field" style="max-width:220px">
                     <label for="api_token_ttl_days">App session length (days)</label>

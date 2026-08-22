@@ -29,7 +29,7 @@
             <table class="data">
                 <thead>
                     <tr>
-                        <th>Report date</th><th>BC Supervisor</th><th>Branch</th>
+                        <th>Report date</th><th>BCA</th><th>Branch</th>
                         <th>Deadline</th><th>Submitted</th><th class="center">Visits</th>
                         <th class="right">Recovery</th><th>Reason given</th><th style="width:280px">Decision</th>
                     </tr>
@@ -78,7 +78,7 @@
         <div class="table-wrap">
             <table class="data compact">
                 <thead>
-                    <tr><th>Report date</th><th>BC Supervisor</th><th>Branch</th><th class="center">Outcome</th><th>Decided</th><th>Remarks</th></tr>
+                    <tr><th>Report date</th><th>BCA</th><th>Branch</th><th class="center">Outcome</th><th>Decided</th><th>Remarks</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($decided as $row): ?>

@@ -10,7 +10,7 @@ use App\Core\Response;
 use App\Core\Session;
 
 /**
- * Accounts created by an Admin/Supervisor start with a temporary password.
+ * Accounts created by an BC Supervisor start with a temporary password.
  * Until it is changed, every page redirects to the change-password screen.
  */
 final class PasswordChangeMiddleware

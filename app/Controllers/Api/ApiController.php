@@ -80,7 +80,7 @@ abstract class ApiController extends Controller
     }
 
     /**
-     * The BC Supervisor profile of the authenticated user.
+     * The BCA profile of the authenticated user.
      *
      * The API is only meaningful for field staff, so anything else is refused
      * here rather than in every action.
@@ -98,7 +98,7 @@ abstract class ApiController extends Controller
         if ((string) $user['role'] !== Auth::ROLE_BC) {
             throw new HttpException(
                 403,
-                'The mobile API is for BC Supervisor accounts. Admin/Supervisor and Branch Manager users work in the web portal.'
+                'The mobile API is for BCA accounts. BC Supervisor and Branch Manager users work in the web portal.'
             );
         }
 
@@ -112,11 +112,11 @@ abstract class ApiController extends Controller
         );
 
         if ($supervisor === null) {
-            throw new HttpException(403, 'Your account is not linked to a BC Supervisor profile. Contact your Admin/Supervisor.');
+            throw new HttpException(403, 'Your account is not linked to a BCA profile. Contact your BC Supervisor.');
         }
 
         if ((string) $supervisor['status'] !== 'active') {
-            throw new HttpException(403, 'Your BC Supervisor profile is not active. Contact your Admin/Supervisor.');
+            throw new HttpException(403, 'Your BCA profile is not active. Contact your BC Supervisor.');
         }
 
         return $supervisor;

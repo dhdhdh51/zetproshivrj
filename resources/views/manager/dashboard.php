@@ -62,9 +62,9 @@ $maxVisits = max(1, max(array_map(static fn (array $d): int => $d['visits'], $tr
 
 <div class="grid grid-2">
     <div class="card">
-        <div class="card-head"><h2>BC Supervisors today</h2></div>
+        <div class="card-head"><h2>BCAs today</h2></div>
         <?php if ($supervisors === []): ?>
-            <?= view_partial('partials.empty', ['message' => 'No BC supervisors in this branch', 'iconName' => 'users']) ?>
+            <?= view_partial('partials.empty', ['message' => 'No BCAs in this branch', 'iconName' => 'users']) ?>
         <?php else: ?>
             <div class="table-wrap">
                 <table class="data compact">

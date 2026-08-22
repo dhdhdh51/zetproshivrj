@@ -156,7 +156,7 @@ final class Deadline
      *
      * Before the deadline it is accepted outright. After the deadline the normal
      * path is locked: the submission is stored as `late_pending` and needs an
-     * Admin/Supervisor approval, with the reason and the approver recorded.
+     * BC Supervisor approval, with the reason and the approver recorded.
      *
      * @return array{status:string, is_late:bool, submission_id:int, message:string}
      */
@@ -192,7 +192,7 @@ final class Deadline
                 'status' => 'locked',
                 'is_late' => true,
                 'submission_id' => $submissionId,
-                'message' => 'The deadline has passed and late submissions are disabled. Contact your Admin/Supervisor.',
+                'message' => 'The deadline has passed and late submissions are disabled. Contact your BC Supervisor.',
             ];
         }
 
@@ -228,7 +228,7 @@ final class Deadline
                 'Late report submission needs approval',
                 sprintf(
                     '%s (%s) submitted the %s daily report after the %s deadline.',
-                    $supervisor['name'] ?? 'A BC Supervisor',
+                    $supervisor['name'] ?? 'A BCA',
                     $supervisor['bc_code'] ?? '—',
                     format_date($date),
                     format_time($deadlineAt)
@@ -245,7 +245,7 @@ final class Deadline
                 'status' => $status,
                 'is_late' => true,
                 'submission_id' => $submissionId,
-                'message' => 'Submitted after the deadline. It is pending Admin/Supervisor approval.',
+                'message' => 'Submitted after the deadline. It is pending BC Supervisor approval.',
             ];
         }
 
@@ -258,7 +258,7 @@ final class Deadline
     }
 
     /**
-     * Approve or reject a late submission. Only Admin/Supervisor may call this.
+     * Approve or reject a late submission. Only BC Supervisor may call this.
      */
     public static function decideLate(int $submissionId, bool $approve, string $remarks = ''): bool
     {

@@ -32,7 +32,7 @@
     <div class="alert alert-info">
         <?= icon('info', '', 17) ?>
         <div>
-            There are no active BC Supervisors, so imported accounts cannot be allocated yet.
+            There are no active BCAs, so imported accounts cannot be allocated yet.
             You can still import them and allocate later.
         </div>
     </div>
@@ -122,7 +122,7 @@
     <div class="card-head"><h3>How allocation works after import</h3></div>
     <div class="card-body">
         <ol class="small" style="margin:0;padding-left:18px;line-height:1.9">
-            <li>If the row carries a <strong>BC Code</strong> that matches an active BC Supervisor in that branch, the account goes to them.</li>
+            <li>If the row carries a <strong>BC Code</strong> that matches an active BCA in that branch, the account goes to them.</li>
             <li>Otherwise the account is given to the <strong>least loaded</strong> active supervisor of that branch, so the spread stays even (40 / 40 / 39).</li>
             <li>Accounts whose branch is unknown are <strong>not imported</strong> and are listed as errors, so nothing lands in the wrong branch.</li>
             <li>Accounts that already exist are <strong>updated</strong> — figures refresh, and their visits and allocation history are kept.</li>

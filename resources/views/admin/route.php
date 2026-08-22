@@ -1,6 +1,6 @@
 <?php
 /**
- * Today's route for one BC Supervisor: the ordered points they actually recorded.
+ * Today's route for one BCA: the ordered points they actually recorded.
  *
  * @var array      $supervisor
  * @var string     $date

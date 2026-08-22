@@ -12,11 +12,11 @@
 
 <div class="page-head">
     <div class="grow">
-        <h1>BC supervisor inspections</h1>
+        <h1>BCA inspections</h1>
         <div class="subtitle">
             The Bank's monthly inspection of each BC point and its agent — the board, the registers,
             the equipment, the earnings and what the villagers say. Expected once a month per
-            BC Supervisor.
+            BCA.
         </div>
     </div>
     <div class="page-actions">
@@ -31,7 +31,7 @@
         <div class="value"><?= e($coverage['coverage_percent']) ?>%</div>
         <div class="meta">
             <?= number_format($coverage['supervisors_inspected']) ?> of
-            <?= number_format($coverage['supervisors']) ?> BC Supervisors inspected
+            <?= number_format($coverage['supervisors']) ?> BCAs inspected
         </div>
     </div>
     <div class="stat good">
@@ -60,7 +60,7 @@
         </div>
         <div class="table-wrap">
             <table class="data compact">
-                <thead><tr><th>Started</th><th>BC Supervisor</th><th>Account</th><th class="center">Photos</th><th></th></tr></thead>
+                <thead><tr><th>Started</th><th>BCA</th><th>Account</th><th class="center">Photos</th><th></th></tr></thead>
                 <tbody>
                     <?php foreach ($drafts as $draft): ?>
                         <tr>
@@ -111,13 +111,13 @@
     </div>
 
     <?php if ($supervisors === []): ?>
-        <?= view_partial('partials.empty', ['message' => 'No active BC supervisors', 'iconName' => 'users']) ?>
+        <?= view_partial('partials.empty', ['message' => 'No active BCAs', 'iconName' => 'users']) ?>
     <?php else: ?>
         <div class="table-wrap">
             <table class="data">
                 <thead>
                     <tr>
-                        <th>BC Supervisor</th><th>Branch</th><th class="center">Attendance</th>
+                        <th>BCA</th><th>Branch</th><th class="center">Attendance</th>
                         <th class="right">Allocated</th><th class="center">Visits on date</th>
                         <th class="center">Inspected</th><th class="center">Adverse (30d)</th>
                         <th>Last inspected</th><th></th>
@@ -165,7 +165,7 @@
     <?php else: ?>
         <div class="table-wrap">
             <table class="data compact">
-                <thead><tr><th>Date</th><th>Inspector</th><th>BC Supervisor</th><th>Account</th><th>Result</th><th class="center">Photos</th><th></th></tr></thead>
+                <thead><tr><th>Date</th><th>Inspector</th><th>BCA</th><th>Account</th><th>Result</th><th class="center">Photos</th><th></th></tr></thead>
                 <tbody>
                     <?php foreach ($recent as $row): ?>
                         <tr>

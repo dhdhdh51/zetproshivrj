@@ -458,7 +458,7 @@ if (!function_exists('inspection_results_retired')) {
             'partially_verified' => 'Partially Verified',
             'not_satisfactory' => 'Work Not Satisfactory',
             'customer_not_found' => 'Customer Not Found',
-            'bc_not_present' => 'BC Supervisor Not Present',
+            'bc_not_present' => 'BCA Not Present',
             'visit_not_genuine' => 'Visit Not Genuine',
             'incorrect_information' => 'Incorrect Information',
             'gps_issue' => 'GPS Issue',
@@ -521,7 +521,7 @@ if (!function_exists('inspection_photo_types')) {
     function inspection_photo_types(): array
     {
         return [
-            'bc_supervisor' => 'BC Supervisor',
+            'bc_supervisor' => 'BCA',
             'customer' => 'Customer',
             'location' => 'Location',
             'document' => 'Document',

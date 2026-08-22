@@ -651,7 +651,7 @@ $e = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
       <li>Add the cron entry so deadline reminders, promise sweeping and absentee
           marking run. See <code>HOSTING-CYBERPANEL.md</code>.</li>
       <li>In <strong>Settings</strong>, set the report deadline and GPS limits, then create
-          your branches and BC Supervisors.</li>
+          your branches and BCAs.</li>
     </ul>
   </div>
 

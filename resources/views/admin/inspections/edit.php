@@ -43,7 +43,7 @@ foreach ($gps as $point) {
 </div>
 
 <div class="steps">
-    <div class="step done"><span class="n"><?= icon('check', '', 12) ?></span> BC Supervisor</div>
+    <div class="step done"><span class="n"><?= icon('check', '', 12) ?></span> BCA</div>
     <div class="step <?= $photos === [] ? 'active' : 'done' ?>"><span class="n"><?= $photos === [] ? '2' : icon('check', '', 12) ?></span> GPS &amp; photos</div>
     <div class="step active"><span class="n">3</span> The form</div>
     <div class="step"><span class="n">4</span> Submit</div>
@@ -54,7 +54,7 @@ foreach ($gps as $point) {
     <div class="card-head"><h2>What you are verifying</h2></div>
     <div class="card-body">
         <div class="kv">
-            <div><div class="k">BC Supervisor</div><div class="v"><?= e($inspection['supervisor_name']) ?> (<?= e($inspection['bc_code']) ?>)</div></div>
+            <div><div class="k">BCA</div><div class="v"><?= e($inspection['supervisor_name']) ?> (<?= e($inspection['bc_code']) ?>)</div></div>
             <div><div class="k">Inspection date</div><div class="v"><?= e(format_date((string) $inspection['inspection_date'])) ?></div></div>
             <div><div class="k">Account</div><div class="v"><?= e($inspection['account_number'] ?: 'not linked') ?></div></div>
             <div><div class="k">Borrower</div><div class="v"><?= e($inspection['borrower_name'] ?: '—') ?></div></div>
@@ -63,7 +63,7 @@ foreach ($gps as $point) {
         </div>
 
         <?php if ($inspection['visit_id'] !== null): ?>
-            <h3 style="margin-top:16px">The visit reported by the BC Supervisor</h3>
+            <h3 style="margin-top:16px">The visit reported by the BCA</h3>
             <div class="kv">
                 <div><div class="k">Visit date</div><div class="v"><?= e(format_date((string) $inspection['visit_date'])) ?></div></div>
                 <div><div class="k">Reported status</div><div class="v"><?= e(visit_status_label($inspection['visit_status'])) ?></div></div>
@@ -281,6 +281,16 @@ foreach ($gps as $point) {
                     <?php continue; ?>
                 <?php endif; ?>
 
+                <?php
+                // What the form already knows. Until now nothing was ever put back into these
+                // inputs — not even a resumed draft's own answers — so the BCA's name, age,
+                // address and IIBF number were retyped every month from a record that already
+                // held them. See App\Services\Inspections::prefill() for what carries forward
+                // and, more importantly, what deliberately does not.
+                $filled = (string) ($prefill[$key] ?? '');
+                $ticked = $filled === '' ? [] : array_map('trim', explode(',', $filled));
+                ?>
+
                 <div class="field" data-field-key="<?= e($key) ?>"<?= $wrapperAttributes ?>>
                     <label for="field_<?= e($key) ?>">
                         <?= e($field['label']) ?><?= $required ? ' <span class="req">*</span>' : '' ?>
@@ -289,39 +299,42 @@ foreach ($gps as $point) {
                     <?php if ($type === 'yes_no'): ?>
                         <select id="field_<?= e($key) ?>" name="<?= e($name) ?>" <?= $required ? 'required' : '' ?>>
                             <option value="">Select…</option>
-                            <option value="Yes">Yes</option>
-                            <option value="No">No</option>
+                            <option value="Yes" <?= $filled === 'Yes' ? 'selected' : '' ?>>Yes</option>
+                            <option value="No" <?= $filled === 'No' ? 'selected' : '' ?>>No</option>
                         </select>
                     <?php elseif (in_array($type, ['dropdown', 'radio'], true)): ?>
                         <select id="field_<?= e($key) ?>" name="<?= e($name) ?>" <?= $required ? 'required' : '' ?>>
                             <option value="">Select…</option>
                             <?php foreach ($field['option_list'] as $option): ?>
-                                <option value="<?= e($option) ?>"><?= e($option) ?></option>
+                                <option value="<?= e($option) ?>" <?= $filled === (string) $option ? 'selected' : '' ?>>
+                                    <?= e($option) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     <?php elseif ($type === 'checkbox'): ?>
                         <?php foreach ($field['option_list'] as $index => $option): ?>
                             <div class="check">
-                                <input type="checkbox" id="field_<?= e($key) ?>_<?= $index ?>" name="<?= e($name) ?>[]" value="<?= e($option) ?>">
+                                <input type="checkbox" id="field_<?= e($key) ?>_<?= $index ?>" name="<?= e($name) ?>[]"
+                                       value="<?= e($option) ?>" <?= in_array((string) $option, $ticked, true) ? 'checked' : '' ?>>
                                 <label for="field_<?= e($key) ?>_<?= $index ?>"><?= e($option) ?></label>
                             </div>
                         <?php endforeach; ?>
                     <?php elseif (in_array($type, ['textarea', 'remarks'], true)): ?>
                         <textarea id="field_<?= e($key) ?>" name="<?= e($name) ?>" <?= $required ? 'required' : '' ?>
-                                  placeholder="<?= e($field['placeholder'] ?? '') ?>"></textarea>
+                                  placeholder="<?= e($field['placeholder'] ?? '') ?>"><?= e($filled) ?></textarea>
                     <?php elseif ($type === 'date'): ?>
-                        <input type="date" id="field_<?= e($key) ?>" name="<?= e($name) ?>" <?= $required ? 'required' : '' ?>>
+                        <input type="date" id="field_<?= e($key) ?>" name="<?= e($name) ?>" value="<?= e($filled) ?>" <?= $required ? 'required' : '' ?>>
                     <?php elseif ($type === 'time'): ?>
-                        <input type="time" id="field_<?= e($key) ?>" name="<?= e($name) ?>" <?= $required ? 'required' : '' ?>>
+                        <input type="time" id="field_<?= e($key) ?>" name="<?= e($name) ?>" value="<?= e($filled) ?>" <?= $required ? 'required' : '' ?>>
                     <?php elseif (in_array($type, ['number', 'decimal'], true)): ?>
                         <input type="number" step="<?= $type === 'decimal' ? '0.01' : '1' ?>" id="field_<?= e($key) ?>"
-                               name="<?= e($name) ?>" <?= $required ? 'required' : '' ?>>
+                               name="<?= e($name) ?>" value="<?= e($filled) ?>" <?= $required ? 'required' : '' ?>>
                     <?php elseif (in_array($type, ['photo', 'gps', 'signature'], true)): ?>
                         <p class="help" style="margin:0">
                             Captured above<?= $type === 'signature' ? ' / below' : '' ?> — no typing needed.
                         </p>
                     <?php else: ?>
-                        <input type="text" id="field_<?= e($key) ?>" name="<?= e($name) ?>" <?= $required ? 'required' : '' ?>
+                        <input type="text" id="field_<?= e($key) ?>" name="<?= e($name) ?>" value="<?= e($filled) ?>" <?= $required ? 'required' : '' ?>
                                placeholder="<?= e($field['placeholder'] ?? '') ?>" maxlength="500">
                     <?php endif; ?>
 
@@ -388,7 +401,7 @@ foreach ($gps as $point) {
                     <button type="button" class="btn btn-link btn-sm" id="clear_inspector">Clear</button>
                 </div>
                 <div>
-                    <label>BC Supervisor signature (if present)</label>
+                    <label>BCA signature (if present)</label>
                     <canvas class="signature" data-target="#bc_signature" data-clear="#clear_bc"></canvas>
                     <input type="hidden" id="bc_signature" name="bc_signature" value="">
                     <button type="button" class="btn btn-link btn-sm" id="clear_bc">Clear</button>

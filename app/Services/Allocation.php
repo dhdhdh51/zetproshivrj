@@ -12,7 +12,7 @@ use App\Core\HttpException;
  * Account allocation.
  *
  * Rules, in order:
- *   1. If the sheet carries a BC Code that matches an active BC Supervisor in
+ *   1. If the sheet carries a BC Code that matches an active BCA in
  *      the account's branch, the account goes to that supervisor.
  *   2. Otherwise the account is spread across the active supervisors of its
  *      branch by current workload, so 40/40/39 stays balanced as new rows
@@ -185,7 +185,7 @@ final class Allocation
                 'assigned' => false,
                 'bc_supervisor_id' => null,
                 'method' => 'auto_balance',
-                'note' => 'No active BC Supervisor in this branch; the account is unassigned.',
+                'note' => 'No active BCA in this branch; the account is unassigned.',
             ];
         }
 
@@ -215,11 +215,11 @@ final class Allocation
         );
 
         if ($supervisor === null) {
-            throw new HttpException(422, 'The selected BC Supervisor does not exist.');
+            throw new HttpException(422, 'The selected BCA does not exist.');
         }
 
         if ((string) $supervisor['status'] !== 'active') {
-            throw new HttpException(422, 'The selected BC Supervisor is not active.');
+            throw new HttpException(422, 'The selected BCA is not active.');
         }
 
         $account = Database::selectOne(
@@ -234,7 +234,7 @@ final class Allocation
         if ((int) $account['branch_id'] !== (int) $supervisor['branch_id']) {
             throw new HttpException(
                 422,
-                'A BC Supervisor can only be allocated accounts from their own branch.'
+                'A BCA can only be allocated accounts from their own branch.'
             );
         }
 
@@ -277,7 +277,7 @@ final class Allocation
                 'entity_type' => 'loan_account',
                 'entity_id' => $accountId,
                 'description' => sprintf(
-                    'Account %s %s BC Supervisor #%d (%s).',
+                    'Account %s %s BCA #%d (%s).',
                     $account['account_number'],
                     $isReassign ? 'reassigned to' : 'assigned to',
                     $bcSupervisorId,

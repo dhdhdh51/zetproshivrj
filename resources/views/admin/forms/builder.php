@@ -24,10 +24,10 @@ $fieldValue = static function (string $key, mixed $default = '') use ($editField
         <h1><?= $isInspection ? 'Inspection form builder' : 'Visit form builder' ?></h1>
         <div class="subtitle">
             <?php if ($isInspection): ?>
-                Questions the Admin/Supervisor answers when verifying BC Supervisor field work.
+                Questions the BC Supervisor answers when verifying BCA field work.
                 Change them any time — the application does not need to be modified.
             <?php else: ?>
-                The customer visit form BC Supervisors fill in the Android app. Fields sync to devices
+                The customer visit form BCAs fill in the Android app. Fields sync to devices
                 automatically, including conditional visibility.
             <?php endif; ?>
         </div>
@@ -213,7 +213,7 @@ $fieldValue = static function (string $key, mixed $default = '') use ($editField
                         <div class="field span-2">
                             <label for="label">Field label <span class="req">*</span></label>
                             <input type="text" id="label" name="label" required maxlength="255" value="<?= e($fieldValue('label')) ?>"
-                                   placeholder="<?= $isInspection ? 'Did the BC Supervisor visit the customer?' : 'Was the customer available?' ?>">
+                                   placeholder="<?= $isInspection ? 'Did the BCA visit the customer?' : 'Was the customer available?' ?>">
                         </div>
 
                         <div class="field">

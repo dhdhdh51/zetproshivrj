@@ -32,7 +32,7 @@ $basePath = $isAdmin ? '/admin' : '/manager';
                     <div class="field">
                         <label for="audience">Send to</label>
                         <select id="audience" name="audience">
-                            <option value="all_bc">All BC Supervisors</option>
+                            <option value="all_bc">All BCAs</option>
                             <option value="all_managers">All Branch Managers</option>
                             <option value="branch">One branch</option>
                         </select>

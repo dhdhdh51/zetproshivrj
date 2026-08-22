@@ -116,7 +116,7 @@ final class VisitController extends BaseController
 
         Visits::reject($id, (string) $data['reason']);
 
-        $this->success('Visit rejected and the BC Supervisor notified.');
+        $this->success('Visit rejected and the BCA notified.');
         $this->back('/admin/visits/' . $id);
     }
 }

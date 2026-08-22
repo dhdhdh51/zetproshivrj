@@ -17,8 +17,8 @@ use App\Services\Reports;
 /**
  * BC SUPERVISOR INSPECTIONS (TYPE B).
  *
- * This is the Admin/Supervisor's own field activity: going out to verify that a
- * BC Supervisor really performed the allocated work. It is not a customer
+ * This is the BC Supervisor's own field activity: going out to verify that a
+ * BCA really performed the allocated work. It is not a customer
  * recovery visit, it lives in its own tables, and it produces its own report.
  *
  * Flow: choose supervisor → see their allocated work and today's visits →
@@ -66,7 +66,7 @@ final class InspectionController extends BaseController
         );
 
         $this->page('admin.inspections.index', [
-            'title' => 'BC supervisor inspections',
+            'title' => 'BCA inspections',
             'date' => $date,
             'branchId' => $branchId,
             'branches' => $this->branchOptions(),
@@ -133,7 +133,7 @@ final class InspectionController extends BaseController
             );
 
             if ($supervisor === null) {
-                $this->abort(404, 'BC Supervisor not found.');
+                $this->abort(404, 'BCA not found.');
             }
 
             $this->assertBranch((int) $supervisor['branch_id']);
@@ -191,9 +191,18 @@ final class InspectionController extends BaseController
 
         $formId = $inspection['form_id'] === null ? null : (int) $inspection['form_id'];
 
+        $fields = $formId === null ? [] : Forms::fields(Forms::KIND_INSPECTION, $formId);
+
         $this->page('admin.inspections.edit', array_merge($detail, [
             'title' => 'Inspection in progress',
-            'fields' => $formId === null ? [] : Forms::fields(Forms::KIND_INSPECTION, $formId),
+            'fields' => $fields,
+            // What the system already knows: the BCA's own record, and the standing facts this
+            // outlet gave last month. The inspector edits rather than retypes.
+            'prefill' => Inspections::prefill(
+                (int) $inspection['bc_supervisor_id'],
+                $fields,
+                $detail['answers'] ?? []
+            ),
             'minPhotos' => setting('min_inspection_photos', 1),
         ]));
     }
@@ -245,7 +254,7 @@ final class InspectionController extends BaseController
 
         (new Inspections())->submit($id, $request->all());
 
-        $this->success('Inspection submitted. The BC Supervisor has been notified of the result.');
+        $this->success('Inspection submitted. The BCA has been notified of the result.');
         $this->redirect('/admin/inspections/' . $id);
     }
 
@@ -257,7 +266,7 @@ final class InspectionController extends BaseController
         $this->assertBranch((int) $detail['inspection']['branch_id']);
 
         $this->page('admin.inspections.show', array_merge($detail, [
-            'title' => 'BC Supervisor Inspection Report',
+            'title' => 'BCA Inspection Report',
         ]));
     }
 

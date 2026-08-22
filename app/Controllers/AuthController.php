@@ -16,9 +16,9 @@ use App\Services\Audit;
 use App\Services\Otp;
 
 /**
- * Web sign-in for Admin/Supervisor and Branch Manager accounts.
+ * Web sign-in for BC Supervisor and Branch Manager accounts.
  *
- * BC Supervisors authenticate through the Android API instead; if one signs in
+ * BCAs authenticate through the Android API instead; if one signs in
  * here they are told so rather than being shown a half-working web UI.
  */
 final class AuthController extends Controller
@@ -75,8 +75,8 @@ final class AuthController extends Controller
             RateLimiter::hit($userKey, $decay);
 
             $message = match ($result['reason']) {
-                'locked' => 'This account is temporarily locked after repeated failed attempts. Try again later or ask your Admin/Supervisor to reset it.',
-                'inactive' => 'This account is not active. Contact your Admin/Supervisor.',
+                'locked' => 'This account is temporarily locked after repeated failed attempts. Try again later or ask your BC Supervisor to reset it.',
+                'inactive' => 'This account is not active. Contact your BC Supervisor.',
                 default => 'Those credentials do not match our records.',
             };
 
@@ -101,10 +101,10 @@ final class AuthController extends Controller
         if ((string) $user['role'] === Auth::ROLE_BC) {
             Audit::log(Audit::LOGIN_FAILED, [
                 'user_id' => (int) $user['id'],
-                'description' => 'BC Supervisor attempted to sign in to the web portal.',
+                'description' => 'BCA attempted to sign in to the web portal.',
             ]);
 
-            $this->error('BC Supervisor accounts sign in through the LRMS Android app, not the web portal.');
+            $this->error('BCA accounts sign in through the LRMS Android app, not the web portal.');
             $this->redirect('/app-only');
 
             return;
@@ -327,7 +327,7 @@ final class AuthController extends Controller
     }
 
     /**
-     * Landing page for BC Supervisors who reach the web portal by mistake.
+     * Landing page for BCAs who reach the web portal by mistake.
      */
     public function appOnly(Request $request): void
     {

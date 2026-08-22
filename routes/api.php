@@ -7,7 +7,7 @@ declare(strict_types=1);
  *
  * Token authenticated and stateless: no cookies are issued, so CSRF does not
  * apply (the router skips it for the `api` middleware). Every route below is for
- * BC Supervisor field work.
+ * BCA field work.
  *
  * @var App\Core\Router $router
  */

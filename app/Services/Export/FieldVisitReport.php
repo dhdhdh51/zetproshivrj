@@ -132,6 +132,16 @@ final class FieldVisitReport
         self::sectionFinalStatus($pdf, $case, $stream);
         self::closingNote($pdf, $stream);
 
+        $pdf->verification(url('/admin/visits/' . $visitId), [
+            sprintf('Report reference: %s', (string) $visit['uuid']),
+            sprintf(
+                'Account %s   •   %s   •   %s',
+                (string) $visit['account_number'],
+                (string) $visit['borrower_name'],
+                format_date((string) $visit['visit_date'])
+            ),
+        ]);
+
         $fileName = sprintf(
             '%s-verification-report-%s-%s.pdf',
             $stream === 'krm_ots' ? 'krm-ots' : 'ckcc-od2',
@@ -761,7 +771,7 @@ final class FieldVisitReport
             'Date' => $visit['submitted_at'] === null ? '' : format_datetime((string) $visit['submitted_at']),
         ]);
 
-        // The Admin/Supervisor who approved the report is its verifier. Until
+        // The BC Supervisor who approved the report is its verifier. Until
         // then the block prints empty, exactly as the paper form would be — an
         // unapproved report must not look countersigned.
         $approved = $visit['approved_at'] !== null && ($visit['approver_name'] ?? '') !== '';
@@ -769,7 +779,7 @@ final class FieldVisitReport
         $pdf->heading('Supervisor Verification', 9.0);
         $pdf->keyValues([
             'Name' => $approved ? (string) $visit['approver_name'] : '',
-            'Designation' => $approved ? 'Admin / Supervisor' : '',
+            'Designation' => $approved ? 'BC Supervisor' : '',
             'Employee ID / DRA ID' => $approved ? (string) ($visit['approver_employee_code'] ?? '') : '',
             'Date' => $approved ? format_datetime((string) $visit['approved_at']) : '',
         ]);

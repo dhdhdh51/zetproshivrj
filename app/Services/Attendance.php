@@ -8,7 +8,7 @@ use App\Core\Database;
 use App\Core\HttpException;
 
 /**
- * BC Supervisor attendance: GPS + selfie check in, GPS check out, working hours.
+ * BCA attendance: GPS + selfie check in, GPS check out, working hours.
  *
  * One row per supervisor per day is enforced by a unique key, so a retried
  * offline check-in updates the same row instead of creating a second one.
