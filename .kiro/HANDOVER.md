@@ -106,12 +106,14 @@ Everything below is on the branch, green in CI, and live-ready.
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.
 - Room is at **version 6** (`MIGRATION_5_6` adds `status` and `syncMessage` to
-  `sss_enrolments`). 42 tables server-side; a fresh install needs **0** upgrade steps.
-- Web panel published to the `web-app` branch — the server pulls from it.
-- APK **v1.6.1** is the published build, signed with the new key:
-  `https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.1-SIGNED.apk`
-  It has the target screens. It does **not** yet carry the BCA rename in
-  `values/strings.xml` and `values-hi/strings.xml` — that needs a **v1.6.2** build.
+  `sss_enrolments`). 42 tables server-side; a fresh install needs **0** upgrade steps, and an
+  existing one needs the rename step only.
+- APK **v1.6.2** is the published build, signed with the new key:
+  `https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.2-SIGNED.apk`
+  File SHA-256 `bc9c02d59900d34afa857f7b54d6935a5ab8fd398b8348c365ed2b24fe2fec3e`, verified by
+  downloading the published file. It carries the target screens and the BCA rename in both
+  `values/strings.xml` and `values-hi/strings.xml`. Installs over 1.6.0 and 1.6.1.
+- Web panel published to the `web-app` branch at `d674da9` — the server pulls from it.
 
 ## The signing key was replaced at v1.6.0
 
@@ -148,9 +150,17 @@ generate a third key without saying what it costs.
   `App\Services\Sss::schemes()` / `schemeNames()`.
 - The panel's SSS screens are hardcoded English, like every other admin screen. Only
   navigation is translated (`nav.sss`, `nav.sss_targets`).
-- The Admin's own panel corrections are still allowed on a closed day (attributed as
+- The BC Supervisor's own panel corrections are still allowed on a closed day (attributed as
   `source = 'panel'`). That is deliberate — the lock stops a reported figure moving quietly,
   not the branch fixing a mistake.
+- The QR codes point at `url('/admin/...')`, which resolves through `app.url` in
+  `config/config.php`. On a site where that is still `https://yourdomain.com` the code will
+  encode a host nobody can reach. It falls back to the request host, so a panel-generated PDF
+  is right either way; a PDF generated from the command line on a misconfigured site is not.
+- No public `/verify/{uuid}` route was added. A code scanned by somebody without a panel login
+  lands on the sign-in page. That was the safe default — an open route would publish borrower
+  detail — but if the client asks for a page a branch officer can check without signing in,
+  it needs to be a page that confirms the document exists and says nothing else.
 
 ## Things that will waste your time otherwise
 
