@@ -1483,4 +1483,224 @@ ok(
     'It is not reprinted against the new format'
 );
 
+/* -------------------------------------------------------------------------- */
+section('The inspection form arrives part-filled from what the system knows');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The client's complaint: the details typed when the BCA was added have to be typed again on
+ * every monthly inspection. Twelve times a year, the same name, age, address and IIBF number.
+ * A form that long, retyped that often, stops being filled honestly.
+ *
+ * So the standing items are pre-filled — and only the standing items. What the inspector went
+ * there to observe stays blank, because a pre-filled observation is an observation nobody
+ * made, and two identical months in a row is what an auditor would notice.
+ */
+
+// A BCA of its own, with exactly one inspection behind it. Reusing the one inspected above
+// would make this depend on which of that BCA's several inspections happens to be the most
+// recent, which is not what is being tested here.
+$prefillBcId = (int) Database::scalar(
+    'SELECT id FROM bc_supervisors WHERE id <> :used ORDER BY id LIMIT 1',
+    ['used' => $inspectionBcId]
+);
+
+// Known values on the BCA's staff record, so what appears on the form can be traced to where
+// it came from.
+Database::update('bc_supervisors', [
+    'address' => 'Ward 4, Near Post Office',
+    'village' => 'Rampur',
+    'block' => 'Sahibganj',
+    'district' => 'Sahibganj',
+    'state' => 'Jharkhand',
+    'pincode' => '816109',
+    'mobile' => '9812345670',
+    'iibf_number' => 'IIBF/2018/90210',
+    'ssa' => 'SSA-Rampur',
+    'sp_cbc_name' => 'Sanjivani CBC',
+    'joined_on' => '2021-04-15',
+    'updated_at' => now(),
+], 'id = :id', ['id' => $prefillBcId]);
+
+$prefillFields = Forms::fields(Forms::KIND_INSPECTION, (int) $inspectionForm['id']);
+
+// Before any inspection at all: the staff record is the only source there is.
+$firstEver = Inspections::prefill($prefillBcId, $prefillFields);
+
+equals(
+    '2021-04-15',
+    $firstEver['bc_working_since'] ?? '',
+    'On the first-ever inspection item 8 comes from the staff record'
+);
+equals('IIBF/2018/90210', $firstEver['iibf_certificate_no'] ?? '', 'And so does the IIBF number');
+equals('Yes', $firstEver['iibf_certified'] ?? '', 'An IIBF number on record answers item 7 Yes');
+
+/*
+ * Last month's inspection. It records standing facts that differ from the staff record — the
+ * name spelt in full, a corrected IIBF number, a corrected start date — and answers a set of
+ * observations. What happens to each of those is the whole point of this section.
+ */
+$lastMonth = $inspections->start([
+    'bc_supervisor_id' => $prefillBcId,
+    'inspection_date' => date('Y-m-d', strtotime('-1 month')),
+    'gps' => lrms_test_gps(),
+]);
+
+Database::insert('inspection_photos', [
+    'inspection_id' => (int) $lastMonth['id'],
+    'file_path' => 'demo/bc-point-3.jpg',
+    'file_name' => 'bc-point-3.jpg',
+    'photo_type' => 'bc_supervisor',
+    'captured_at' => now(),
+    'created_at' => now(),
+]);
+
+$inspections->submit((int) $lastMonth['id'], [
+    'remarks' => 'Outlet inspected last month.',
+    'form' => [
+        // Standing facts, as corrected on the form.
+        'bca_name' => 'RAMESH KUMAR',
+        'bca_age' => '34',
+        'bca_qualification' => 'B.A.',
+        'iibf_certified' => 'Yes',
+        'iibf_certificate_no' => 'IIBF/2019/44821',
+        'bc_working_since' => '2019-06-01',
+        'coordinator_contact' => 'S. P. Mishra, 9800011122',
+        'ssa_name' => 'SSA-Rampur',
+        'villages_covered' => '4',
+        // Observations, every one of which must start blank next month.
+        'appointment_letter' => 'Yes',
+        'identity_card' => 'No',
+        'board_available' => 'Yes',
+        'sign_board' => 'No',
+        'transactions_previous_day' => '37',
+        'transaction_types' => ['Cash Deposit'],
+        'equipment_available' => ['Laptop / Desktop'],
+        'remuneration_month_1' => 'July',
+        'remuneration_amount_1' => '4250.50',
+        'villager_feedback' => 'Satisfied with the service.',
+        'working_in_allotted_location' => 'No',
+        'actual_location' => 'Market, 2 km away.',
+        'observation' => 'Good',
+        'visiting_official' => 'A. K. Verma, 9876543210',
+    ],
+]);
+
+$prefilled = Inspections::prefill($prefillBcId, $prefillFields);
+
+$bcaRecord = Database::selectOne(
+    'SELECT u.name, b.name AS branch_name FROM bc_supervisors s
+       JOIN users u ON u.id = s.user_id
+  LEFT JOIN branches b ON b.id = s.branch_id
+      WHERE s.id = :id',
+    ['id' => $prefillBcId]
+);
+
+ok($prefilled !== [], 'The form comes back with something already in it');
+
+// Items 1-3 and 12, straight off the staff record.
+equals((string) $bcaRecord['branch_name'], $prefilled['branch_name'] ?? '', 'Item 2, the branch, is filled in');
+equals('Sanjivani CBC', $prefilled['cbc_name'] ?? '', 'Item 3, the CBC, is filled in');
+equals('SSA-Rampur', $prefilled['ssa_name'] ?? '', 'Item 12, the SSA, is filled in');
+
+// Item 6 wants one address with a contact number in it, so the separate columns are joined
+// the way the paper reads rather than pasted in as a list.
+$address = (string) ($prefilled['bca_address_contact'] ?? '');
+
+foreach (['Ward 4, Near Post Office', 'Rampur', 'Sahibganj', 'Jharkhand', '816109'] as $part) {
+    ok(str_contains($address, $part), 'Item 6 carries "' . $part . '" from the staff record');
+}
+
+ok(str_contains($address, 'Mobile: 9812345670'), 'And the contact number the item asks for');
+
+// Item 25 is whoever is signed in and doing this visit, not last month's official.
+ok(
+    str_contains((string) ($prefilled['visiting_official'] ?? ''), (string) Auth::name()),
+    'Item 25 names the BC Supervisor making this visit'
+);
+ok(
+    !str_contains((string) ($prefilled['visiting_official'] ?? ''), 'A. K. Verma'),
+    'Not the official who came last month'
+);
+
+/*
+ * Last month's inspection outranks the staff record for standing facts. If a detail was
+ * corrected on the form last month because the master data was wrong, that correction has to
+ * survive — otherwise the same stale value is re-imposed every month and the correction has to
+ * be made twelve times over.
+ */
+equals('RAMESH KUMAR', $prefilled['bca_name'] ?? '', 'Item 1 keeps the name last month recorded');
+equals('34', $prefilled['bca_age'] ?? '', 'Item 5 keeps the age last month recorded');
+equals('B.A.', $prefilled['bca_qualification'] ?? '', 'Item 4 carries forward');
+equals(
+    'IIBF/2019/44821',
+    $prefilled['iibf_certificate_no'] ?? '',
+    'The IIBF number corrected on the form beats the one on the staff record'
+);
+equals('2019-06-01', $prefilled['bc_working_since'] ?? '', 'Item 8 keeps the corrected start date');
+equals('S. P. Mishra, 9800011122', $prefilled['coordinator_contact'] ?? '', 'Item 11 carries forward');
+equals('4', $prefilled['villages_covered'] ?? '', 'The village count carries forward');
+
+/*
+ * And now the half that matters more. Every one of these was answered on last month's
+ * inspection and must not appear on this one.
+ */
+foreach ([
+    'transactions_previous_day' => '14. yesterday\'s transaction count',
+    'remuneration_month_1' => '20. the remuneration month',
+    'remuneration_amount_1' => '20. the remuneration amount',
+    'villager_feedback' => '22. what the villagers said',
+    'board_available' => '13. whether the board is up',
+    'sign_board' => '13. the sign board',
+    'equipment_available' => '21. the equipment',
+    'transaction_types' => '15. the transaction types',
+    'observation' => '24. the grade',
+    'working_in_allotted_location' => '23. working in the allotted location',
+    'actual_location' => '23. where they actually are',
+    // Items 9 and 10 read like standing facts and are not: the inspector is being asked to
+    // be shown the letter and the card today.
+    'appointment_letter' => '9. the appointment letter',
+    'identity_card' => '10. the identity card',
+] as $key => $description) {
+    ok(
+        !array_key_exists($key, $prefilled),
+        'Item ' . $description . ' starts blank, however it was answered last month'
+    );
+}
+
+// A draft being resumed outranks everything: what the inspector typed is what they see.
+$resumed = Inspections::prefill($prefillBcId, $prefillFields, [
+    ['field_key' => 'bca_name', 'value' => 'RAMESH KUMAR SINGH'],
+    ['field_key' => 'observation', 'value' => 'Good'],
+]);
+
+equals('RAMESH KUMAR SINGH', $resumed['bca_name'] ?? '', 'A resumed draft keeps what was typed into it');
+equals('Good', $resumed['observation'] ?? '', 'Including an observation, once somebody has actually made it');
+
+// A BCA with no history and a bare staff record gets an empty form rather than an error, and
+// certainly rather than the word "null" printed on a page somebody signs.
+$blankBcId = (int) Database::scalar(
+    'SELECT id FROM bc_supervisors WHERE id NOT IN (:a, :b) ORDER BY id DESC LIMIT 1',
+    ['a' => $inspectionBcId, 'b' => $prefillBcId]
+);
+Database::update('bc_supervisors', [
+    'address' => null, 'village' => null, 'block' => null, 'district' => null,
+    'state' => null, 'pincode' => null, 'mobile' => null, 'iibf_number' => null,
+    'ssa' => null, 'sp_cbc_name' => null, 'joined_on' => null,
+], 'id = :id', ['id' => $blankBcId]);
+
+$blank = Inspections::prefill($blankBcId, $prefillFields);
+
+ok(
+    !array_key_exists('bca_address_contact', $blank),
+    'A BCA with nothing on record gets an empty item 6'
+);
+ok(!array_key_exists('iibf_certified', $blank), 'And item 7 is not answered "Yes" on their behalf');
+ok(!array_key_exists('bc_working_since', $blank), 'And item 8 is not given a made-up date');
+ok(
+    !in_array('null', array_map('strval', array_values($blank)), true),
+    'Nothing comes through as the string "null"'
+);
+ok(array_key_exists('bca_name', $blank), 'The name is still filled in, because a user always has one');
+
 exit(TestRunner::summary());

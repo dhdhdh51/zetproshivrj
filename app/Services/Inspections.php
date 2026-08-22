@@ -20,6 +20,40 @@ use App\Core\Settings;
  */
 final class Inspections
 {
+    /**
+     * The items that describe who the BCA is rather than what this month's visit found, and
+     * so survive from one inspection to the next.
+     *
+     * Everything absent from this list is deliberately absent. A pre-filled observation is an
+     * observation nobody made: yesterday's transaction count, the three months of
+     * remuneration, the villagers' feedback, the boards, the registers, the equipment, the
+     * photographs and the item 24 grade all start empty every month, because the inspector is
+     * there to look at them.
+     *
+     * Two items read like standing facts and are not. Item 9 asks whether the appointment
+     * letter is held and item 10 whether the identity card is available — the inspector is
+     * being asked to be shown them today. Carrying last month's "No" forward would let a
+     * missing identity card be signed off twelve months running by someone who never asked.
+     *
+     * Item 25, the visiting official, is also left out: it comes from whoever is signed in,
+     * which is right when a different BC Supervisor makes this month's visit and last
+     * month's name would be wrong.
+     */
+    private const CARRIED_FORWARD = [
+        'bca_name',
+        'branch_name',
+        'cbc_name',
+        'bca_qualification',
+        'bca_age',
+        'bca_address_contact',
+        'iibf_certified',
+        'iibf_certificate_no',
+        'bc_working_since',
+        'coordinator_contact',
+        'ssa_name',
+        'villages_covered',
+    ];
+
     /* ------------------------------------------------------------------ */
     /* Context: what has the supervisor been doing?                       */
     /* ------------------------------------------------------------------ */
@@ -436,6 +470,149 @@ final class Inspections
         }
 
         return $fresh;
+    }
+
+    /**
+     * What the form already knows before anybody types.
+     *
+     * A monthly inspection of the same outlet asks the same standing facts every month — the
+     * agent's name, age, address, IIBF number, how long they have been there. Most of those
+     * were typed once already when the BCA was added to the system, and retyping them twelve
+     * times a year is how a form stops being filled honestly.
+     *
+     * THREE SOURCES, IN THIS ORDER
+     *
+     *   1. What this inspection already holds. A draft being resumed wins over everything.
+     *   2. What last month's inspection said, for standing facts only. This is deliberately
+     *      above the staff record: if somebody corrected the address here last month because
+     *      the record was wrong, that correction survives instead of being overwritten every
+     *      month by the same stale master data.
+     *   3. The BCA's staff record, as the first-ever seed.
+     *
+     * WHAT IS NEVER CARRIED FORWARD
+     *
+     * Anything the inspector is there to observe: yesterday's transactions, three months of
+     * remuneration, what the villagers said, whether the boards are up, the registers, the
+     * equipment, the photographs, and the item 24 grade. Pre-filling those would let a month
+     * be signed off without looking, which is the one thing this form exists to prevent — and
+     * an auditor comparing two identical months would be right to ask.
+     *
+     * @param array<int, array<string, mixed>> $fields
+     * @param array<int, array<string, mixed>> $answers this inspection's saved answers
+     * @return array<string, string>
+     */
+    public static function prefill(int $bcSupervisorId, array $fields, array $answers = []): array
+    {
+        $keys = [];
+
+        foreach ($fields as $field) {
+            $keys[(string) $field['field_key']] = (string) $field['field_type'];
+        }
+
+        $values = [];
+
+        // 3. The staff record.
+        foreach (self::fromStaffRecord($bcSupervisorId) as $key => $value) {
+            if ($value !== '' && array_key_exists($key, $keys)) {
+                $values[$key] = $value;
+            }
+        }
+
+        // 2. Last month's standing facts.
+        $previous = Database::selectOne(
+            "SELECT id FROM inspections
+              WHERE bc_supervisor_id = :bc AND status = 'submitted'
+           ORDER BY inspection_date DESC, id DESC LIMIT 1",
+            ['bc' => $bcSupervisorId]
+        );
+
+        if ($previous !== null) {
+            foreach (Forms::values(Forms::KIND_INSPECTION, (int) $previous['id']) as $row) {
+                $key = (string) $row['field_key'];
+
+                if (!in_array($key, self::CARRIED_FORWARD, true) || !array_key_exists($key, $keys)) {
+                    continue;
+                }
+
+                $value = trim((string) $row['value']);
+
+                if ($value !== '') {
+                    $values[$key] = $value;
+                }
+            }
+        }
+
+        // 1. This inspection's own answers.
+        foreach ($answers as $row) {
+            $key = (string) $row['field_key'];
+
+            if (array_key_exists($key, $keys) && trim((string) $row['value']) !== '') {
+                $values[$key] = (string) $row['value'];
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * The BCA as the system already recorded them, mapped onto the form's items.
+     *
+     * @return array<string, string>
+     */
+    private static function fromStaffRecord(int $bcSupervisorId): array
+    {
+        $bca = Database::selectOne(
+            'SELECT s.*, u.name AS agent_name, b.name AS branch_name
+               FROM bc_supervisors s
+               JOIN users u ON u.id = s.user_id
+          LEFT JOIN branches b ON b.id = s.branch_id
+              WHERE s.id = :id',
+            ['id' => $bcSupervisorId]
+        );
+
+        if ($bca === null) {
+            return [];
+        }
+
+        // Item 6 asks for one address with a contact number in it, so the parts the staff
+        // record keeps separately are joined the way the paper wants them read.
+        $address = array_values(array_filter([
+            trim((string) ($bca['address'] ?? '')),
+            trim((string) ($bca['village'] ?? '')),
+            trim((string) ($bca['block'] ?? '')),
+            trim((string) ($bca['district'] ?? '')),
+            trim((string) ($bca['state'] ?? '')),
+            trim((string) ($bca['pincode'] ?? '')),
+        ], static fn (string $part): bool => $part !== ''));
+
+        $mobile = trim((string) ($bca['mobile'] ?? ''));
+
+        if ($mobile !== '') {
+            $address[] = 'Mobile: ' . $mobile;
+        }
+
+        $iibf = trim((string) ($bca['iibf_number'] ?? ''));
+
+        // Item 25 is the official doing the visit: the BC Supervisor signed in right now.
+        $signedIn = Auth::user() ?? [];
+        $official = trim((string) ($signedIn['name'] ?? ''));
+        $officialMobile = trim((string) ($signedIn['mobile'] ?? ''));
+
+        if ($official !== '' && $officialMobile !== '') {
+            $official .= ', ' . $officialMobile;
+        }
+
+        return [
+            'bca_name' => (string) $bca['agent_name'],
+            'branch_name' => (string) ($bca['branch_name'] ?? ''),
+            'cbc_name' => (string) ($bca['sp_cbc_name'] ?? ''),
+            'bca_address_contact' => implode(', ', $address),
+            'iibf_certified' => $iibf !== '' ? 'Yes' : '',
+            'iibf_certificate_no' => $iibf,
+            'bc_working_since' => (string) ($bca['joined_on'] ?? ''),
+            'ssa_name' => (string) ($bca['ssa'] ?? ''),
+            'visiting_official' => $official,
+        ];
     }
 
     /**

@@ -191,9 +191,18 @@ final class InspectionController extends BaseController
 
         $formId = $inspection['form_id'] === null ? null : (int) $inspection['form_id'];
 
+        $fields = $formId === null ? [] : Forms::fields(Forms::KIND_INSPECTION, $formId);
+
         $this->page('admin.inspections.edit', array_merge($detail, [
             'title' => 'Inspection in progress',
-            'fields' => $formId === null ? [] : Forms::fields(Forms::KIND_INSPECTION, $formId),
+            'fields' => $fields,
+            // What the system already knows: the BCA's own record, and the standing facts this
+            // outlet gave last month. The inspector edits rather than retypes.
+            'prefill' => Inspections::prefill(
+                (int) $inspection['bc_supervisor_id'],
+                $fields,
+                $detail['answers'] ?? []
+            ),
             'minPhotos' => setting('min_inspection_photos', 1),
         ]));
     }
