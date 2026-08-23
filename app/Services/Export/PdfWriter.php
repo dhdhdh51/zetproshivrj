@@ -62,6 +62,16 @@ final class PdfWriter
     /** True once the full title block has been drawn, so it is not repeated. */
     private bool $documentHeadingDrawn = false;
 
+    /**
+     * The bank's letterhead mark, drawn in the header of every page.
+     *
+     * Resolved once and remembered — including a resolution to nothing, so a missing or
+     * unreadable file is not looked for again on every page of a fifty-page report.
+     */
+    private ?string $logoPath = null;
+
+    private bool $logoResolved = false;
+
     private const FONT_REGULAR = 'F1';
     private const FONT_BOLD = 'F2';
 
@@ -149,6 +159,110 @@ final class PdfWriter
         return $this->pageWidth - $this->marginLeft - $this->marginRight;
     }
 
+    /**
+     * Override the letterhead mark, or pass null to print without one.
+     *
+     * Nothing needs to call this: the header finds the logo by itself, because "every page of
+     * every PDF" is not a thing four separate call sites should each have to remember.
+     */
+    public function logo(?string $path): void
+    {
+        $this->logoPath = $path;
+        $this->logoResolved = true;
+    }
+
+    /**
+     * The file to print in the header, or null if there is not a usable one.
+     *
+     * A site can point `site_logo` at its own file — a sharper scan, or a different bank —
+     * and that wins. Otherwise the Central Bank of India letterhead that ships with the
+     * project is used, because that is whose forms these are.
+     */
+    private function logoFile(): ?string
+    {
+        if ($this->logoResolved) {
+            return $this->logoPath;
+        }
+
+        $this->logoResolved = true;
+        $this->logoPath = null;
+
+        $candidates = [];
+        $configured = trim((string) (function_exists('setting') ? setting('site_logo', '') : ''));
+
+        if ($configured !== '') {
+            // Stored either as a path inside the project or as an upload under storage/.
+            $candidates[] = $configured;
+            $candidates[] = base_path($configured);
+            $candidates[] = storage_path($configured);
+        }
+
+        $candidates[] = base_path('public/assets/img/cbi-logo.jpg');
+
+        foreach ($candidates as $candidate) {
+            if ($candidate !== '' && is_file($candidate) && is_readable($candidate)) {
+                $this->logoPath = $candidate;
+
+                break;
+            }
+        }
+
+        return $this->logoPath;
+    }
+
+    /**
+     * Draw the letterhead mark at `$x`, `$y`, no taller than `$maxHeight`, and report how
+     * much horizontal room it took.
+     *
+     * The logo is a JPEG with a white background, and the header bands are navy, so it sits on
+     * a white patch. Compositing it onto the navy would need an alpha channel the source file
+     * does not have; a white panel is what a printed letterhead does anyway.
+     *
+     * Returns 0.0 when there is no logo, so a caller can lay out around it either way.
+     */
+    private function drawLogo(float $x, float $y, float $maxHeight): float
+    {
+        $file = $this->logoFile();
+
+        if ($file === null) {
+            return 0.0;
+        }
+
+        $image = $this->prepareImage($file);
+
+        if ($image === null || $image['height'] <= 0) {
+            return 0.0;
+        }
+
+        $padding = min(3.0, $maxHeight * 0.14);
+        $height = $maxHeight - ($padding * 2);
+        $width = $height * ($image['width'] / $image['height']);
+
+        // A logo wider than a third of the page would crowd out the title it sits beside.
+        $limit = $this->contentWidth() / 3;
+
+        if ($width > $limit) {
+            $width = $limit;
+            $height = $width * ($image['height'] / $image['width']);
+        }
+
+        $panelWidth = $width + ($padding * 2);
+        $this->rect($x, $y, $panelWidth, $maxHeight, self::ink(self::INK_WHITE), true);
+
+        $top = $y + (($maxHeight - $height) / 2);
+
+        $this->currentContent .= sprintf(
+            "q %.2F 0 0 %.2F %.2F %.2F cm /%s Do Q\n",
+            $width,
+            $height,
+            $x + $padding,
+            $this->pageHeight - ($top + $height),
+            $image['key']
+        );
+
+        return $panelWidth;
+    }
+
     public function addPage(): void
     {
         if ($this->currentContent !== '') {
@@ -192,12 +306,16 @@ final class PdfWriter
         // Dark band with the report title.
         $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $bandHeight, '0.118 0.227 0.373', true);
 
+        // The letterhead goes at the left of the band, and the title starts after it.
+        $logoWidth = $this->drawLogo($this->marginLeft, $this->y, $bandHeight);
+        $textLeft = $this->marginLeft + ($logoWidth > 0 ? $logoWidth + 10 : 10);
+
         $this->setFont(self::FONT_BOLD, 13);
-        $this->drawText($this->marginLeft + 10, $this->y + 17, $this->title, '1 1 1');
+        $this->drawText($textLeft, $this->y + 17, $this->title, '1 1 1');
 
         if ($this->subtitle !== '') {
             $this->setFont(self::FONT_REGULAR, 8.5);
-            $this->drawText($this->marginLeft + 10, $this->y + 32, $this->subtitle, '0.85 0.89 0.95');
+            $this->drawText($textLeft, $this->y + 32, $this->subtitle, '0.85 0.89 0.95');
         }
 
         $this->setFont(self::FONT_REGULAR, 7.5);
@@ -237,12 +355,24 @@ final class PdfWriter
 
         $centre = $this->marginLeft + ($this->contentWidth() / 2);
 
-        // Continuation pages carry a slim bar rather than the whole block.
+        // Continuation pages carry a slim bar rather than the whole block — with the
+        // letterhead on it, so a page that comes loose from the staple is still the bank's.
         if ($this->documentHeadingDrawn) {
-            $barHeight = 20.0;
+            $barHeight = 24.0;
             $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $barHeight, self::ink(self::INK_NAVY), true);
+
+            $logoWidth = $this->drawLogo($this->marginLeft, $this->y, $barHeight);
+
             $this->setFont(self::FONT_BOLD, 9.5);
-            $this->drawText($centre, $this->y + 13.5, $this->title, self::ink(self::INK_WHITE), 'center');
+            // Centred on the room left over, so the title is not pushed off centre by the logo
+            // on one side only.
+            $this->drawText(
+                $this->marginLeft + $logoWidth + (($this->contentWidth() - $logoWidth) / 2),
+                $this->y + 15.5,
+                $this->fit($this->title, $this->contentWidth() - $logoWidth - 16, 9.5, self::FONT_BOLD),
+                self::ink(self::INK_WHITE),
+                'center'
+            );
             $this->y += $barHeight + 8;
 
             return;
@@ -272,7 +402,13 @@ final class PdfWriter
 
         $blockHeight -= $gap;
 
+        // The letterhead sits in the top-left of the block. The title lines stay centred on
+        // the page, as the client's template has them, so the logo has to be narrow enough not
+        // to reach them — drawLogo() caps itself at a third of the width.
+        $logoHeight = min(38.0, $blockHeight - ($padding * 2));
+
         $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $blockHeight, self::ink(self::INK_NAVY), true);
+        $this->drawLogo($this->marginLeft + 6, $this->y + $padding, $logoHeight);
 
         $cursor = $this->y + $padding;
 
@@ -522,18 +658,22 @@ final class PdfWriter
             $boxLeft = $x + 5.0;
             $this->rect($boxLeft, $boxTop, $box, $box, self::ink(self::INK_TEAL), false);
 
+            /*
+             * Only what was chosen is marked. Everything else keeps an empty box.
+             *
+             * Un-chosen options used to be crossed, so that a reader could see the option had
+             * been considered rather than skipped. On the page that backfired: a row of four
+             * options came out as four marked boxes, and the client read the ticked one as
+             * crossed too — "jis par tick kar rahe hai vo bhi cross aata hai". A mark that has
+             * to be told apart from another mark by its shape, at eight points, on a
+             * photocopy, is not a mark that communicates.
+             *
+             * Nothing is lost. Every option is still printed, so a group nobody answered is
+             * visible as a group with no tick in it — which is what "not asked" looks like on
+             * every paper form the branch already uses.
+             */
             if ($isTicked) {
                 $this->tickMark($boxLeft, $boxTop, $box, self::ink(self::INK_TEAL));
-            } else {
-                // Ticked is yes, and everything else is no, at the client's
-                // instruction. A checklist is read that way anyway: an unticked
-                // "PAN Card" means the borrower did not produce one.
-                //
-                // It applies even when nothing in the group was chosen, so a Yes/No
-                // pair that was never answered prints with both boxes crossed. That
-                // shows neither was chosen without claiming either — the alternative,
-                // ticking No for silence, would put an answer in the agent's mouth.
-                $this->crossMark($boxLeft, $boxTop, $box, self::ink(self::INK_MUTED));
             }
 
             $font = $isTicked ? self::FONT_BOLD : self::FONT_REGULAR;
@@ -562,44 +702,37 @@ final class PdfWriter
     }
 
     /**
-     * The mark a chosen option carries.
+     * The mark a chosen option carries, and the only mark on the page.
      *
-     * A tick, in two strokes: a short fall to the low point, then a longer rise. It
-     * used to be drawn as two crossing diagonals — an X — because that is the glyph
-     * the Word template uses for a chosen box. On a printed page an X in a box is read
-     * by most people as "not this", so the report was ambiguous about the one thing it
-     * exists to state. A tick for chosen and a cross for not chosen cannot be misread.
+     * A tick, in two strokes: a short fall to the low point, then a longer rise. It used to
+     * be drawn as two crossing diagonals — an X — because that is the glyph the Word template
+     * uses for a chosen box, and an X in a box is read by most people as "not this".
+     *
+     * Drawn heavier than the hairlines around it. This is the one mark on the form that
+     * carries an answer, and it has to survive being photocopied twice and read at arm's
+     * length: at eight points a 0.4pt tick is a smudge, and a smudge in a box is exactly what
+     * gets mistaken for a cross.
      */
     private function tickMark(float $left, float $top, float $size, string $colour): void
     {
+        $weight = max(0.9, $size * 0.16);
+
         $this->line(
-            $left + ($size * 0.20),
+            $left + ($size * 0.18),
             $top + ($size * 0.52),
-            $left + ($size * 0.42),
+            $left + ($size * 0.40),
             $top + ($size * 0.76),
-            $colour
+            $colour,
+            $weight
         );
         $this->line(
-            $left + ($size * 0.42),
+            $left + ($size * 0.40),
             $top + ($size * 0.76),
-            $left + ($size * 0.84),
-            $top + ($size * 0.22),
-            $colour
+            $left + ($size * 0.86),
+            $top + ($size * 0.20),
+            $colour,
+            $weight
         );
-    }
-
-    /**
-     * The mark every option that was not chosen carries.
-     *
-     * Muted rather than the tick's colour, so a reader scanning the page sees what was
-     * answered first and what was ruled out second.
-     */
-    private function crossMark(float $left, float $top, float $size, string $colour): void
-    {
-        $inset = $size * 0.22;
-
-        $this->line($left + $inset, $top + $inset, $left + $size - $inset, $top + $size - $inset, $colour);
-        $this->line($left + $inset, $top + $size - $inset, $left + $size - $inset, $top + $inset, $colour);
     }
 
     /**
@@ -1223,11 +1356,17 @@ final class PdfWriter
         );
     }
 
-    private function line(float $x1, float $y1, float $x2, float $y2, string $colour): void
+    /**
+     * A straight stroke. `$width` is in points; the default is the hairline used for rules
+     * and box outlines. Round caps and joins, so a heavier stroke reads as a drawn mark
+     * rather than as two rectangles meeting at a corner.
+     */
+    private function line(float $x1, float $y1, float $x2, float $y2, string $colour, float $width = 0.4): void
     {
         $this->currentContent .= sprintf(
-            "q %s RG 0.4 w %.2F %.2F m %.2F %.2F l S Q\n",
+            "q %s RG %.2F w 1 J 1 j %.2F %.2F m %.2F %.2F l S Q\n",
             $colour,
+            $width,
             $x1,
             $this->pageHeight - $y1,
             $x2,

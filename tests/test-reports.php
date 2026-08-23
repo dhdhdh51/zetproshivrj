@@ -650,24 +650,28 @@ ok($unapproved, 'The test report is not yet approved');
 ok(pdf_tick_strokes($krmPdf['path']) > 0, 'Ticked boxes are drawn as vector marks');
 ok(!str_contains($krmText, '☒') && !str_contains($krmText, '☐'), 'No ballot-box characters are emitted as text');
 
-// What was chosen carries a tick, and what was offered and not chosen carries a
-// cross, so a reader is never left deciding whether an empty box means "no" or
-// "nobody asked". The two are drawn in different colours, which is how they are
-// counted here — a tick is two strokes and so is a cross.
+/*
+ * Only what was chosen is marked, and nothing else is.
+ *
+ * Un-chosen options used to carry a muted cross, so a reader could see the option had been
+ * offered rather than skipped. On the page that backfired: four options came out as four
+ * marked boxes and the client read the ticked one as crossed too. A mark that has to be told
+ * apart from another mark by its shape, at eight points, on a photocopy, is not a mark.
+ */
 $tickStrokes = pdf_stroke_count($krmPdf['path'], '0e7c7b');
 $crossStrokes = pdf_stroke_count($krmPdf['path'], '6b7280');
 
 ok($tickStrokes > 0, sprintf('Chosen options are ticked (%d strokes)', $tickStrokes));
 equals(0, $tickStrokes % 2, 'Every tick is a complete two-stroke mark');
-ok($crossStrokes > 0, sprintf('Options ruled out are crossed (%d strokes)', $crossStrokes));
+
+// The muted grey is also the signature rules and the lines of a writing box, so the slope is
+// what separates a cross from a rule: a rule is horizontal, a cross is two diagonals.
+ok($crossStrokes > 0, 'The muted grey is still in use, for the rules people sign on');
+equals(0, pdf_diagonal_strokes($krmPdf['path'], '6b7280'), 'But nothing on the page is crossed out');
 
 // The rule itself, checked on the writer rather than through a whole report, because a
 // report ticks things no form field decided — the Case Type row comes from the visit and
 // the borrower's gender from the loan book — so a full page cannot isolate one group.
-//
-// Ticked is yes and everything else is no, including in a group nobody answered: a
-// checklist is read that way, and an unticked entry means the borrower did not produce
-// that document.
 $probeMarks = static function (array $selected): array {
     $probe = new PdfWriter('portrait');
     $probe->addPage();
@@ -686,16 +690,17 @@ $probeMarks = static function (array $selected): array {
     return $marks;
 };
 
-// Nothing chosen: no ticks, and both options crossed. That shows neither was chosen
-// without claiming either — ticking No for silence would put an answer in the agent's
-// mouth, and the stored column still holds null rather than a false.
+// A group nobody answered is a group with no tick in it. Every option is still printed, so
+// "not asked" is visible as an empty row — which is what it looks like on every paper form
+// the branch already uses. Ticking No for silence would put an answer in the agent's mouth,
+// and the stored column still holds null rather than a false.
 $unanswered = $probeMarks([]);
 equals(0, $unanswered['ticks'], 'A group nobody answered carries no tick');
-equals(4, $unanswered['crosses'], 'Both of its options are crossed, two strokes each');
+equals(0, $unanswered['crosses'], 'And no cross either — its boxes are simply empty');
 
 $answered = $probeMarks(['Yes']);
 equals(2, $answered['ticks'], 'The chosen option gets one two-stroke tick');
-equals(2, $answered['crosses'], 'The option ruled out gets one two-stroke cross');
+equals(0, $answered['crosses'], 'The option not chosen is left blank, not crossed');
 
 // The tick's shape, not just its stroke count. A PDF's y axis grows upward while the
 // writer positions everything downward from the top, so a tick is one sign error away
@@ -709,7 +714,7 @@ $shapeProbe->save($shapeFile);
 
 $teal = sprintf('%.3F %.3F %.3F', 14 / 255, 124 / 255, 123 / 255);
 $found = preg_match_all(
-    '/' . preg_quote($teal, '/') . ' RG [\d.]+ w ([\d.]+) ([\d.]+) m ([\d.]+) ([\d.]+) l S Q/',
+    '/' . preg_quote($teal, '/') . ' RG [\d.]+ w 1 J 1 j ([\d.]+) ([\d.]+) m ([\d.]+) ([\d.]+) l S Q/',
     (string) file_get_contents($shapeFile),
     $strokes,
     PREG_SET_ORDER
@@ -1391,9 +1396,10 @@ ok(
     pdf_stroke_count($inspectionPdf['path'], '0e7c7b') > 0,
     'Chosen answers are ticked'
 );
-ok(
-    pdf_stroke_count($inspectionPdf['path'], '6b7280') > 0,
-    'Answers ruled out are crossed'
+equals(
+    0,
+    pdf_diagonal_strokes($inspectionPdf['path'], '6b7280'),
+    'And answers not chosen are left blank rather than crossed out'
 );
 // The letterhead of the office the form belongs to. It moved from the Bhopal zonal office to
 // the Agra regional office, which is why these values are settings and not constants.
@@ -1790,12 +1796,11 @@ $inspectionQrText = pdf_text_flat($inspectionQrPdf['path']);
 
 ok(lrms_pdf_has_qr($inspectionQrPdf['path']), 'The inspection report carries a QR code');
 ok(str_contains($inspectionQrText, 'Scan to open this record'), 'With a caption saying what it is for');
+// The inspection's own reference is deliberately not here — see the letterhead section
+// below. What is printed is what identifies the outlet to a person.
 ok(
-    str_contains($inspectionQrText, (string) Database::scalar(
-        'SELECT uuid FROM inspections WHERE id = :id',
-        ['id' => $inspectionId]
-    )),
-    'And the reference printed too, for whoever has no phone to hand'
+    str_contains($inspectionQrText, 'BC001'),
+    'And the BC code printed beside it, for whoever has no phone to hand'
 );
 
 // 2. The customer visit report.
@@ -1830,6 +1835,57 @@ ok(lrms_pdf_has_qr($tabularPath), 'A tabular report PDF carries a QR code');
 ok(
     str_contains(pdf_text_flat($tabularPath), 'Scan for the live figures'),
     'And says the code leads to the current figures, not to this sheet'
+);
+
+/* -------------------------------------------------------------------------- */
+section("The bank's letterhead is on every page, and the inspection drops its reference");
+/* -------------------------------------------------------------------------- */
+
+/*
+ * These pages are photocopied, stapled, unstapled and filed. A page that comes loose has to
+ * still be identifiable as the bank's, so the logo goes in the header of every page — not only
+ * the first, which is the version of this that would pass a naive test.
+ */
+$logoFile = base_path('public/assets/img/cbi-logo.jpg');
+
+ok(is_file($logoFile), 'The letterhead image ships with the project');
+
+foreach ([
+    'the inspection report' => $inspectionQrPdf['path'],
+    'the customer visit report' => $visitQrPdf['path'],
+    'a tabular report' => $tabularPath,
+] as $description => $file) {
+    $perPage = pdf_image_draws_per_page($file, $logoFile);
+
+    ok($perPage !== [], 'The letterhead is embedded in ' . $description);
+    ok(
+        $perPage !== [] && count(array_filter($perPage, static fn (int $n): bool => $n < 1)) === 0,
+        sprintf('It is drawn on every one of %d pages of %s (%s)', count($perPage), $description, implode(',', $perPage))
+    );
+    ok(
+        count($perPage) > 1 || $description !== 'the inspection report',
+        'The inspection report runs to more than one page, so "every page" means something'
+    );
+}
+
+// The client asked for the system reference off this form: a uuid means nothing to the branch
+// that signs it, and on an official letterhead it reads as clutter.
+$inspectionUuid = (string) Database::scalar('SELECT uuid FROM inspections WHERE id = :id', ['id' => $inspectionId]);
+$noRefText = pdf_text_flat($inspectionQrPdf['path']);
+
+ok($inspectionUuid !== '', 'The inspection still has a reference in the database');
+ok(!str_contains($noRefText, $inspectionUuid), 'But it is not printed on the inspection report');
+ok(!str_contains($noRefText, 'Reference:'), 'Nor is the label it used to sit under');
+
+// What identifies it to a person is still there, and so is the QR that identifies it to the
+// panel — dropping the number must not leave the sheet untraceable.
+ok(str_contains($noRefText, 'BC001'), 'The BC code still identifies whose outlet it was');
+ok(lrms_pdf_has_qr($inspectionQrPdf['path']), 'And the QR code still leads back to the record');
+
+// The visit report keeps its reference: only the inspection was asked about.
+ok(
+    str_contains(pdf_text_flat($visitQrPdf['path']), 'Visit reference:'),
+    'The customer visit report keeps its reference line'
 );
 
 exit(TestRunner::summary());

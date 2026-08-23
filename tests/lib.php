@@ -204,7 +204,9 @@ function pdf_stroke_count(string $path, string $colour): int
         hexdec(substr($colour, 4, 2)) / 255
     );
 
-    $pattern = '/' . preg_quote($rgb, '/') . ' RG [\d.]+ w [\d.]+ [\d.]+ m [\d.]+ [\d.]+ l S Q/';
+    // Line caps and joins are set on every stroke, so they sit between the width and the
+    // first coordinate.
+    $pattern = '/' . preg_quote($rgb, '/') . ' RG [\d.]+ w 1 J 1 j [\d.]+ [\d.]+ m [\d.]+ [\d.]+ l S Q/';
 
     return preg_match_all($pattern, $data) ?: 0;
 }
@@ -220,4 +222,131 @@ function pdf_stroke_count(string $path, string $colour): int
 function pdf_text_flat(string $path): string
 {
     return trim((string) preg_replace('/\s+/', ' ', pdf_text($path)));
+}
+
+
+/**
+ * How many times a given image is drawn on each page of a PDF.
+ *
+ * The letterhead has to be on every page, and "the file contains the logo once" would pass
+ * for a fifty-page report that prints it only on page one. So this resolves the XObject whose
+ * pixel dimensions match the file on disk, finds the resource name it was published under,
+ * and counts that name's draw operator per content stream.
+ *
+ * Matching on dimensions rather than on the resource name matters because photographs are
+ * XObjects too, and their names are assigned in whatever order the writer happened to embed
+ * them.
+ *
+ * @return array<int, int> One count per page, in page order.
+ */
+function pdf_image_draws_per_page(string $pdfPath, string $imagePath): array
+{
+    if (!is_file($pdfPath) || !is_file($imagePath)) {
+        return [];
+    }
+
+    $size = @getimagesize($imagePath);
+
+    if ($size === false) {
+        return [];
+    }
+
+    [$width, $height] = $size;
+    $data = (string) file_get_contents($pdfPath);
+
+    // Which object numbers hold an image of exactly these dimensions?
+    $objects = [];
+
+    if (preg_match_all('/(\d+) 0 obj\s*<< \/Type \/XObject[^>]*?\/Width (\d+) \/Height (\d+)/s', $data, $found, PREG_SET_ORDER)) {
+        foreach ($found as $match) {
+            if ((int) $match[2] === $width && (int) $match[3] === $height) {
+                $objects[] = (int) $match[1];
+            }
+        }
+    }
+
+    if ($objects === []) {
+        return [];
+    }
+
+    // And what are they called in the shared resource dictionary?
+    $names = [];
+
+    if (preg_match_all('/\/(Im\d+) (\d+) 0 R/', $data, $found, PREG_SET_ORDER)) {
+        foreach ($found as $match) {
+            if (in_array((int) $match[2], $objects, true)) {
+                $names[] = $match[1];
+            }
+        }
+    }
+
+    if ($names === []) {
+        return [];
+    }
+
+    $counts = [];
+
+    // Content streams are the ones carrying drawing operators; an image's own stream is
+    // binary JPEG and has none.
+    if (preg_match_all('/stream\r?\n(.*?)endstream/s', $data, $streams)) {
+        foreach ($streams[1] as $stream) {
+            if (!str_contains($stream, ' re ') && !str_contains($stream, 'BT ')) {
+                continue;
+            }
+
+            $drawn = 0;
+
+            foreach ($names as $name) {
+                $drawn += preg_match_all('/\/' . preg_quote($name, '/') . ' Do/', $stream) ?: 0;
+            }
+
+            $counts[] = $drawn;
+        }
+    }
+
+    return $counts;
+}
+
+
+/**
+ * Diagonal strokes of one colour — which is what a cross is made of.
+ *
+ * Counting strokes by colour alone cannot tell "this option was crossed out" from "this is the
+ * rule somebody signs on": both are drawn in the muted grey. The signature rules and the lines
+ * of a writing box are horizontal, and a cross is two diagonals, so the slope is the thing to
+ * look at.
+ */
+function pdf_diagonal_strokes(string $path, string $colour): int
+{
+    if (!is_file($path)) {
+        return 0;
+    }
+
+    $rgb = sprintf(
+        '%.3F %.3F %.3F',
+        hexdec(substr($colour, 0, 2)) / 255,
+        hexdec(substr($colour, 2, 2)) / 255,
+        hexdec(substr($colour, 4, 2)) / 255
+    );
+
+    $pattern = '/' . preg_quote($rgb, '/')
+        . ' RG [\d.]+ w 1 J 1 j ([\d.]+) ([\d.]+) m ([\d.]+) ([\d.]+) l S Q/';
+
+    if (preg_match_all($pattern, (string) file_get_contents($path), $strokes, PREG_SET_ORDER) === false) {
+        return 0;
+    }
+
+    $diagonal = 0;
+
+    foreach ($strokes as $stroke) {
+        $dx = abs((float) $stroke[3] - (float) $stroke[1]);
+        $dy = abs((float) $stroke[4] - (float) $stroke[2]);
+
+        // Both axes moving by something visible: neither a rule nor a border.
+        if ($dx > 0.5 && $dy > 0.5) {
+            $diagonal++;
+        }
+    }
+
+    return $diagonal;
 }

@@ -82,6 +82,28 @@ Everything below is on the branch, green in CI, and live-ready.
     photographs and the item 24 grade all start blank. Items **9 and 10** read like standing
     facts and are not: the inspector is being asked to be *shown* the appointment letter and
     the identity card. Item 25 comes from whoever is signed in, not from last month's name.
+- **Only the chosen option is marked on a printed form.** Un-chosen options used to carry a
+  muted cross. The client reversed it: four options came out as four marked boxes and the tick
+  no longer read as the answer. `crossMark()` is gone; the tick is drawn heavier (`line()` now
+  takes a width, with round caps) because at eight points a 0.4pt tick is a smudge, and a
+  smudge in a box is what gets mistaken for a cross.
+  - Counting muted strokes does **not** tell a cross from a signature rule — both use
+    `INK_MUTED`. `pdf_diagonal_strokes()` in tests/lib.php looks at the slope instead.
+  - `line()` emits `1 J 1 j` now, so any test regex matching a stroke has to allow for it.
+- **The bank's letterhead prints in the header of every page of every PDF.**
+  `public/assets/img/cbi-logo.jpg` is the bank's own file, taken from their site — a baseline
+  JPEG, which is what `prepareImage()` can embed directly (the other file they publish is
+  progressive and would not render). It is 252x79, so about 190 DPI at the size it prints;
+  a site wanting sharper can point the `site_logo` setting at its own file, which wins. There
+  is no upload UI for that yet — it is honoured if set, nothing more.
+  - It sits on a white panel because the header bands are navy and the JPEG has no alpha.
+  - `PdfWriter` resolves the file itself rather than taking it from a call site, for the same
+    reason the footer does: "every page of every PDF" is not something four callers should each
+    have to remember. Resolution is cached, including a resolution to nothing.
+- **The inspection report prints no system reference.** The client asked for it off: a uuid
+  means nothing to the branch signing the sheet. The BCA, BC code, branch and date identify it
+  to a person and the QR identifies it to the panel. The visit report keeps its reference — only
+  the inspection was asked about.
 - **The office on the printed inspection form is a setting**, not a constant. It moved from
   the Bhopal zonal office to `Central Bank of India — Regional Office, Agra` (37/2/4, First
   Floor, Sanjay Place; 0562-2521342; rdagraro@centralbank.bank.in; helpline 1800 233 4035).
@@ -112,7 +134,7 @@ Everything below is on the branch, green in CI, and live-ready.
 
 ## Current state
 
-- Suites: `160 / 318 / 216 / 416 / 93`
+- Suites: `160 / 318 / 216 / 433 / 93`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.

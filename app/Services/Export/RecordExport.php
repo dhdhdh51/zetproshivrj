@@ -252,7 +252,11 @@ final class RecordExport
             org_name(),
             'BCA Inspection',
             [
-                sprintf('Reference: %s', $inspection['uuid']),
+                // No system reference. It used to be printed here and the client asked for it
+                // off: a uuid means nothing to the branch that signs this sheet, and on the
+                // letterhead of an official form it reads as clutter. The BCA, the BC code and
+                // the branch below are how a person identifies this inspection, and the QR at
+                // the foot is how the panel does.
                 sprintf(
                     'BCA: %s (%s)   •   Branch: %s',
                     $inspection['supervisor_name'],
@@ -376,8 +380,9 @@ final class RecordExport
             $pdf->noticeBox('eef2f8', $office, $officeName !== '' ? $officeName : null);
         }
 
+        // The reference line the other reports carry is left off this one, at the client's
+        // instruction. What identifies the inspection to a person is printed instead.
         $pdf->verification(url('/r/inspection/' . $inspectionId), [
-            sprintf('Inspection reference: %s', (string) $inspection['uuid']),
             sprintf(
                 'BCA %s (%s)   •   %s   •   %s',
                 (string) $inspection['supervisor_name'],

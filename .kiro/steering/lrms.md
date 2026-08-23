@@ -35,8 +35,16 @@ These came from the client directly and have each been stated more than once.
   `values-hi/strings.xml`; nothing warns you about a missing Hindi key.
 - **KRM OTS and CKCC OD-2 are separate work streams.** Separate lists, separate registers,
   separate report columns. Do not merge them.
-- **Printed forms:** a tick on what was chosen and a cross on **every** option that was not —
-  including in a group nobody answered. A bank auditor reads a blank as "not asked".
+- **Printed forms: only what was chosen is marked.** A tick on the chosen option, an empty box
+  on everything else. Un-chosen options used to carry a muted cross so a reader could see the
+  option had been offered rather than skipped; the client reversed that — "jis par tick kar
+  rahe hai vo bhi cross aata hai, true nahi" — because a row of four options came out as four
+  marked boxes and the tick stopped standing out. Every option is still printed, so a group
+  nobody answered is visible as a group with no tick in it.
+- **The bank's letterhead goes in the header of every page of every PDF**, not just page one:
+  these sheets get unstapled and filed, and a loose page has to still be the bank's.
+  `public/assets/img/cbi-logo.jpg` is the shipped default; a `site_logo` setting pointing at a
+  readable file overrides it. `PdfWriter` resolves it itself, so no call site has to remember.
 - **British spelling** in identifiers and copy: `organisation`, `enrolment`.
 - App name is **D2 RECOVERY SOLUTION**.
 - **Who is called what.** The agent at the outlet is the **BCA** (Business Correspondent
@@ -102,7 +110,7 @@ php tests/test-reports.php
 php tests/test-qr.php                       # pure computation, no server or database
 ```
 
-Counts: `160 / 318 / 216 / 416 / 93`.
+Counts: `160 / 318 / 216 / 433 / 93`.
 
 Lint everything:
 
