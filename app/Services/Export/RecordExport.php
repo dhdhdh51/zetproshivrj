@@ -7,6 +7,7 @@ namespace App\Services\Export;
 use App\Core\Auth;
 use App\Core\Database;
 use App\Core\HttpException;
+use App\Core\Settings;
 use App\Services\Audit;
 use App\Services\Forms;
 use App\Services\Gps;
@@ -353,17 +354,27 @@ final class RecordExport
         $pdf->heading('26. Signature of the visiting official');
         $pdf->signatureLines(['Visiting official (BC Supervisor)', 'Date']);
 
-        // From the letterhead of the form the client issued, so a printed copy carries
-        // the office it belongs to rather than looking like a document of our own.
-        $pdf->noticeBox(
-            'eef2f8',
-            [
-                '9, Arera Hills, Jail Road, Bhopal.  Telephone: 0755-2552023.  '
-                . 'Email: fibhopzo@centralbank.co.in',
-                'Toll free helpline: 1800 233 4035',
-            ],
-            'Central Bank of India — Financial Inclusion, Bhopal Zonal Office'
-        );
+        /*
+         * The letterhead of the form the client issued, so a printed copy carries the office
+         * it belongs to rather than looking like a document of our own.
+         *
+         * Editable from Settings rather than written here. It has already moved once — from
+         * the Bhopal zonal office to the Agra regional office — and an office moving is not a
+         * reason to need a developer. A line left blank is left out, so an office with no
+         * separate helpline does not print an empty label.
+         */
+        $office = array_values(array_filter([
+            self::officeLine('Address', 'office_address', '37/2/4, First Floor, Sanjay Place, Agra'),
+            self::officeLine('Phone No.', 'office_phone', '0562-2521342'),
+            self::officeLine('E-Mail', 'office_email', 'rdagraro@centralbank.bank.in'),
+            self::officeLine('Toll Free Helpline', 'office_helpline', '1800 233 4035'),
+        ], static fn (string $line): bool => $line !== ''));
+
+        $officeName = self::officeValue('office_name', 'Central Bank of India — Regional Office, Agra');
+
+        if ($office !== [] || $officeName !== '') {
+            $pdf->noticeBox('eef2f8', $office, $officeName !== '' ? $officeName : null);
+        }
 
         $pdf->verification(url('/r/inspection/' . $inspectionId), [
             sprintf('Inspection reference: %s', (string) $inspection['uuid']),
@@ -407,6 +418,37 @@ final class RecordExport
      * @param array<int, array<string, mixed>> $fields
      * @param array<string, string> $answers
      */
+    /**
+     * One labelled line of the office letterhead, or '' when that line is not set.
+     *
+     * The label is printed with the value because that is how the client's sheet reads —
+     * "Phone No.: 0562-2521342", not a bare number under an address.
+     */
+    private static function officeLine(string $label, string $key, string $default): string
+    {
+        $value = self::officeValue($key, $default);
+
+        return $value === '' ? '' : $label . ': ' . $value;
+    }
+
+    /**
+     * One letterhead setting, where an empty setting means empty.
+     *
+     * Deliberately not `setting()`. That treats an empty value as absent and hands back the
+     * default, which is right for a deadline or a photo count — but here it would make a line
+     * impossible to remove: clearing the helpline box and saving would print the helpline
+     * again. A row that exists and is empty is somebody saying "leave this off the page".
+     *
+     * A row that does not exist at all is a site that has not been re-seeded, and that still
+     * gets the client's own office rather than a blank footer.
+     */
+    private static function officeValue(string $key, string $default): string
+    {
+        $stored = Settings::all();
+
+        return array_key_exists($key, $stored) ? trim((string) $stored[$key]) : $default;
+    }
+
     private static function inspectionItems(PdfWriter $pdf, array $fields, array $answers): void
     {
         /** @var array<string, string> $pending */

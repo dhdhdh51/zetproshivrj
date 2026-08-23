@@ -637,6 +637,57 @@ if (tableExists($database, 'visit_forms') && tableExists($database, 'visit_form_
     }
 }
 
+/* Settings rows added since this database was built ------------------------ */
+
+/*
+ * Settings are read through a code default until the row exists, so a missing row is not a
+ * bug — the office letterhead prints correctly on a site that has never been re-seeded.
+ *
+ * What it does break is the settings screen, which would show five empty boxes for an office
+ * that is in fact being printed on every inspection report. Somebody looking at that would
+ * reasonably conclude it was not configured, and clear something that was working.
+ *
+ * seed.php owns the list, and only inserts keys that are absent, so this is one call and
+ * cannot drift from what a fresh install gets.
+ */
+if (tableExists($database, 'system_settings')) {
+    require_once __DIR__ . '/seed.php';
+
+    $before = (int) Database::scalar('SELECT COUNT(*) FROM system_settings');
+
+    if ($dryRun) {
+        // Counting what is missing without inserting it means listing the keys, which would be
+        // a second copy of seed.php's list. Naming the step is enough: it adds rows for
+        // settings this build knows about and this database does not, and never overwrites one.
+        printf("  +  system_settings: any settings rows this build adds (%d present)\n", $before);
+        $applied++;
+    } else {
+        try {
+            // seed.php reports its own totals, which reads as a second, contradictory line in
+            // the middle of an upgrade log. This step does its own reporting.
+            ob_start();
+
+            try {
+                lrms_seed_settings();
+            } finally {
+                ob_end_clean();
+            }
+
+            $added = (int) Database::scalar('SELECT COUNT(*) FROM system_settings') - $before;
+
+            if ($added > 0) {
+                printf("  +  system_settings: %d row(s) added\n", $added);
+                $applied++;
+            } else {
+                $skipped++;
+            }
+        } catch (Throwable $e) {
+            printf("  !! system_settings: %s\n", $e->getMessage());
+            $failed++;
+        }
+    }
+}
+
 /* The BCA / BC Supervisor rename ------------------------------------------- */
 
 /*

@@ -76,6 +76,42 @@
         </div>
 
         <div class="card">
+            <div class="card-head"><h2>Office on printed forms</h2></div>
+            <div class="card-body">
+                <p class="help" style="margin-top:0">
+                    The letterhead printed at the foot of the BCA inspection report, so a
+                    printed copy carries the office it belongs to. Leave a line blank to leave
+                    it off the page.
+                </p>
+                <div class="field">
+                    <label for="office_name">Office</label>
+                    <input type="text" id="office_name" name="office_name"
+                           value="<?= e(setting('office_name', '')) ?>" maxlength="160">
+                </div>
+                <div class="field">
+                    <label for="office_address">Address</label>
+                    <input type="text" id="office_address" name="office_address"
+                           value="<?= e(setting('office_address', '')) ?>" maxlength="255">
+                </div>
+                <div class="field">
+                    <label for="office_phone">Phone number</label>
+                    <input type="text" id="office_phone" name="office_phone"
+                           value="<?= e(setting('office_phone', '')) ?>" maxlength="60">
+                </div>
+                <div class="field">
+                    <label for="office_email">Email</label>
+                    <input type="text" id="office_email" name="office_email"
+                           value="<?= e(setting('office_email', '')) ?>" maxlength="120">
+                </div>
+                <div class="field">
+                    <label for="office_helpline">Toll free helpline</label>
+                    <input type="text" id="office_helpline" name="office_helpline"
+                           value="<?= e(setting('office_helpline', '')) ?>" maxlength="60">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
             <div class="card-head"><h2>Field evidence</h2></div>
             <div class="card-body">
                 <div class="form-grid">
