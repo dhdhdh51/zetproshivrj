@@ -110,9 +110,9 @@ managers and six BCAs for testing.
 
 ```bash
 php tests/test-import.php    # Excel import, allocation, exports    (160 checks)
-php tests/http-smoke.php     # every web screen, all 13 reports     (309 checks)
+php tests/http-smoke.php     # every web screen, all 13 reports     (318 checks)
 php tests/api-smoke.php      # the Android API end to end           (216 checks)
-php tests/test-reports.php   # the printed reports and prefill      (406 checks)
+php tests/test-reports.php   # the printed reports and prefill      (416 checks)
 php tests/test-qr.php        # the QR encoder, no database needed    (93 checks)
 ```
 

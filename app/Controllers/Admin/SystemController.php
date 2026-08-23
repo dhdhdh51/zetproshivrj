@@ -287,6 +287,17 @@ final class SystemController extends BaseController
             'supervisor_offline_minutes' => (string) max(1, (int) $request->input('supervisor_offline_minutes', 15)),
         ];
 
+        // The letterhead on the printed inspection form. Kept exactly as typed, including
+        // blanks: an office with no separate helpline should be able to leave that line off
+        // the page rather than print an empty label.
+        $office = [
+            'office_name' => trim((string) $request->input('office_name', '')),
+            'office_address' => trim((string) $request->input('office_address', '')),
+            'office_phone' => trim((string) $request->input('office_phone', '')),
+            'office_email' => trim((string) $request->input('office_email', '')),
+            'office_helpline' => trim((string) $request->input('office_helpline', '')),
+        ];
+
         $field = [
             'min_visit_photos' => (string) max(0, (int) $request->input('min_visit_photos', 1)),
             'min_inspection_photos' => (string) max(0, (int) $request->input('min_inspection_photos', 1)),
@@ -323,12 +334,13 @@ final class SystemController extends BaseController
         }
 
         Settings::setMany($values, 'general');
+        Settings::setMany($office, 'office');
         Settings::setMany($field, 'field');
         Settings::setMany($gps, 'gps');
         Settings::setMany($security, 'security');
         Settings::setMany($sms, 'sms');
 
-        $after = array_merge($values, $field, $gps, $security, $sms);
+        $after = array_merge($values, $office, $field, $gps, $security, $sms);
         $changed = [];
         $previous = [];
 

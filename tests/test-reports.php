@@ -22,6 +22,7 @@ require __DIR__ . '/lib.php';
 
 use App\Core\Auth;
 use App\Core\Database;
+use App\Core\Settings;
 use App\Services\CkccRenewals;
 use App\Services\Export\FieldVisitReport;
 use App\Services\Export\PdfWriter;
@@ -1394,10 +1395,59 @@ ok(
     pdf_stroke_count($inspectionPdf['path'], '6b7280') > 0,
     'Answers ruled out are crossed'
 );
+// The letterhead of the office the form belongs to. It moved from the Bhopal zonal office to
+// the Agra regional office, which is why these values are settings and not constants.
+foreach ([
+    'Regional Office, Agra' => 'the office',
+    '37/2/4, First Floor, Sanjay Place, Agra' => 'the address',
+    '0562-2521342' => 'the phone number',
+    'rdagraro@centralbank.bank.in' => 'the email address',
+    '1800 233 4035' => 'the toll free helpline',
+] as $needle => $description) {
+    ok(
+        str_contains($inspectionText, $needle),
+        "The printed copy carries " . $description . " from the form's letterhead"
+    );
+}
+
 ok(
-    str_contains($inspectionText, 'fibhopzo@centralbank.co.in'),
-    "The printed copy carries the office from the form's letterhead"
+    !str_contains($inspectionText, 'Bhopal') && !str_contains($inspectionText, 'fibhopzo'),
+    'And nothing of the office it used to be sent from'
 );
+
+// The labels are printed with the values, because that is how the client's sheet reads —
+// "Phone No.: 0562-2521342", not a bare number under an address.
+ok(str_contains($inspectionText, 'Phone No.: 0562-2521342'), 'Each line is labelled as the sheet labels it');
+
+/*
+ * An office moving must not need a developer. That is the whole reason these are settings, so
+ * it is worth proving that changing one changes the page — a setting that is read once through
+ * a default and never again would pass every check above and still be a constant.
+ */
+Settings::setMany([
+    'office_name' => 'Central Bank of India — Regional Office, Kanpur',
+    'office_address' => '12 Mall Road, Kanpur',
+    'office_phone' => '0512-1234567',
+    'office_email' => 'rdkanpuro@centralbank.bank.in',
+    // Blank on purpose: a line with nothing in it should leave the page rather than print an
+    // empty label.
+    'office_helpline' => '',
+], 'office');
+
+$movedText = pdf_text_flat(RecordExport::inspectionPdf($inspectionId)['path']);
+
+ok(str_contains($movedText, 'Regional Office, Kanpur'), 'Changing the office setting changes the printed form');
+ok(str_contains($movedText, '12 Mall Road, Kanpur'), 'And the address with it');
+ok(!str_contains($movedText, 'Sanjay Place'), 'The old address is gone, not printed alongside');
+ok(!str_contains($movedText, 'Toll Free Helpline'), 'A line left blank is left off the page, label and all');
+
+Settings::setMany([
+    'office_name' => 'Central Bank of India — Regional Office, Agra',
+    'office_address' => '37/2/4, First Floor, Sanjay Place, Agra',
+    'office_phone' => '0562-2521342',
+    'office_email' => 'rdagraro@centralbank.bank.in',
+    'office_helpline' => '1800 233 4035',
+], 'office');
 
 /* -------------------------------------------------------------------------- */
 section('An inspection recorded on the old format still prints its own questions');

@@ -450,11 +450,81 @@ if ($sssSupervisor === null) {
         'The correction replaced the whole day rather than merging into it'
     );
 
-    // The backdating window is a setting because the app is offline-first. A setting an
-    // Admin cannot reach is a constant with extra steps, so the screen has to offer it.
+    // The backdating window is a setting because the app is offline-first. A setting a BC
+    // Supervisor cannot reach is a constant with extra steps, so the screen has to offer it.
+    $settingsScreen = page('/admin/settings', 'Settings screen');
     ok(
-        str_contains(page('/admin/settings', 'Settings screen'), 'name="sss_backdate_days"'),
+        str_contains($settingsScreen, 'name="sss_backdate_days"'),
         'The SSS backdating window can be changed from the settings screen'
+    );
+
+    /*
+     * The office printed at the foot of the inspection report. It moved from the Bhopal zonal
+     * office to the Agra regional office, and an office moving must not need a developer — so
+     * the screen has to offer all five lines, and saving them has to stick.
+     */
+    foreach (['office_name', 'office_address', 'office_phone', 'office_email', 'office_helpline'] as $key) {
+        ok(str_contains($settingsScreen, 'name="' . $key . '"'), 'The settings screen offers ' . $key);
+    }
+
+    ok(
+        str_contains($settingsScreen, 'Sanjay Place'),
+        'And shows the office that is actually being printed, not empty boxes'
+    );
+
+    /*
+     * Saving has to round-trip through the real form.
+     *
+     * The whole settings screen is one form and saveSettings() reads every group from it, so a
+     * post that leaves a field out is a post that clears it — an absent checkbox is an
+     * unticked checkbox. Posting only the office fields switched watermarking off and broke a
+     * later suite. So the current values are sent back with them, which is what the browser
+     * does.
+     */
+    $current = App\Core\Settings::all();
+
+    $officePost = [
+        '_token' => csrfToken($settingsScreen),
+        'office_name' => 'Central Bank of India — Regional Office, Agra',
+        'office_address' => '37/2/4, First Floor, Sanjay Place, Agra',
+        'office_phone' => '0562-2521342',
+        'office_email' => 'rdagraro@centralbank.bank.in',
+        'office_helpline' => '1800 233 4035',
+    ];
+
+    foreach ([
+        'site_name', 'organisation_name', 'default_locale', 'supervisor_offline_minutes',
+        'min_visit_photos', 'min_inspection_photos', 'sss_backdate_days', 'payment_modes',
+        'gps_max_accuracy_metres', 'gps_max_drift_metres', 'api_token_ttl_days',
+        'sms_endpoint', 'sms_sender_id',
+    ] as $key) {
+        $officePost[$key] = (string) ($current[$key] ?? '');
+    }
+
+    // A checkbox is sent only when it is ticked, so anything currently on has to be named.
+    foreach ([
+        'maintenance_mode', 'watermark_photos', 'gps_mock_location_allowed',
+        'otp_web_login', 'otp_app_login', 'device_binding', 'sms_enabled',
+    ] as $key) {
+        if ((string) ($current[$key] ?? '0') === '1') {
+            $officePost[$key] = '1';
+        }
+    }
+
+    $officeSave = request($base . '/admin/settings', ['post' => $officePost]);
+
+    equals(200, $officeSave['status'], 'The office letterhead saves');
+
+    App\Core\Settings::flush();
+    equals(
+        '0562-2521342',
+        (string) setting('office_phone', ''),
+        'And the saved phone number is what the form will print'
+    );
+    equals(
+        (string) ($current['watermark_photos'] ?? '1'),
+        (string) setting('watermark_photos', '1'),
+        'Saving the office left the rest of the settings alone'
     );
 
     $sssList = page('/admin/sss?from=' . $sssDate . '&to=' . $sssDate, 'SSS list for the recorded day');

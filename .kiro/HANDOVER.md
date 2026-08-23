@@ -82,6 +82,17 @@ Everything below is on the branch, green in CI, and live-ready.
     photographs and the item 24 grade all start blank. Items **9 and 10** read like standing
     facts and are not: the inspector is being asked to be *shown* the appointment letter and
     the identity card. Item 25 comes from whoever is signed in, not from last month's name.
+- **The office on the printed inspection form is a setting**, not a constant. It moved from
+  the Bhopal zonal office to `Central Bank of India — Regional Office, Agra` (37/2/4, First
+  Floor, Sanjay Place; 0562-2521342; rdagraro@centralbank.bank.in; helpline 1800 233 4035).
+  Five keys in the `office` group, edited under **Settings ▸ Office on printed forms**.
+  - `RecordExport::officeValue()` reads `Settings::all()` directly rather than `setting()`,
+    because `setting()` treats an empty value as absent and hands back the default — which
+    would make a line impossible to remove. A row that exists and is empty means "leave this
+    line off the page"; a row that does not exist at all means a site that has not been
+    re-seeded, and that still prints the client's own office.
+  - `upgrade.php` now also calls `lrms_seed_settings()`, so a live site's settings screen shows
+    the office it is actually printing instead of five empty boxes.
 - **Every exported PDF carries a QR code** back to its record: both record reports, the
   client's official verification report, and every tabular report (where it leads to the live
   figures with the same filters, since a report is a filter and not a row). It needs a panel
@@ -101,7 +112,7 @@ Everything below is on the branch, green in CI, and live-ready.
 
 ## Current state
 
-- Suites: `160 / 309 / 216 / 406 / 93`
+- Suites: `160 / 318 / 216 / 416 / 93`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.
@@ -169,6 +180,10 @@ generate a third key without saying what it costs.
 
 ## Things that will waste your time otherwise
 
+- **The settings screen is one form, and `saveSettings()` reads every group from it.** A post
+  that leaves a field out clears it — an absent checkbox is an unticked checkbox. A test that
+  posted only the office fields switched photo watermarking off and broke a later suite. Send
+  the current values back with whatever you are changing, the way a browser does.
 - **The steering file is wrong about one thing.** It claims a test asserts `SHOW CREATE TABLE`
   is byte-identical between `schema.sql` and `upgrade.php`. No such test exists. What exists
   is `tests/http-smoke.php` running the upgrade over HTTP against a `schema.sql`-built

@@ -42,6 +42,12 @@ final class Settings
         'sms_api_key' => 'sms.api_key',
         'sms_sender_id' => 'sms.sender_id',
 
+        'office_name' => null,
+        'office_address' => null,
+        'office_phone' => null,
+        'office_email' => null,
+        'office_helpline' => null,
+
         'payment_modes' => null,
         'default_visit_form_id' => null,
         'default_inspection_form_id' => null,

@@ -115,6 +115,16 @@ function lrms_seed_settings(): void
             'maintenance_mode' => '0',
             'supervisor_offline_minutes' => '15',
         ],
+        // The office printed at the foot of the BCA inspection form. It is the client's own
+        // letterhead, and it has already moved once, so it is a setting rather than a
+        // constant somebody has to be asked to change.
+        'office' => [
+            'office_name' => 'Central Bank of India — Regional Office, Agra',
+            'office_address' => '37/2/4, First Floor, Sanjay Place, Agra',
+            'office_phone' => '0562-2521342',
+            'office_email' => 'rdagraro@centralbank.bank.in',
+            'office_helpline' => '1800 233 4035',
+        ],
         'reports' => [
             'report_deadline_time' => '18:00',
             'report_working_days' => '1,2,3,4,5,6',
