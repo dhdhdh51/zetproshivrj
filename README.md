@@ -27,6 +27,10 @@ manager.
 > 2. **Bring the dotfiles.** File managers hide them by default, so `.htaccess`
 >    gets left behind — and the clean URLs stop working without it. In a shell,
 >    `mv folder/* folder/.[!.]* public_html/` moves both.
+>
+> **Then set the document root to `public_html/public`, not `public_html`.** If you
+> miss that, the home page will tell you so rather than returning a bare 404 — and it
+> will also tell you that `config/config.local.php` is downloadable until you fix it.
 
 **Or clone on the server**, which makes updates a single command:
 

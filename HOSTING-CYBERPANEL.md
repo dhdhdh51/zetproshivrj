@@ -184,9 +184,21 @@ stop and fix it before entering any real data.
 
 ### If the home page itself returns 404
 
-That rules out the rewrite rules — a missing `.htaccess` breaks the other URLs but
-leaves the home page working. It is one of these two, and you can tell which from
-a browser without needing a terminal. Open, in order:
+**First just open the home page again.** If the files are in `public_html` and the
+document root is still on `public_html`, the site now answers with a page that names
+the problem, the exact CyberPanel setting to change, and the fact that your
+`config/` is downloadable in the meantime. That page is `index.php` at the top of the
+package; it serves no application code, and it becomes unreachable the moment the
+document root is correct.
+
+You will still get a bare 404 in one case: the archive was never flattened, so there
+is no `public_html/index.php` to run at all. Then open
+`https://your-domain/<the-folder-the-archive-made>/` and the same page appears, with
+the `mv` command for that folder.
+
+If neither shows it, work through the table below. A missing `.htaccess` breaks the
+other URLs but leaves the home page working, so a 404 on `/` rules the rewrite rules
+out. Open, in order:
 
 | Open this URL | It loads | What it means |
 | --- | --- | --- |
@@ -194,19 +206,27 @@ a browser without needing a terminal. Open, in order:
 | `https://your-domain/dhdhdh51-zetpro-<sha>/deploy/preflight.php` | runs | The archive was never flattened. Move the contents of that folder up into `public_html`. |
 | neither loads, and the site is unreachable rather than 404 | — | The document root points at a directory that does not exist — usually `public_html/public` set while the files are still nested. |
 
-Verified behaviour of each layout:
+Measured on a server that ignores `.htaccess`, which is what CyberPanel does by
+default:
 
-| Request | docRoot too high | Files still nested |
-| --- | --- | --- |
-| `/` | 404 | 404 |
-| `/deploy/preflight.php` | **200** | 404 |
-| `/<sha-folder>/deploy/preflight.php` | 404 | **200** |
-| `/config/config.local.php` | **200 — your database password** | 404 |
+| Request | docRoot too high | Files still nested | Correct |
+| --- | --- | --- | --- |
+| `/` | **503 + the diagnosis** | 404 | 302 to the sign-in page |
+| `/<sha-folder>/` | 404 | **503 + the diagnosis** | 404 |
+| `/deploy/preflight.php` | **200** | 404 | 404 |
+| `/config/config.local.php` | **200 — your database password** | 404 | 404 |
+
+The last row is the one that matters. A document root on `public_html` is not just a
+broken site, it is your database credentials served to anyone who asks.
 
 Do not "fix" this by adding an `index.php` to `public_html` that includes
 `public/index.php`. It makes the home page work while leaving `config/` and
 `storage/` downloadable, because OpenLiteSpeed is not applying the `.htaccess`
 rules that would otherwise block them. Set the document root.
+
+(The `index.php` that ships at the top of the package is not that. It prints the
+diagnosis above and refuses — it loads no application code and reads no
+configuration, so it cannot bring the site up in an unsafe state.)
 
 ---
 
