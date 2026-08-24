@@ -69,6 +69,10 @@ done
 cp .htaccess "${STAGE}/.htaccess"
 cp composer.json "${STAGE}/composer.json"
 
+# Not the application: the page that explains a document root left on public_html, which is
+# what a bare 404 on every URL actually means. Unreachable once the document root is right.
+cp index.php "${STAGE}/index.php"
+
 # Writable directories, created empty: local uploads and logs must not travel.
 for dir in storage/uploads storage/generated storage/logs; do
     mkdir -p "${STAGE}/${dir}"

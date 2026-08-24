@@ -1327,6 +1327,95 @@ ok(
     'upgrade.php carries no shebang, which would break including it'
 );
 
+/* -------------------------------------------------------------------------- */
+section('A document root left on public_html says so, instead of 404ing');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The root index.php is not the application: it is the page that explains the one hosting
+ * mistake that produces a bare 404 on every URL. It only ever runs when something is already
+ * wrong, which is exactly the code that rots unnoticed, so both branches are checked here.
+ *
+ * Run out-of-process with a controlled SCRIPT_NAME, because that is what the file reads to tell
+ * the two mistakes apart, and it cannot be reached over HTTP from this suite — the test server's
+ * document root is public/, which is the correct layout.
+ */
+$diagnose = static function (string $scriptName): string {
+    $php = <<<'PHP'
+        $_SERVER['SCRIPT_NAME'] = $argv[1];
+        $_SERVER['HTTP_HOST'] = 'example.test';
+        require $argv[2];
+        PHP;
+
+    $process = proc_open(
+        ['php', '-r', $php, $scriptName, dirname(__DIR__) . '/index.php'],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes
+    );
+
+    if (!is_resource($process)) {
+        return '';
+    }
+
+    $out = (string) stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    proc_close($process);
+
+    return $out;
+};
+
+// Served from the document root, with the application beside it: the root is one level high.
+$tooHigh = $diagnose('/index.php');
+
+ok(str_contains($tooHigh, 'pointed one level too high'), 'It names the mistake');
+ok(str_contains($tooHigh, 'public_html/public'), 'And the document root that fixes it');
+ok(str_contains($tooHigh, 'vHost Conf'), 'With the CyberPanel setting to change');
+
+// The exposure is the urgent half: those files are readable over the web right now.
+ok(str_contains($tooHigh, 'downloadable right now'), 'It warns that the configuration is exposed');
+ok(str_contains($tooHigh, '/config/config.php'), 'Naming the file, so it can be checked');
+ok(
+    str_contains($tooHigh, 'change the database password'),
+    'And says to rotate the password, because it may already have been read'
+);
+
+// Served from a sub-folder: the archive was never flattened, and the folder in the URL is the
+// wrapper it created. A different mistake with a different fix.
+$nested = $diagnose('/dhdhdh51-zetpro-c94ffc5/index.php');
+
+ok(str_contains($nested, 'not flattened'), 'A nested upload is diagnosed as its own problem');
+ok(
+    str_contains($nested, 'mv dhdhdh51-zetpro-c94ffc5/.[!.]* dhdhdh51-zetpro-c94ffc5/* .'),
+    'With a command naming the actual folder, dotfiles included'
+);
+ok(
+    str_contains($nested, '/dhdhdh51-zetpro-c94ffc5/config/config.php'),
+    'And the exposed paths under that folder, not at the root'
+);
+ok(
+    !str_contains($nested, 'pointed one level too high'),
+    'It does not also claim the document root is wrong'
+);
+
+// It must never serve the application from the wrong root. That would put the site up with
+// config/ readable, which is worse than the 404 because nobody then looks for the cause.
+foreach ([$tooHigh, $nested] as $page) {
+    ok(!str_contains($page, 'Sign in'), 'It does not boot the application');
+    ok(!str_contains($page, 'name="_token"'), 'And renders no application form');
+}
+
+ok(
+    str_contains((string) file_get_contents(__DIR__ . '/../index.php'), '503'),
+    'It answers 503 rather than 200, so the outage is not indexed as a page'
+);
+
+// It has to reach the server, or none of the above matters.
+ok(
+    str_contains((string) file_get_contents(__DIR__ . '/../deploy/build-package.sh'), 'index.php'),
+    'The deployment package ships it'
+);
+
 /*
  * The update also has to carry the BCA / BC Supervisor rename, because two of the old job
  * titles live in the database rather than in the code. `roles.name` is what the panel prints

@@ -82,6 +82,20 @@ Everything below is on the branch, green in CI, and live-ready.
     photographs and the item 24 grade all start blank. Items **9 and 10** read like standing
     facts and are not: the inspector is being asked to be *shown* the appointment letter and
     the identity card. Item 25 comes from whoever is signed in, not from last month's name.
+- **A document root left on `public_html` now explains itself.** The root `index.php` is not
+  the application: it prints the diagnosis, the CyberPanel setting to change, and the fact that
+  `config/config.local.php` is downloadable until it is. It loads no application code and reads
+  no configuration, so it cannot bring the site up in the unsafe state that a
+  `require public/index.php` shim would. Unreachable once the document root is right, and on
+  Apache the root `.htaccess` forwards `/` into `public/` before it is considered.
+  - It tells the two mistakes apart from `SCRIPT_NAME`: served at `/index.php` the root is one
+    level high; served at `/<folder>/index.php` the archive was never flattened, and that
+    folder is the wrapper.
+  - The nested layout still 404s at `/` — there is no `public_html/index.php` to run. Nothing
+    PHP can do about that; the docs point at the folder URL instead.
+  - Measured, not assumed: a server ignoring `.htaccess` (CyberPanel's default) serves
+    `/config/config.local.php` with **HTTP 200** when the document root is too high. That is
+    the reason this page exists at all.
 - **Only the chosen option is marked on a printed form.** Un-chosen options used to carry a
   muted cross. The client reversed it: four options came out as four marked boxes and the tick
   no longer read as the answer. `crossMark()` is gone; the tick is drawn heavier (`line()` now
@@ -134,7 +148,7 @@ Everything below is on the branch, green in CI, and live-ready.
 
 ## Current state
 
-- Suites: `160 / 318 / 216 / 433 / 93`
+- Suites: `160 / 334 / 216 / 433 / 93`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.
