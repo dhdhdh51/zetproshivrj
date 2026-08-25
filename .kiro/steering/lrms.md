@@ -45,6 +45,17 @@ These came from the client directly and have each been stated more than once.
   these sheets get unstapled and filed, and a loose page has to still be the bank's.
   `public/assets/img/cbi-logo.jpg` is the shipped default; a `site_logo` setting pointing at a
   readable file overrides it. `PdfWriter` resolves it itself, so no call site has to remember.
+  It sits on its own white strip above the band, not inside it — the page is already white, so
+  no panel is needed and the mark can be letterhead-sized.
+- **No organisation name on a printed page.** The letterhead already carries the bank's name in
+  Hindi and English; printing the system's name over it said nothing and crowded the block.
+  `documentHeader()` takes no organisation, `header()` is passed an empty subtitle, and the
+  footer is the confidentiality notice alone.
+- **Leading, not just font size.** Advancing a cursor by the point size puts baselines exactly
+  one em apart, which is tighter than any face is drawn for: descenders land in the ascenders
+  below and the block reads as tangled without technically overlapping. Around 1.3 em is
+  ordinary text leading. `pdf_tight_leading()` in tests/lib.php fails any pair of stacked lines
+  set closer than 1.15 em.
 - **British spelling** in identifiers and copy: `organisation`, `enrolment`.
 - App name is **D2 RECOVERY SOLUTION**.
 - **Who is called what.** The agent at the outlet is the **BCA** (Business Correspondent
@@ -110,7 +121,7 @@ php tests/test-reports.php
 php tests/test-qr.php                       # pure computation, no server or database
 ```
 
-Counts: `160 / 334 / 216 / 433 / 93`.
+Counts: `160 / 334 / 216 / 444 / 93`.
 
 Lint everything:
 

@@ -82,6 +82,24 @@ Everything below is on the branch, green in CI, and live-ready.
     photographs and the item 24 grade all start blank. Items **9 and 10** read like standing
     facts and are not: the inspector is being asked to be *shown* the appointment letter and
     the identity card. Item 25 comes from whoever is signed in, not from last month's name.
+- **The header is the letterhead.** The logo moved out of the navy band onto its own white
+  strip above it, at 32pt, and the organisation name is gone from every PDF — heading block,
+  band subtitle and page footer. The client asked for both: the mark was a small boxed stamp
+  crowding a title, and the name duplicated what the mark already says in two scripts.
+  - `documentHeader()` lost its `$organisation` parameter rather than being passed an empty
+    string, because no caller had anything else to put there.
+- **Two real layout bugs found by writing the test for "text tangled together".** Neither was
+  literal overlap — `pdftotext -bbox` reports zero overlapping words on every page, before and
+  after — which is why looking for collisions would have found nothing.
+  - `keyValues()` set 9pt type on 10pt lines: 1.11 em, tighter than Helvetica is drawn, so a
+    wrapped label ran into the line beneath it. Now 11.5pt.
+  - Labels were sliced to two lines with no mark. Item 1 of the inspection form needs three, so
+    "(BCA)" was silently missing from a form somebody signs. Now three lines, and the cut is
+    marked if it still overflows.
+  - The colon was wrapped with the label, so " :" could break onto a line of its own — item 4
+    did exactly that. It is appended after wrapping now, and dropped rather than overflowed when
+    it will not fit.
+  - `pdf_tight_leading()` is the guard: it measures leading rather than hunting collisions.
 - **A document root left on `public_html` now explains itself.** The root `index.php` is not
   the application: it prints the diagnosis, the CyberPanel setting to change, and the fact that
   `config/config.local.php` is downloadable until it is. It loads no application code and reads
@@ -148,7 +166,7 @@ Everything below is on the branch, green in CI, and live-ready.
 
 ## Current state
 
-- Suites: `160 / 334 / 216 / 433 / 93`
+- Suites: `160 / 334 / 216 / 444 / 93`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.

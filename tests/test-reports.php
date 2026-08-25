@@ -531,7 +531,14 @@ $ckccFlat = $flat($ckccText);
 
 ok(str_contains($krmText, 'FIELD VISIT VERIFICATION REPORT'), 'Title block printed');
 ok(str_contains($krmText, "RBI Guidelines & Bank's Code of Conduct Compliant Format"), 'Compliance strapline printed');
-ok(str_contains($krmFlat, $flat(org_name())), 'The organisation name heads the title block');
+
+// The title block used to be headed by the organisation name. The bank's letterhead is printed
+// above it now and says the same thing in two scripts, so the line is gone rather than moved —
+// see "The header is the letterhead, not a stack of names" further down.
+ok(
+    !str_contains($krmFlat, $flat(org_name())),
+    'The organisation name does not head the title block: the letterhead does'
+);
 ok(str_contains($krmFlat, '(KRM OTS / Recovery Verification Report)'), 'KRM PDF names its case type');
 ok(str_contains($ckccFlat, '(CKCC OD-2 Renewal / Recovery Verification Report)'), 'CKCC PDF names its case type');
 
@@ -1886,6 +1893,70 @@ ok(lrms_pdf_has_qr($inspectionQrPdf['path']), 'And the QR code still leads back 
 ok(
     str_contains(pdf_text_flat($visitQrPdf['path']), 'Visit reference:'),
     'The customer visit report keeps its reference line'
+);
+
+/* -------------------------------------------------------------------------- */
+section('The header is the letterhead, not a stack of names');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The organisation name used to be the first and largest line of the heading. The letterhead
+ * above it already says "Central Bank of India" in Hindi and English, so the line said nothing
+ * — and it was the line that made the rest of the block look packed together.
+ */
+$headerPdfs = [
+    'the inspection report' => $inspectionQrPdf['path'],
+    'the customer visit report' => $visitQrPdf['path'],
+    'a tabular report' => $tabularPath,
+];
+
+foreach ($headerPdfs as $description => $file) {
+    ok(
+        !str_contains(pdf_text_flat($file), org_name()),
+        'The organisation name is not printed on ' . $description
+    );
+}
+
+// And the title still is, or removing the name would have taken the heading with it.
+ok(str_contains(pdf_text_flat($inspectionQrPdf['path']), 'BCA Inspection'), 'The report title is still there');
+
+/*
+ * Leading, across every page of every document. This is the check for "text tangled together":
+ * not literal overlap, which a PDF rarely produces, but baselines set closer than the type is
+ * drawn, so descenders land in the ascenders below.
+ */
+foreach ($headerPdfs + ['the verification report' => $fvrPdf['path'] ?? ''] as $description => $file) {
+    if ($file === '') {
+        continue;
+    }
+
+    $tight = pdf_tight_leading($file);
+
+    ok(
+        $tight === [],
+        $tight === []
+            ? 'Every line of ' . $description . ' has room to breathe'
+            : 'Cramped lines in ' . $description . ': ' . implode(' | ', array_slice($tight, 0, 3))
+    );
+}
+
+/*
+ * Two things a key/value label used to do on the inspection form: lose its tail, and orphan its
+ * colon.
+ *
+ * Item 1 is "1. Name of Business Correspondent Agent (BCA)", which needs three lines in the
+ * label column. Labels were sliced to two with no mark, so "(BCA)" simply vanished off a form
+ * somebody signs. Item 4 was long enough that the wrapper broke before the " :", printing a
+ * line containing nothing but a colon.
+ */
+$labelRuns = pdf_text_runs($inspectionQrPdf['path']);
+$labelTexts = array_map(static fn (array $r): string => trim($r['text']), $labelRuns);
+
+ok(in_array('(BCA) :', $labelTexts, true), 'A three-line label prints its last line rather than dropping it');
+ok(!in_array(':', $labelTexts, true), 'No line is drawn containing nothing but a colon');
+ok(
+    count(array_filter($labelTexts, static fn (string $t): bool => $t !== '' && trim($t, ': ') === '')) === 0,
+    'Nor one containing only punctuation'
 );
 
 exit(TestRunner::summary());

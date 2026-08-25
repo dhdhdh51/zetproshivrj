@@ -350,3 +350,127 @@ function pdf_diagonal_strokes(string $path, string $colour): int
 
     return $diagonal;
 }
+
+
+/**
+ * Every string a PDF draws, with where it was drawn and in what.
+ *
+ * PdfWriter emits one `Tm ... Tj` per string with the font and size set immediately before it,
+ * so position, size and text can all be read back without a PDF library. Coordinates are PDF
+ * ones: y grows upward from the bottom of the page, and the y reported is the text's baseline.
+ *
+ * @return array<int, array{page:int, x:float, y:float, font:string, size:float, text:string}>
+ */
+function pdf_text_runs(string $path): array
+{
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $data = (string) file_get_contents($path);
+    $runs = [];
+
+    if (preg_match_all('/stream\r?\n(.*?)endstream/s', $data, $streams) === false) {
+        return [];
+    }
+
+    $page = 0;
+
+    foreach ($streams[1] as $stream) {
+        if (!str_contains($stream, 'Tj')) {
+            continue;
+        }
+
+        $page++;
+
+        $pattern = '/BT [\d.\s]+ rg \/(F\d) ([\d.]+) Tf 1 0 0 1 ([\d.-]+) ([\d.-]+) Tm \((.*?)\) Tj ET/';
+
+        if (preg_match_all($pattern, $stream, $found, PREG_SET_ORDER) === false) {
+            continue;
+        }
+
+        foreach ($found as $match) {
+            $runs[] = [
+                'page' => $page,
+                'font' => $match[1],
+                'size' => (float) $match[2],
+                'x' => (float) $match[3],
+                'y' => (float) $match[4],
+                'text' => str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $match[5]),
+            ];
+        }
+    }
+
+    return $runs;
+}
+
+/**
+ * Pairs of stacked lines whose baselines are closer together than the type is drawn.
+ *
+ * "Text tangled together" is not usually literal overlap — a PDF will happily place two
+ * baselines exactly one em apart, which is tighter than any font is designed for, and the
+ * descenders of one line then sit in the ascenders of the next. So this measures leading rather
+ * than looking for collisions: consecutive baselines must be at least `$ratio` times the larger
+ * of the two font sizes apart.
+ *
+ * Only lines that actually sit above one another are compared, using a horizontal overlap of
+ * their approximate extents — two columns of a key/value block share a baseline and are not
+ * stacked at all.
+ *
+ * @return array<int, string> One description per offending pair.
+ */
+function pdf_tight_leading(string $path, float $ratio = 1.15): array
+{
+    $runs = pdf_text_runs($path);
+    $tight = [];
+
+    // Grouped by page, then walked down the page.
+    $byPage = [];
+
+    foreach ($runs as $run) {
+        $byPage[$run['page']][] = $run;
+    }
+
+    foreach ($byPage as $page => $lines) {
+        // y grows upward, so descending y is down the page.
+        usort($lines, static fn (array $a, array $b): int => $b['y'] <=> $a['y']);
+
+        foreach ($lines as $i => $line) {
+            foreach (array_slice($lines, $i + 1) as $next) {
+                $gap = $line['y'] - $next['y'];
+
+                if ($gap <= 0.01) {
+                    continue; // Same baseline: side by side, not stacked.
+                }
+
+                $needed = max($line['size'], $next['size']) * $ratio;
+
+                if ($gap >= $needed) {
+                    break; // Sorted, so everything further down is further away.
+                }
+
+                // Horizontal extents, approximated from the string length. Helvetica averages
+                // close to half its point size per character, which is accurate enough to tell
+                // "these are stacked" from "these are in different columns".
+                $aWidth = strlen($line['text']) * $line['size'] * 0.5;
+                $bWidth = strlen($next['text']) * $next['size'] * 0.5;
+
+                $overlap = min($line['x'] + $aWidth, $next['x'] + $bWidth) - max($line['x'], $next['x']);
+
+                if ($overlap > 2.0) {
+                    $tight[] = sprintf(
+                        'page %d: "%s" and "%s" are %.1Fpt apart, %.1Fpt needed at %.1Fpt type',
+                        $page,
+                        mb_strimwidth($line['text'], 0, 34, '...'),
+                        mb_strimwidth($next['text'], 0, 34, '...'),
+                        $gap,
+                        $needed,
+                        max($line['size'], $next['size'])
+                    );
+                }
+            }
+        }
+    }
+
+    return $tight;
+}
