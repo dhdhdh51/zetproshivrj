@@ -100,6 +100,18 @@ Everything below is on the branch, green in CI, and live-ready.
     did exactly that. It is appended after wrapping now, and dropped rather than overflowed when
     it will not fit.
   - `pdf_tight_leading()` is the guard: it measures leading rather than hunting collisions.
+- **`install.php` returning 404 has four causes and one status code.** Answered by the
+  **browser installer** section of `deploy/preflight.php`, and by a table in
+  HOSTING-CYBERPANEL.md.
+  - The common one is that the 404 is **correct**: the installer deletes itself the instant it
+    succeeds, so that nobody can later point the site at a different database. Preflight reports
+    that as a pass, not a failure, and says so in words — the wrong reaction is to re-upload it,
+    and the wrong reaction after that is to run it, which drops every table.
+  - The others: document root on `public_html` (the installer answers at
+    `/public/install.php`, but fix the root — the config is downloadable meanwhile), archive
+    never flattened, and the file simply not uploaded to a site that never installed.
+  - The root `index.php` diagnosis names the installer too, because somebody whose document
+    root is wrong is usually mid-install.
 - **A document root left on `public_html` now explains itself.** The root `index.php` is not
   the application: it prints the diagnosis, the CyberPanel setting to change, and the fact that
   `config/config.local.php` is downloadable until it is. It loads no application code and reads
@@ -166,7 +178,7 @@ Everything below is on the branch, green in CI, and live-ready.
 
 ## Current state
 
-- Suites: `160 / 334 / 216 / 444 / 93`
+- Suites: `160 / 342 / 216 / 444 / 93`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.

@@ -309,6 +309,24 @@ it complained about and submit again — no clean-up in phpMyAdmin.
 When it finishes it deletes itself; if it cannot, it says so and you must delete
 `public/install.php` yourself.
 
+### If `/install.php` returns 404
+
+Four different things produce that, and the 404 cannot tell you which. Run
+`php deploy/preflight.php` and read the **browser installer** section — it says which
+one it is. Or work through them:
+
+| Cause | How to tell | What to do |
+| --- | --- | --- |
+| **You already installed it.** The installer deletes itself the moment it succeeds. | Open `/login` — the sign-in page appears. | Nothing. The 404 is correct. To apply a newer version, sign in and use **Settings ▸ Update the database**. Never re-run the installer: it drops every table. |
+| **The document root is on `public_html`**, not `public_html/public`. | `/` shows the "LRMS is not set up yet" page. | Fix the document root. `/public/install.php` does work in the meantime, but while the root is wrong `/config/config.local.php` is downloadable. |
+| **The archive was never flattened.** | `/` returns a bare 404 and `/<the-folder-the-zip-made>/` shows the setup page. | Move that folder's contents up into `public_html`, dotfiles included. |
+| **`public/install.php` was not uploaded.** | `/login` also 404s and preflight says the file is missing. | Copy that one file out of the package again. |
+
+The first row is the common one, and it is worth being blunt about: a 404 on the
+installer after a successful install is the installer doing its job. It removes itself
+so that nobody can point your site at a different database later.
+
+
 If connecting fails with a socket error, fill in the **socket path** field —
 some hosts do not accept TCP connections on `localhost`.
 

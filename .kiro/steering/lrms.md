@@ -121,7 +121,7 @@ php tests/test-reports.php
 php tests/test-qr.php                       # pure computation, no server or database
 ```
 
-Counts: `160 / 334 / 216 / 444 / 93`.
+Counts: `160 / 342 / 216 / 444 / 93`.
 
 Lint everything:
 

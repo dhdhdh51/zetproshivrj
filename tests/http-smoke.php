@@ -1416,6 +1416,123 @@ ok(
     'The deployment package ships it'
 );
 
+// Somebody whose document root is wrong is usually mid-install, so the page answers the
+// question they were about to ask next.
+ok(
+    str_contains($tooHigh, 'came here to run the installer')
+    || str_contains($tooHigh, 'Looking for the installer'),
+    'It says where the installer is, since that is what a 404 was blocking'
+);
+
+/* -------------------------------------------------------------------------- */
+section('A 404 on install.php is told apart from the four things that cause it');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The installer deletes itself the moment it succeeds, so a 404 on it is usually correct and
+ * occasionally a broken upload. Four causes, one status code, and the wrong guess is expensive:
+ * re-running the installer drops every table.
+ *
+ * preflight.php is where that gets answered, so both halves of the branch are exercised here —
+ * against a throwaway root, because flipping the state of the real public/install.php in a test
+ * would leave the checkout modified if the run aborted.
+ */
+$preflightSection = static function (bool $withInstaller) use ($base): string {
+    $root = dirname(__DIR__);
+    $tmp = sys_get_temp_dir() . '/lrms-preflight-' . getmypid() . ($withInstaller ? '-with' : '-without');
+
+    @mkdir($tmp . '/deploy', 0775, true);
+    @mkdir($tmp . '/public', 0775, true);
+
+    foreach (['storage/logs', 'storage/uploads', 'storage/generated'] as $dir) {
+        @mkdir($tmp . '/' . $dir, 0775, true);
+    }
+
+    // Symlinked, so this reads the real application and the real database settings.
+    foreach (['app', 'config', 'database', 'resources', 'routes'] as $link) {
+        @symlink($root . '/' . $link, $tmp . '/' . $link);
+    }
+
+    @copy($root . '/deploy/preflight.php', $tmp . '/deploy/preflight.php');
+
+    if ($withInstaller) {
+        @copy($root . '/public/install.php', $tmp . '/public/install.php');
+    }
+
+    $output = (string) shell_exec(sprintf('php %s 2>&1', escapeshellarg($tmp . '/deploy/preflight.php')));
+
+    // Best effort: a temp directory left behind is untidy, not a failure.
+    foreach (['app', 'config', 'database', 'resources', 'routes'] as $link) {
+        @unlink($tmp . '/' . $link);
+    }
+
+    @unlink($tmp . '/deploy/preflight.php');
+    @unlink($tmp . '/public/install.php');
+
+    // Deepest first, so the directories come out empty.
+    foreach ([
+        'storage/logs', 'storage/uploads', 'storage/generated',
+        'storage', 'deploy', 'public', '',
+    ] as $dir) {
+        @rmdir(rtrim($tmp . '/' . $dir, '/'));
+    }
+
+    // Just this section. A fixed-length window ran into "Scheduled tasks", whose failure about
+    // a missing bin/cron.php is an artefact of the throwaway root and nothing to do with the
+    // installer.
+    $start = strpos($output, 'The browser installer');
+
+    if ($start === false) {
+        return $output;
+    }
+
+    $end = strpos($output, 'Scheduled tasks', $start);
+
+    return $end === false ? substr($output, $start) : substr($output, $start, $end - $start);
+};
+
+// This database is seeded, so both cases are "already installed" — the difference is only
+// whether the file is still sitting there.
+$withInstaller = $preflightSection(true);
+
+ok(
+    str_contains($withInstaller, 'already installed'),
+    'With the installer present on an installed site, it says to delete it'
+);
+ok(
+    str_contains($withInstaller, 'Update the database'),
+    'And points at the update screen instead of the installer'
+);
+
+$withoutInstaller = $preflightSection(false);
+
+ok(
+    str_contains($withoutInstaller, 'already removed'),
+    'With it gone from an installed site, that is reported as the healthy state'
+);
+ok(
+    str_contains($withoutInstaller, 'is correct here'),
+    'Saying in as many words that the 404 is correct, so nobody re-uploads it'
+);
+ok(
+    !str_contains($withoutInstaller, '[FAIL]'),
+    'And it is not reported as a failure, because it is not one'
+);
+
+// The branch for a genuinely missing installer on an uninstalled site cannot be reached from
+// this suite — it needs a database with no tables. Pin the wording so it cannot be deleted
+// without noticing.
+$preflightSource = (string) file_get_contents(__DIR__ . '/../deploy/preflight.php');
+
+ok(
+    str_contains($preflightSource, 'install.php is missing and the site is not installed'),
+    'A missing installer on a site that never installed is still reported as a failure'
+);
+ok(
+    str_contains($preflightSource, 'the installer is not at /install.php'),
+    'And a wrong document root explains where the installer answers from instead'
+);
+
 /*
  * The update also has to carry the BCA / BC Supervisor rename, because two of the old job
  * titles live in the database rather than in the code. `roles.name` is what the panel prints
