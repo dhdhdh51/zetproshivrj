@@ -236,6 +236,35 @@ rmdir &lt;folder&gt;</pre>
 
 <?php endif; ?>
 
+<?php if (is_file($here . '/public/install.php')): ?>
+  <div class="card">
+    <h2>If you came here to run the installer</h2>
+    <p>
+      It lives in the <code>public</code> folder, so
+      <code><?= $e($prefix) ?>install.php</code> returns 404 for the same reason the rest of the
+      site does. Once the document root is right it is at <code>/install.php</code>.
+    </p>
+    <p class="muted">
+      <code><?= $e($prefix) ?>public/install.php</code> will load right now, but installing
+      before the document root is fixed means typing your database password into a site that is
+      publishing it. Fix the root first.
+    </p>
+  </div>
+<?php else: ?>
+  <div class="card">
+    <h2>Looking for the installer?</h2>
+    <p>
+      There is no <code>public/install.php</code> here. On a site that has already been
+      installed that is normal and a 404 on it is correct &mdash; the installer removes itself
+      when it succeeds, so that nobody can point the site at a different database afterwards.
+    </p>
+    <p>
+      To apply a newer version, sign in and use <strong>Settings &rsaquo; Update the
+      database</strong>. It only ever adds; re-running the installer would drop every table.
+    </p>
+  </div>
+<?php endif; ?>
+
 <div class="card">
   <h2>Check the whole server at once</h2>
   <p>

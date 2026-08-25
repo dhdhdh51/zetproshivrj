@@ -45,6 +45,10 @@ $pass = 0;
 $warn = 0;
 $fail = 0;
 
+// Set by the database section when it manages to count tables, so the installer section below
+// can tell "already installed" from "nothing here yet" without connecting a second time.
+$schemaTables = null;
+
 /**
  * The three ways a "404 on every page" happens, in the order they occur.
  *
@@ -442,6 +446,8 @@ if (!is_file($root . '/config/config.php')) {
                 'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()'
             )->fetchColumn();
 
+            $schemaTables = $tables;
+
             if ($tables === 0) {
                 result('warn', 'schema not installed yet', 'run: php database/migrate.php --seed');
             } elseif ($tables >= 40) {
@@ -469,6 +475,66 @@ if (!is_file($root . '/config/config.php')) {
             echo "         site name, and the host is localhost. Check Databases ▸ List\n";
             echo "         Databases, and that the user is attached to that database.\n";
         }
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+heading('The browser installer');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * "install.php gives a 404" is asked more than anything else here, and it has four different
+ * causes with four different answers — one of which is "that 404 is correct and you are done".
+ * A 404 cannot tell them apart, so this does.
+ */
+$installer = $root . '/public/install.php';
+$installed = is_file($lockFileForReport = $root . '/storage/installed.lock')
+    || ($schemaTables !== null && $schemaTables > 0);
+
+if (is_file($installer)) {
+    if ($installed) {
+        result(
+            'warn',
+            'install.php is still present',
+            'this site is already installed — delete public/install.php'
+        );
+        echo "\n         It will refuse to run, but while it is there it is a file that\n";
+        echo "         rewrites configuration. To update after uploading a new version use\n";
+        echo "         Settings > Update the database, not the installer.\n";
+    } else {
+        result('pass', 'install.php is present', 'open /install.php to install');
+    }
+} elseif ($installed) {
+    // The installer removes itself once it succeeds, so this is the healthy end state.
+    result('pass', 'install.php already removed', 'the site is installed; nothing to do');
+    echo "\n         A 404 on /install.php is correct here. The installer deletes itself\n";
+    echo "         after a successful install. To apply a newer version, sign in and use\n";
+    echo "         Settings > Update the database.\n";
+} else {
+    result(
+        'fail',
+        'install.php is missing and the site is not installed',
+        'copy public/install.php out of the package again'
+    );
+}
+
+// Where the installer actually answers from depends on the document root, and a 404 is what a
+// wrong one looks like. Only worth saying over the web, where the address is known.
+if (!$cli && is_file($installer)) {
+    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $prefix = dirname(dirname($scriptName));
+    $prefix = $prefix === '/' || $prefix === '.' || $prefix === '\\' ? '' : $prefix;
+    $servedFromPublic = realpath(dirname((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')))
+        === realpath($root . '/public');
+
+    if (!$servedFromPublic) {
+        result(
+            'warn',
+            'the installer is not at /install.php',
+            'because the document root is not public/ — try ' . $prefix . '/public/install.php'
+        );
+        echo "\n         That URL works, but fix the document root instead: while it is wrong,\n";
+        echo "         /config/config.local.php is downloadable. See the report above.\n";
     }
 }
 
