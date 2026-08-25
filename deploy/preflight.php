@@ -312,6 +312,122 @@ if (!$cli) {
     result('pass', 'command line run', 'document root not checked; verify in a browser');
 }
 
+/**
+ * The HTTP status of a URL, or null when it could not be asked.
+ *
+ * A single-worker server (PHP's built-in one) cannot answer a request to itself while it is
+ * busy serving this page, so null means "unknown", never "fine".
+ */
+function lrms_probe(string $url, bool $head = true): ?int
+{
+    if (!function_exists('curl_init')) {
+        return null;
+    }
+
+    $curl = curl_init($url);
+    curl_setopt_array($curl, [
+        // HEAD is enough to ask "would this be served", and it is what the exposure checks
+        // want. A route probe has to use GET: the router registers /health for GET only, so a
+        // HEAD gets a truthful 405 that means nothing about whether rewriting works.
+        CURLOPT_NOBODY => $head,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 5,
+        CURLOPT_FOLLOWLOCATION => false,
+        // A self-signed or still-provisioning certificate must not make a check silently pass.
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => 0,
+    ]);
+    curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+
+    return $status === 0 ? null : $status;
+}
+
+/*
+ * Are the rewrite rules actually being applied?
+ *
+ * This is the failure that wastes the most time, and the check that used to be here could not
+ * see it. It tested whether `public/.htaccess` exists on disk — but OpenLiteSpeed, which is
+ * what CyberPanel runs, ignores .htaccess unless `autoLoadHtaccess 1` is set. The file is
+ * present, the check passed, and the site was still unusable.
+ *
+ * The symptom is specific and easy to misread as something else: `/` works, because it resolves
+ * to public/index.php as a directory index, and *every other URL returns 404* because it needs
+ * a rewrite to reach the front controller. People see the sign-in page 404 and go looking for a
+ * missing file.
+ *
+ * So it is asked rather than inferred. /health is a real route, needs no session and returns
+ * JSON, which makes it the cheapest honest question available.
+ */
+$baseUrl = '';
+
+if (!$cli) {
+    $scheme = (($_SERVER['HTTPS'] ?? '') !== '' && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $baseUrl = $scheme . '://' . (string) ($_SERVER['HTTP_HOST'] ?? '');
+} elseif (is_file($root . '/config/config.php')) {
+    // From the command line there is no request to learn the address from, so the configured
+    // one is used. It is what the app builds its own links from anyway, so if it is wrong that
+    // is worth finding out too.
+    $probeConfig = @include $root . '/config/config.php';
+    $probeLocal = is_file($root . '/config/config.local.php') ? @include $root . '/config/config.local.php' : [];
+
+    if (is_array($probeConfig)) {
+        $merged = array_replace_recursive($probeConfig, is_array($probeLocal) ? $probeLocal : []);
+        $candidate = (string) (($merged['app'] ?? [])['url'] ?? '');
+
+        if ($candidate !== '' && !str_contains($candidate, 'yourdomain.com')) {
+            $baseUrl = rtrim($candidate, '/');
+        }
+    }
+}
+
+if ($baseUrl === '') {
+    result(
+        'warn',
+        'could not test whether clean URLs work',
+        $cli ? 'set app.url, or open this in a browser' : 'the site address is not known'
+    );
+} else {
+    $health = lrms_probe($baseUrl . '/health', false);
+
+    if ($health === null) {
+        result('warn', 'could not test whether clean URLs work', 'open ' . $baseUrl . '/health in a browser');
+    } elseif ($health === 404) {
+        result(
+            'fail',
+            'clean URLs are NOT working',
+            '/health returns 404 — the rewrite rules are not being applied'
+        );
+        echo "
+         This is the one that looks like something else. The home page loads,
+";
+        echo "         and every other URL — /login included — returns 404.
+
+";
+        echo "         OpenLiteSpeed ignores .htaccess unless it is told not to, so the file
+";
+        echo "         being present proves nothing. Either:
+
+";
+        echo "           * add  autoLoadHtaccess 1  to the vHost config, or
+";
+        echo "           * paste deploy/openlitespeed-rewrite.conf into
+";
+        echo "             CyberPanel > Websites > Manage > Rewrite Rules
+
+";
+        echo "         Then restart OpenLiteSpeed.
+";
+    } elseif ($health >= 500) {
+        // The rewrite worked — something answered — but the answer was an error. Whatever is
+        // wrong is reported by the database and configuration sections below.
+        result('pass', 'clean URLs reach the application', '/health returned ' . $health . ', see below for why');
+    } else {
+        result('pass', 'clean URLs work', $baseUrl . '/health returned ' . $health);
+    }
+}
+
 // config/config.php must never be downloadable. When running in a browser we
 // know our own address, so this is tested rather than left as an instruction —
 // it is the single worst misconfiguration possible here.
@@ -323,27 +439,9 @@ if (!$cli) {
         result('warn', 'could not determine the site address', 'check config/config.php is not downloadable');
     } else {
         foreach (['config/config.php', 'app/bootstrap.php', 'database/schema.sql'] as $secret) {
-            $target = sprintf('%s://%s/%s', $scheme, $host, $secret);
-            $status = null;
+            $status = lrms_probe(sprintf('%s://%s/%s', $scheme, $host, $secret));
 
-            if (function_exists('curl_init')) {
-                $curl = curl_init($target);
-                curl_setopt_array($curl, [
-                    CURLOPT_NOBODY => true,
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_TIMEOUT => 5,
-                    CURLOPT_FOLLOWLOCATION => false,
-                    // A self-signed or still-provisioning certificate must not
-                    // make this check silently pass.
-                    CURLOPT_SSL_VERIFYPEER => false,
-                    CURLOPT_SSL_VERIFYHOST => 0,
-                ]);
-                curl_exec($curl);
-                $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
-                curl_close($curl);
-            }
-
-            if ($status === null || $status === 0) {
+            if ($status === null) {
                 // A single-worker server (PHP's built-in one) cannot answer a
                 // request to itself while serving this page. OpenLiteSpeed can,
                 // so this is normally only seen in local testing.

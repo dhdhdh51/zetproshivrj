@@ -389,6 +389,24 @@ $failed = 0;
 
 /* Tables ------------------------------------------------------------------- */
 
+/**
+ * Tables this run is about to create.
+ *
+ * The column pass below needs to know. Several columns are listed there *and* included in a
+ * CREATE TABLE here, because they have to reach two different databases: one old enough to have
+ * no such table at all, and one where the table arrived in an earlier update without them.
+ *
+ * When the table is created, the columns come with it and the column pass finds them already
+ * present. In a dry run nothing is created, so the column pass used to find the table missing
+ * and report four failures for work it was about to do correctly — which is what an operator
+ * saw when they pressed Preview: "4 failed — table missing, run migrate.php first", on an
+ * update that then applied cleanly. The preview has to be trustworthy or nobody will press the
+ * button after it.
+ *
+ * @var array<string, true> $pendingTables
+ */
+$pendingTables = [];
+
 foreach ($newTables as $table => $definition) {
     if (tableExists($database, $table)) {
         $skipped++;
@@ -397,6 +415,7 @@ foreach ($newTables as $table => $definition) {
 
     if ($dryRun) {
         printf("  +  CREATE TABLE `%s`\n", $table);
+        $pendingTables[$table] = true;
         $applied++;
         continue;
     }
@@ -415,6 +434,13 @@ foreach ($newTables as $table => $definition) {
 
 foreach ($columns as [$table, $column, $definition, $after]) {
     if (!tableExists($database, $table)) {
+        // Created a few lines above, with this column already in it. Not a failure, and not a
+        // change either: the CREATE TABLE was already counted.
+        if (isset($pendingTables[$table])) {
+            $skipped++;
+            continue;
+        }
+
         printf("  !! %-16s table missing — run migrate.php first\n", $table);
         $failed++;
         continue;
