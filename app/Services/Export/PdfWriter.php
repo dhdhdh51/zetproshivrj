@@ -1289,8 +1289,30 @@ final class PdfWriter
         string $heading = 'Scan to open this record',
         string $note = 'Opens the entry in the LRMS panel. A panel login is required.'
     ): void {
-        $codeSize = 62.0;
+        /*
+         * The code is encoded before it is measured, because how big it has to be printed
+         * depends on how much is in it.
+         *
+         * This was a fixed 62pt square, and that is fine for a link to one record — 33 modules,
+         * about half a millimetre each. A report link carries the filters it was printed with,
+         * which is longer: a plain date range pushes it to 41 modules and 0.45mm, and a filter
+         * set at the cap to 53 modules and 0.36mm. Measured against a page rasterised at 200dpi
+         * — roughly what a phone camera resolves on A4 — the 0.45mm code would not decode while
+         * the 0.53mm one did. A code nobody can scan is a blank square with extra steps.
+         *
+         * So the module size is what is held constant and the square grows instead.
+         */
         $padding = 9.0;
+        $qr = $this->encodeVerification($url);
+        $codeSize = 62.0;
+
+        if ($qr !== null) {
+            // Half a millimetre per module is the floor worth printing at; a little over it is
+            // the target, since these pages get photocopied before anyone scans them.
+            $wanted = ($qr->size() + 8) * 1.45;
+            $codeSize = max($codeSize, min($wanted, 96.0));
+        }
+
         $height = $codeSize + ($padding * 2);
 
         // Keep the code and its caption together: a QR alone on a page, or a caption whose
@@ -1300,7 +1322,9 @@ final class PdfWriter
         $top = $this->y;
         $this->rect($this->marginLeft, $top, $this->contentWidth(), $height, self::ink(self::FILL_NOTE), true);
 
-        $this->drawQr($url, $this->marginLeft + $padding, $top + $padding, $codeSize);
+        if ($qr !== null) {
+            $this->drawQr($qr, $this->marginLeft + $padding, $top + $padding, $codeSize);
+        }
 
         $textLeft = $this->marginLeft + $padding + $codeSize + 12;
         $textWidth = $this->contentWidth() - ($textLeft - $this->marginLeft) - $padding;
@@ -1327,7 +1351,38 @@ final class PdfWriter
     }
 
     /**
-     * Draw a QR code for `$data` as a square of `$size` points with its top-left corner at
+     * Encode the verification link, or return null if it cannot be encoded.
+     *
+     * The encoder refuses anything over 213 bytes, and a report link is assembled from the
+     * configured site address, the report slug and its filters — none of which this class
+     * controls. A link long enough to be refused must not take the whole export down with it:
+     * a report without a QR is a usable report, and an exception here would mean a member of
+     * staff clicking "export" and getting an error page instead of their figures.
+     *
+     * The reference lines beside the code are printed either way, so the panel is still
+     * reachable by typing.
+     */
+    private function encodeVerification(string $url): ?QrCode
+    {
+        try {
+            return QrCode::encode($url);
+        } catch (RuntimeException $e) {
+            // Worth a line in the log: a link this long means something upstream is wrong, and
+            // silence would hide it until somebody noticed a missing square.
+            if (class_exists(\App\Core\Logger::class)) {
+                \App\Core\Logger::warning(sprintf(
+                    'Verification QR omitted: %s (%d bytes)',
+                    $e->getMessage(),
+                    strlen($url)
+                ));
+            }
+
+            return null;
+        }
+    }
+
+    /**
+     * Draw an encoded QR code as a square of `$size` points with its top-left corner at
      * `$x`, `$y`.
      *
      * `$size` is the whole footprint, quiet zone included. The specification wants four
@@ -1339,9 +1394,9 @@ final class PdfWriter
      * content stream small, and it removes the hairline seams that abutting rectangles can
      * show, which is exactly the artefact that makes a printed code fail to scan.
      */
-    private function drawQr(string $data, float $x, float $y, float $size): void
+    private function drawQr(QrCode $qr, float $x, float $y, float $size): void
     {
-        $matrix = QrCode::encode($data)->matrix();
+        $matrix = $qr->matrix();
         $modules = count($matrix);
 
         // Four modules of quiet zone on each side.

@@ -474,3 +474,58 @@ function pdf_tight_leading(string $path, float $ratio = 1.15): array
 
     return $tight;
 }
+
+
+/**
+ * The printed size of one QR module, in millimetres, for every code in a PDF.
+ *
+ * This is the property worth asserting about a printed QR, and it is not the same question as
+ * "does a decoder read it". Whether a decoder succeeds depends on how many pixels it gets over
+ * the code, which depends on the camera and how close it is held — a page rasterised whole at
+ * 200dpi gives about 4 pixels per module and fails, while a phone framing the code itself gets
+ * five times that and does not. What the writer controls is the physical size, so that is what
+ * is checked.
+ *
+ * Below roughly 0.5mm a code stops surviving the photocopier these pages go through. The size
+ * is recovered from the drawn geometry: the white quiet-zone square is the whole footprint, and
+ * the shortest rectangle in the fill is one module tall.
+ *
+ * @return array<int, float> One millimetre-per-module figure per code found, in document order.
+ */
+function pdf_qr_module_sizes(string $path): array
+{
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $data = (string) file_get_contents($path);
+    $pattern = '/q 1\.000 1\.000 1\.000 rg ([\d.]+) [\d.]+ ([\d.]+) [\d.]+ re f Q\s*'
+        . 'q 0 0 0 rg ((?:[\d.]+ [\d.]+ [\d.]+ [\d.]+ re )+)f Q/';
+
+    if (preg_match_all($pattern, $data, $found, PREG_SET_ORDER) === false) {
+        return [];
+    }
+
+    $sizes = [];
+
+    foreach ($found as $match) {
+        $box = (float) $match[2];
+
+        if (preg_match_all('/[\d.]+ [\d.]+ [\d.]+ ([\d.]+) re /', $match[3], $rects) === false) {
+            continue;
+        }
+
+        $heights = array_map('floatval', $rects[1]);
+        $heights = array_filter($heights, static fn (float $h): bool => $h > 0.0);
+
+        if ($heights === [] || $box <= 0.0) {
+            continue;
+        }
+
+        // Runs are merged horizontally but never vertically, so every rectangle is exactly one
+        // module tall and the minimum is the module size.
+        $sizes[] = min($heights) * 25.4 / 72;
+    }
+
+    return $sizes;
+}

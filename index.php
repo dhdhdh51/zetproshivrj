@@ -56,18 +56,49 @@ $here = __DIR__;
 $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'));
 $urlFolder = trim(dirname($scriptName), '/');
 
-$wrapper = $urlFolder !== '' && $urlFolder !== '.' ? $urlFolder : null;
+/*
+ * The folder name ends up inside a `mv` command that somebody pastes into a root shell in their
+ * own web root, so it is not enough to escape it for HTML.
+ *
+ * SCRIPT_NAME is normally set by the web server from the path of the script it resolved, and on
+ * a sane configuration it cannot contain anything exotic. "Normally" and "sane" are not the
+ * words to rely on when the output is a command run as root: some CGI setups build SCRIPT_NAME
+ * out of the request, and a `..` segment survives on servers that do not normalise. Left
+ * unchecked, a request for `/a; rm -rf ~/index.php` printed
+ *
+ *     mv a; rm -rf ~/.[!.]* a; rm -rf ~/* .
+ *
+ * as the instruction, to somebody who is already stuck and inclined to copy what they are told.
+ *
+ * So the name is accepted only if it looks like what an archive actually creates: one path
+ * segment of letters, digits, dots, dashes and underscores. Anything else falls through to the
+ * generic wording with a `<folder>` placeholder, which is less convenient and cannot be turned
+ * into a different command than the one described.
+ */
+$wrapper = null;
+
+if ($urlFolder !== '' && $urlFolder !== '.' && preg_match('/^[A-Za-z0-9._-]{1,80}$/', $urlFolder) === 1
+    && $urlFolder !== '..') {
+    $wrapper = $urlFolder;
+}
 
 // A wrapper folder is only the explanation if the application really is inside it.
 if ($wrapper !== null && !is_file($here . '/public/index.php')) {
     $wrapper = null;
 }
 
-$flattened = $wrapper === null && is_file($here . '/public/index.php');
+// Reached from a path this page will not repeat: still the nested layout, still worth
+// explaining, just without naming the folder back.
+$nestedButUnnamed = $wrapper === null
+    && $urlFolder !== ''
+    && $urlFolder !== '.'
+    && is_file($here . '/public/index.php');
+
+$flattened = $wrapper === null && !$nestedButUnnamed && is_file($here . '/public/index.php');
 
 // Last resort: we are at the document root, the application is not beside us, but one folder
 // down holds it. Name that folder.
-if (!$flattened && $wrapper === null) {
+if (!$flattened && $wrapper === null && !$nestedButUnnamed) {
     foreach ((array) glob($here . '/*', GLOB_ONLYDIR) as $candidate) {
         if (is_string($candidate) && is_file($candidate . '/public/index.php')) {
             $wrapper = basename($candidate);
@@ -85,7 +116,17 @@ if (!$flattened && $wrapper === null) {
  * Only listed if the file is really there. Telling somebody their database password is on the
  * internet when it is not would send them chasing the wrong thing.
  */
-$prefix = $wrapper !== null ? '/' . $wrapper . '/' : '/';
+/*
+ * A literal placeholder when the folder is real but its name is not one this page will repeat.
+ * It is a constant, so the URLs quoted below stay illustrative rather than becoming whatever
+ * arrived in the request.
+ */
+$prefix = match (true) {
+    $wrapper !== null => '/' . $wrapper . '/',
+    $nestedButUnnamed => '/<folder>/',
+    default => '/',
+};
+
 $exposed = [];
 
 foreach (['config/config.local.php', 'config/config.php'] as $secret) {

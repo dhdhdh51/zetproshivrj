@@ -1424,6 +1424,128 @@ ok(
     'It says where the installer is, since that is what a 404 was blocking'
 );
 
+/*
+ * The page prints a `mv` command naming the folder the archive created, and that name comes from
+ * the URL it was reached at. Escaping it for HTML is not enough: the operator copies it into a
+ * root shell in their own web root.
+ *
+ * SCRIPT_NAME is normally the server's own resolved path, but some CGI setups build it from the
+ * request and a `..` segment survives on servers that do not normalise. Unchecked, a request for
+ * `/a; rm -rf ~/index.php` printed `mv a; rm -rf ~/.[!.]* ...` as the instruction — to somebody
+ * already stuck and inclined to copy what they are told.
+ */
+$folderArgument = static function (string $page): string {
+    $plain = html_entity_decode(strip_tags($page), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    return preg_match('#mv ([^/]+)/\.\[#', $plain, $m) === 1 ? trim($m[1]) : '';
+};
+
+$legitimate = $diagnose('/dhdhdh51-zetpro-c94ffc5/index.php');
+equals(
+    'dhdhdh51-zetpro-c94ffc5',
+    $folderArgument($legitimate),
+    'A folder name that looks like an archive wrapper is named in the command'
+);
+
+foreach ([
+    'a shell separator' => '/a; rm -rf ~/index.php',
+    'a command substitution' => '/$(id)/index.php',
+    'a backquoted command' => '/x`whoami`/index.php',
+    'a traversal' => '/../../etc/index.php',
+    'a space and a quote' => "/it's a folder/index.php",
+    'several path segments' => '/one/two/three/index.php',
+] as $description => $scriptName) {
+    $page = $diagnose($scriptName);
+    $argument = $folderArgument($page);
+
+    ok(
+        $argument === '' || preg_match('/^[A-Za-z0-9._<>-]+$/', $argument) === 1,
+        'The command stays safe against ' . $description . ' (printed "' . $argument . '")'
+    );
+    ok(
+        !str_contains($page, 'rm -rf ~') && !str_contains($page, '$(id)') && !str_contains($page, '`whoami`'),
+        'Nothing from ' . $description . ' is echoed back into the instructions'
+    );
+    ok(
+        str_contains($page, 'not flattened'),
+        'And it is still diagnosed as a nested upload rather than mistaken for a wrong root'
+    );
+}
+
+/* -------------------------------------------------------------------------- */
+section('Previewing the update tells the truth about what it would do');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The preview has to be trustworthy or nobody presses the button after it, and it was not.
+ *
+ * Several columns are listed in upgrade.php's column pass *and* included in a CREATE TABLE in
+ * its table pass, because they have to reach two different databases: one with no such table at
+ * all, and one where the table arrived earlier without them. Applying works — the table is
+ * created with its columns and the column pass finds them present. A dry run creates nothing,
+ * so the column pass found the table missing and reported a failure for each column.
+ *
+ * On a real database a few versions behind, Preview said "4 failed — sss_enrolments table
+ * missing, run migrate.php first" and then applied with 0 failed. Reproduced here by taking the
+ * tables away, since this database is current and has them.
+ */
+$upgradeTables = ['sss_targets', 'sss_enrolments'];
+
+foreach ($upgradeTables as $table) {
+    Database::statement('SET FOREIGN_KEY_CHECKS = 0');
+    Database::statement(sprintf('DROP TABLE IF EXISTS `%s`', $table));
+    Database::statement('SET FOREIGN_KEY_CHECKS = 1');
+}
+
+$present = static function (string $table): bool {
+    return (int) Database::scalar(
+        'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t',
+        ['t' => $table]
+    ) > 0;
+};
+
+equals(false, $present('sss_enrolments'), 'With the SSS tables removed, standing in for an older database');
+
+$previewPage = page('/admin/settings/upgrade', 'Update screen before previewing');
+$preview = request($base . '/admin/settings/upgrade', [
+    'post' => ['_token' => csrfToken($previewPage), 'mode' => 'preview'],
+]);
+
+equals(200, $preview['status'], 'The preview runs');
+ok(str_contains($preview['body'], 'Would apply'), 'And reports what it would change');
+ok(
+    !str_contains($preview['body'], 'table missing'),
+    'It does not report a table it is about to create as missing'
+);
+ok(
+    str_contains($preview['body'], '0 failed'),
+    'And it reports no failures for work that applies cleanly'
+);
+
+// A preview that changes the schema would be the worse bug of the two.
+equals(false, $present('sss_enrolments'), 'The preview created nothing');
+equals(false, $present('sss_targets'), 'Neither table appeared from a dry run');
+
+// Now apply for real, which must both succeed and put the tables back.
+$restore = request($base . '/admin/settings/upgrade', [
+    'post' => ['_token' => csrfToken($previewPage), 'mode' => 'apply'],
+]);
+
+equals(200, $restore['status'], 'Applying it works');
+ok(str_contains($restore['body'], '0 failed'), 'With no failures');
+equals(true, $present('sss_enrolments'), 'And the table the preview promised is created');
+equals(true, $present('sss_targets'), 'Along with the other one');
+
+// A table that the upgrade does not ship a definition for is a real problem and must still be
+// reported as one, or the fix above would have turned a loud failure into silence.
+ok(
+    str_contains(
+        (string) file_get_contents(__DIR__ . '/../database/upgrade.php'),
+        'table missing — run migrate.php first'
+    ),
+    'A genuinely missing table is still reported as a failure'
+);
+
 /* -------------------------------------------------------------------------- */
 section('A 404 on install.php is told apart from the four things that cause it');
 /* -------------------------------------------------------------------------- */

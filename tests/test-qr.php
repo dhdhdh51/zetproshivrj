@@ -439,7 +439,103 @@ foreach ($payloads as $payload) {
 }
 
 /* ------------------------------------------------------------------------ */
-/* 4. Limits                                                                */
+/* 4. Printed size                                                          */
+/* ------------------------------------------------------------------------ */
+
+section('A longer link is printed larger, not denser');
+
+/*
+ * The square used to be a fixed 62 points whatever went into it. That is fine for a link to one
+ * record — 33 modules, about half a millimetre each — but a report link carries the filters it
+ * was printed with, and those push the module count up while the square stayed the same size.
+ *
+ * Measured: a plain date range gave 0.45mm modules and a filter set at the cap 0.36mm. Against a
+ * page rasterised at 200dpi, roughly what a phone resolves across a whole A4 sheet, the 0.45mm
+ * code would not decode while the 0.53mm one did. These pages are photocopied before anyone
+ * scans them, so that margin is the whole point.
+ *
+ * The module size is what is held constant now; the square grows instead. Asserting the printed
+ * size rather than a decode keeps the test about something the writer controls — whether a given
+ * decoder succeeds depends on how close the camera is held.
+ */
+$floor = 0.5;
+$payloads = [
+    'a record link' => 'https://cvbuilder.bharatseo.site/r/inspection/1',
+    'a report with no filters' => 'https://cvbuilder.bharatseo.site/r/report/customer_visit',
+    'a report with a date range' => 'https://cvbuilder.bharatseo.site/r/report/branch_performance'
+        . '?from=2026-08-01&to=2026-08-31',
+    'a report with filters at the cap' => 'https://cvbuilder.bharatseo.site/r/report/branch_performance?'
+        . str_repeat('a', 119),
+    'the longest link that can be encoded' => 'https://cvbuilder.bharatseo.site/r/report/x?'
+        . str_repeat('b', 169),
+];
+
+foreach ($payloads as $description => $payload) {
+    $page = new PdfWriter('portrait');
+    $page->header('Module size', 'Test');
+    $page->verification($payload, ['reference line']);
+
+    $file = storage_path('generated/test-qr-size-' . getmypid() . '.pdf');
+    $page->save($file);
+
+    $sizes = pdf_qr_module_sizes($file);
+    @unlink($file);
+
+    if (!ok($sizes !== [], 'A code is drawn for ' . $description)) {
+        continue;
+    }
+
+    $modules = QrCode::encode($payload)->size();
+
+    ok(
+        $sizes[0] >= $floor,
+        sprintf(
+            '%s prints at %.3Fmm per module across %d modules (floor %.2Fmm)',
+            ucfirst($description),
+            $sizes[0],
+            $modules,
+            $floor
+        )
+    );
+}
+
+/*
+ * And a link too long to encode must not take the export down with it. The site address, the
+ * report slug and the filters are all assembled outside this class, so a payload the encoder
+ * refuses is reachable — and a member of staff pressing "export" should get their figures
+ * without a QR rather than an error page.
+ */
+$refused = new PdfWriter('portrait');
+$refused->header('Overlong', 'Test');
+$refused->paragraph('The link below cannot be encoded.');
+
+$survived = true;
+
+try {
+    $refused->verification(
+        'https://cvbuilder.bharatseo.site/r/report/x?' . str_repeat('z', 300),
+        ['Reference: still printed']
+    );
+} catch (Throwable $e) {
+    $survived = false;
+}
+
+ok($survived, 'A link too long to encode is dropped rather than thrown');
+
+$refusedFile = storage_path('generated/test-qr-refused-' . getmypid() . '.pdf');
+$refused->save($refusedFile);
+
+ok(is_file($refusedFile) && filesize($refusedFile) > 500, 'And the document is still written');
+equals([], pdf_qr_module_sizes($refusedFile), 'With no code on it');
+ok(
+    str_contains(pdf_text_flat($refusedFile), 'Reference: still printed'),
+    'The reference beside it is printed anyway, so the record is still findable'
+);
+
+@unlink($refusedFile);
+
+/* ------------------------------------------------------------------------ */
+/* 5. Limits                                                                */
 /* ------------------------------------------------------------------------ */
 
 section('Limits are refused rather than silently truncated');
@@ -459,7 +555,7 @@ throws(
 ok(QrCode::encode(str_repeat('x', 213))->version() === 10, '213 bytes still encodes, at version 10');
 
 /* ------------------------------------------------------------------------ */
-/* 5. On the page                                                           */
+/* 6. On the page                                                           */
 /* ------------------------------------------------------------------------ */
 
 section('The verification block reaches the PDF');

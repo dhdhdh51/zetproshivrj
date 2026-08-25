@@ -100,6 +100,50 @@ Everything below is on the branch, green in CI, and live-ready.
     did exactly that. It is appended after wrapping now, and dropped rather than overflowed when
     it will not fit.
   - `pdf_tight_leading()` is the guard: it measures leading rather than hunting collisions.
+- **A full diagnostic sweep found four real defects that all five green suites had missed.**
+  Worth reading as a set, because each was invisible to the obvious check:
+  - `preflight.php` could not detect the commonest CyberPanel failure. It tested that
+    `public/.htaccess` **exists**, and OpenLiteSpeed ignores `.htaccess` unless
+    `autoLoadHtaccess 1` is set — so the file was present, the check passed, and the site was
+    unusable. It now **probes `/health`**. Only a 404 means the rewrite never arrived; a 500 or
+    503 still proves it reached PHP, so anything that is not a 404 counts as working.
+  - **The verification QR was too small to scan on the common case.** Fixed 62pt square whatever
+    the payload: a record link is 33 modules at 0.533mm and fine, but a report link carries its
+    filters, so a date range gave 0.446mm and a filter set at the cap 0.359mm. Rasterised at
+    200dpi — roughly what a phone resolves across an A4 sheet — the 0.446mm code would not
+    decode. `verification()` now encodes first and sizes the square from the module count, so
+    the module stays at ~0.512mm and the square grows instead (62–96pt).
+  - **An over-long link would have aborted a whole PDF export.** `QrCode::encode()` throws past
+    213 bytes, and the address, slug and filters are all assembled outside `PdfWriter`.
+    `encodeVerification()` now logs and returns null: a report without a QR beats an error page.
+  - **`upgrade.php --dry-run` reported failures for work that applied cleanly.** Four columns
+    are listed in the column pass *and* included in the `sss_enrolments` CREATE TABLE, so they
+    reach two different vintages of database. Applying creates the table with its columns; a dry
+    run creates nothing, so the column pass called it missing and counted four failures. Against
+    a real 40-table database Preview said "4 failed — run migrate.php first" and Apply said
+    "0 failed". A `$pendingTables` set fixes it. A genuinely absent table still fails loudly.
+  - Plus one of my own: the root `index.php` built a `mv` command from `SCRIPT_NAME` without
+    validating it. `/a; rm -rf ~/index.php` printed `mv a; rm -rf ~/.[!.]* ...` as the
+    instruction. The name is now accepted only as a single segment of `[A-Za-z0-9._-]`, and
+    anything else falls back to a literal `<folder>` placeholder. Escaping for HTML was never
+    enough — the string ends up in a root shell.
+- **Known limitation, deliberately not fixed here.** `ApiAuth::registerDevice()` checks for
+  another active handset and then writes, with no transaction and no constraint behind it —
+  MySQL cannot express "one active row per user" as a unique index. Two genuinely simultaneous
+  sign-ins for one account can therefore both pass the check and both end up active. Low
+  likelihood, low impact (both are legitimate holders of the credentials) and the fix means
+  taking a lock on the login path, which deserves its own change with load testing rather than a
+  drive-by edit at the end of a diagnostic. If it is done: `SELECT id FROM users WHERE id = :id
+  FOR UPDATE` inside `Database::transaction()` serialises it without gap-locking `devices`.
+- **Verified clean, so do not go looking again:** every `PdfWriter` division is guarded
+  (`table()` has `?: 1.0` on the weight total, the column methods `max(1, ...)`,
+  `signatureLines()` returns early on an empty list, `drawLetterhead()` cannot reach its second
+  division with a zero width); `Inspections::prefill()` returns an empty array for a missing form
+  or a non-existent BCA rather than throwing; a PDF generates with no database reachable at all;
+  the `/r/` route's `[A-Za-z0-9_-]+` reference rejects CRLF, traversal and quotes, with no header
+  injection; all 26 endpoints `ApiService.kt` declares map to a served route with a matching
+  verb; no Moshi DTO property is camelCase without an `@Json` name; and every translatable
+  Android string has a Hindi value with matching format specifiers.
 - **`install.php` returning 404 has four causes and one status code.** Answered by the
   **browser installer** section of `deploy/preflight.php`, and by a table in
   HOSTING-CYBERPANEL.md.
@@ -178,7 +222,7 @@ Everything below is on the branch, green in CI, and live-ready.
 
 ## Current state
 
-- Suites: `160 / 342 / 216 / 444 / 93`
+- Suites: `160 / 374 / 216 / 444 / 107`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.

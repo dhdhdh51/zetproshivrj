@@ -110,10 +110,10 @@ managers and six BCAs for testing.
 
 ```bash
 php tests/test-import.php    # Excel import, allocation, exports    (160 checks)
-php tests/http-smoke.php     # every web screen, all 13 reports     (342 checks)
+php tests/http-smoke.php     # every web screen, all 13 reports     (374 checks)
 php tests/api-smoke.php      # the Android API end to end           (216 checks)
 php tests/test-reports.php   # the printed reports and prefill      (444 checks)
-php tests/test-qr.php        # the QR encoder, no database needed    (93 checks)
+php tests/test-qr.php        # the QR encoder, no database needed   (107 checks)
 ```
 
 The suites run against a real database and a real HTTP server — they start

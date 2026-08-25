@@ -121,7 +121,7 @@ php tests/test-reports.php
 php tests/test-qr.php                       # pure computation, no server or database
 ```
 
-Counts: `160 / 342 / 216 / 444 / 93`.
+Counts: `160 / 374 / 216 / 444 / 107`.
 
 Lint everything:
 
@@ -133,6 +133,27 @@ find app config database public routes resources tests bin deploy -name '*.php' 
 `tests/test-reports.php` is not re-runnable on a dirty database (it uses fixed inspection
 UUIDs) — migrate fresh first. New test sections should clear their own rows so they do not
 end up testing the previous run.
+
+## Testing deployment and the upgrade path
+
+- **`php -S` cannot be used to test hosting layouts.** When a request matches no file it walks
+  up the tree looking for an `index.php` to hand it to, which turns the 404s that every
+  deployment complaint is about into 200s. Use a router script that serves a real file, serves a
+  directory's own `index.php`, and 404s on everything else — that is OpenLiteSpeed with
+  `autoLoadHtaccess` off, which is CyberPanel's default.
+- **The symptom that looks like something else:** with a *correct* document root but rewrite
+  rules not applied, `/` works (it resolves to `public/index.php` as a directory index) and
+  every other URL including `/login` returns 404. `preflight.php` probes `/health` to catch it;
+  checking that `public/.htaccess` exists on disk does not, because the file is present and
+  ignored.
+- **To test the upgrade path, build the old database with the old code.** `git worktree add
+  --detach /somewhere <old-commit>`, point its `config.local.php` at a scratch database, and run
+  its own `migrate.php --fresh --seed`. Then run the current `upgrade.php` against it.
+- **`migrate.php --fresh` only drops the tables in its own `schema.sql`.** Re-running an old
+  `--fresh` over a database that a newer upgrade has touched leaves the newer tables behind, and
+  the result is not a pristine old install. `DROP DATABASE` to get one.
+- Measured on the `f16f4de` → HEAD path: an upgraded old database and a fresh install are
+  byte-identical for all 42 tables once `AUTO_INCREMENT` is normalised, and every row survives.
 
 ## Sandbox facts that will waste your time otherwise
 
