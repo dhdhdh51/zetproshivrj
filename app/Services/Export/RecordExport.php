@@ -58,9 +58,10 @@ final class RecordExport
         $promises = Database::select('SELECT * FROM promises WHERE visit_id = :id ORDER BY id', ['id' => $visitId]);
 
         $pdf = new PdfWriter('portrait');
+        // No organisation name: the letterhead already carries the bank's, in two scripts.
         $pdf->header(
             'Customer Visit Report',
-            org_name(),
+            '',
             [
                 sprintf('Visit reference: %s', $visit['uuid']),
                 sprintf(
@@ -249,7 +250,6 @@ final class RecordExport
 
         $pdf = new PdfWriter('portrait');
         $pdf->documentHeader(
-            org_name(),
             'BCA Inspection',
             [
                 // No system reference. It used to be printed here and the client asked for it

@@ -97,7 +97,6 @@ final class FieldVisitReport
         // client's own filled CKCC example carries just "(CKCC OD-2 Renewal /
         // Recovery Verification Report)".
         $pdf->documentHeader(
-            org_name(),
             'FIELD VISIT VERIFICATION REPORT',
             [
                 sprintf(
@@ -108,7 +107,9 @@ final class FieldVisitReport
             ]
         );
 
-        $pdf->header('FIELD VISIT VERIFICATION REPORT', org_name(), [
+        // Sets the title the continuation bars carry. The subtitle is left empty: the
+        // letterhead names the bank, and this block is not drawn for a document heading anyway.
+        $pdf->header('FIELD VISIT VERIFICATION REPORT', '', [
             sprintf('Report reference: %s', (string) $visit['uuid']),
         ]);
 

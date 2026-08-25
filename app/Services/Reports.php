@@ -1842,9 +1842,10 @@ final class Reports
         // Wide reports are only readable in landscape.
         $pdf = new PdfWriter(count($columns) > 6 ? 'landscape' : 'portrait');
 
+        // No organisation name: the letterhead already carries the bank's, in two scripts.
         $pdf->header(
             self::name($slug),
-            org_name(),
+            '',
             [
                 self::filterSummary($filters),
                 sprintf('%d row(s). Prepared by %s.', count($rows), Auth::name()),

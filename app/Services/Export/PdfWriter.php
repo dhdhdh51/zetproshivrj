@@ -55,7 +55,7 @@ final class PdfWriter
      * Set by documentHeader() when this PDF is the client's form rather than an
      * ordinary management report.
      *
-     * @var array{organisation: string, subtitles: array<int, string>}|null
+     * @var array{subtitles: array<int, string>}|null
      */
     private ?array $documentHeading = null;
 
@@ -74,6 +74,18 @@ final class PdfWriter
 
     private const FONT_REGULAR = 'F1';
     private const FONT_BOLD = 'F2';
+
+    /**
+     * The letterhead strip at the top of every page.
+     *
+     * 32 points is about 11mm, which puts the bank's name at roughly the size it is on the
+     * printed forms this replaces and keeps the small print under the mark legible. Every page
+     * pays this, so it is not larger than it needs to be.
+     */
+    private const LETTERHEAD_HEIGHT = 32.0;
+
+    /** Air between the mark and the band under it. */
+    private const LETTERHEAD_GAP = 7.0;
 
     /**
      * The palette of the client's own Word template, kept as the hex codes taken
@@ -134,22 +146,23 @@ final class PdfWriter
     }
 
     /**
-     * The four-line title block of the field visit verification report.
+     * The title block of the client's official forms: the report title in gold and its
+     * qualifying lines, centred on navy, under the bank's letterhead.
      *
-     * Reproduces the client's template: organisation name, the report title in
-     * gold, and two lines of qualifying text, all centred on navy.
+     * It took an organisation name as its first and largest line. That is gone rather than
+     * optional: the letterhead above it carries the bank's name in Hindi and English already,
+     * and no caller had anything to put there except the system's own name.
      *
-     * Pages after the first get a slim navy bar carrying the title only, so a
-     * page that comes loose from the staple can still be identified. The template
-     * itself is one blank page and says nothing about continuation pages.
+     * Pages after the first get the letterhead and a slim navy bar carrying the title, so a
+     * page that comes loose from the staple can still be identified. The template itself is one
+     * blank page and says nothing about continuation pages.
      *
      * @param array<int, string> $subtitles
      */
-    public function documentHeader(string $organisation, string $title, array $subtitles = []): void
+    public function documentHeader(string $title, array $subtitles = []): void
     {
         $this->title = $title;
         $this->documentHeading = [
-            'organisation' => $organisation,
             'subtitles' => array_values(array_filter($subtitles, static fn (string $l): bool => trim($l) !== '')),
         ];
     }
@@ -211,56 +224,50 @@ final class PdfWriter
     }
 
     /**
-     * Draw the letterhead mark at `$x`, `$y`, no taller than `$maxHeight`, and report how
-     * much horizontal room it took.
+     * The bank's mark across the top of the page, above whatever band follows.
      *
-     * The logo is a JPEG with a white background, and the header bands are navy, so it sits on
-     * a white patch. Compositing it onto the navy would need an alpha channel the source file
-     * does not have; a white panel is what a printed letterhead does anyway.
+     * It used to sit inside the navy band on a white patch, which is what you have to do when
+     * a logo with no alpha channel is placed on a colour. It read as a stamp stuck in the
+     * corner: small, boxed, and crowding the title beside it. On its own strip the page is
+     * already white, so no patch is needed and the mark can be the size a letterhead is.
      *
-     * Returns 0.0 when there is no logo, so a caller can lay out around it either way.
+     * Advances the cursor. Draws nothing and costs nothing when there is no usable logo.
      */
-    private function drawLogo(float $x, float $y, float $maxHeight): float
+    private function drawLetterhead(float $height = self::LETTERHEAD_HEIGHT): void
     {
         $file = $this->logoFile();
 
         if ($file === null) {
-            return 0.0;
+            return;
         }
 
         $image = $this->prepareImage($file);
 
         if ($image === null || $image['height'] <= 0) {
-            return 0.0;
+            return;
         }
 
-        $padding = min(3.0, $maxHeight * 0.14);
-        $height = $maxHeight - ($padding * 2);
         $width = $height * ($image['width'] / $image['height']);
 
-        // A logo wider than a third of the page would crowd out the title it sits beside.
-        $limit = $this->contentWidth() / 3;
+        // Half the page is as wide as a letterhead should ever be; past that the mark stops
+        // reading as a letterhead and starts reading as a picture.
+        $limit = $this->contentWidth() / 2;
 
         if ($width > $limit) {
             $width = $limit;
             $height = $width * ($image['height'] / $image['width']);
         }
 
-        $panelWidth = $width + ($padding * 2);
-        $this->rect($x, $y, $panelWidth, $maxHeight, self::ink(self::INK_WHITE), true);
-
-        $top = $y + (($maxHeight - $height) / 2);
-
         $this->currentContent .= sprintf(
             "q %.2F 0 0 %.2F %.2F %.2F cm /%s Do Q\n",
             $width,
             $height,
-            $x + $padding,
-            $this->pageHeight - ($top + $height),
+            $this->marginLeft,
+            $this->pageHeight - ($this->y + $height),
             $image['key']
         );
 
-        return $panelWidth;
+        $this->y += $height + self::LETTERHEAD_GAP;
     }
 
     public function addPage(): void
@@ -301,33 +308,48 @@ final class PdfWriter
             return;
         }
 
-        $bandHeight = 46.0;
+        $this->drawLetterhead();
 
-        // Dark band with the report title.
+        // One line of title, or two when there is a subtitle. Sized off the text rather than
+        // fixed at 46, which left a subtitle-less band with a band and a half of empty navy.
+        $hasSubtitle = $this->subtitle !== '';
+        $bandHeight = $hasSubtitle ? 42.0 : 30.0;
+
         $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $bandHeight, '0.118 0.227 0.373', true);
 
-        // The letterhead goes at the left of the band, and the title starts after it.
-        $logoWidth = $this->drawLogo($this->marginLeft, $this->y, $bandHeight);
-        $textLeft = $this->marginLeft + ($logoWidth > 0 ? $logoWidth + 10 : 10);
+        $textLeft = $this->marginLeft + 12;
+        $baseline = $hasSubtitle ? $this->y + 18 : $this->y + 20;
+
+        // The timestamp is right-aligned on the same line as the title, so the title has to be
+        // measured against what is left rather than against the whole band. Nothing collides at
+        // today's report names, but a longer one added later would silently run underneath it.
+        $stamp = 'Generated ' . date('d M Y, h:i A');
+        $stampWidth = $this->textWidth($stamp, 7.5, self::FONT_REGULAR);
+        $titleRoom = $this->contentWidth() - 24 - $stampWidth - 14;
 
         $this->setFont(self::FONT_BOLD, 13);
-        $this->drawText($textLeft, $this->y + 17, $this->title, '1 1 1');
+        $this->drawText($textLeft, $baseline, $this->fit($this->title, $titleRoom, 13, self::FONT_BOLD), '1 1 1');
 
-        if ($this->subtitle !== '') {
+        if ($hasSubtitle) {
             $this->setFont(self::FONT_REGULAR, 8.5);
-            $this->drawText($textLeft, $this->y + 32, $this->subtitle, '0.85 0.89 0.95');
+            $this->drawText(
+                $textLeft,
+                $this->y + 33,
+                $this->fit($this->subtitle, $this->contentWidth() - 24, 8.5, self::FONT_REGULAR),
+                '0.85 0.89 0.95'
+            );
         }
 
         $this->setFont(self::FONT_REGULAR, 7.5);
         $this->drawText(
-            $this->marginLeft + $this->contentWidth() - 10,
-            $this->y + 17,
-            'Generated ' . date('d M Y, h:i A'),
+            $this->marginLeft + $this->contentWidth() - 12,
+            $baseline,
+            $stamp,
             '0.85 0.89 0.95',
             'right'
         );
 
-        $this->y += $bandHeight + 8;
+        $this->y += $bandHeight + 10;
 
         if ($this->metaLines !== []) {
             $this->setFont(self::FONT_REGULAR, 8);
@@ -342,8 +364,13 @@ final class PdfWriter
     }
 
     /**
-     * The template's title block: organisation, title, two qualifying lines,
-     * centred on navy. Sizes and colours are the template's own.
+     * The template's title block: the report title and its qualifying lines, centred on navy,
+     * under the bank's letterhead.
+     *
+     * The organisation name used to be the first and largest line of this block. It is gone:
+     * the letterhead above already says "Central Bank of India", in Hindi and in English, and
+     * printing the system's own name over the top of that said nothing and cost the block its
+     * biggest line — which is what made the rest of it look packed together.
      */
     private function drawDocumentHeading(): void
     {
@@ -355,32 +382,31 @@ final class PdfWriter
 
         $centre = $this->marginLeft + ($this->contentWidth() / 2);
 
-        // Continuation pages carry a slim bar rather than the whole block — with the
-        // letterhead on it, so a page that comes loose from the staple is still the bank's.
+        // Continuation pages carry the letterhead and a slim bar rather than the whole block,
+        // so a page that comes loose from the staple is still identifiable as the bank's.
         if ($this->documentHeadingDrawn) {
-            $barHeight = 24.0;
+            $this->drawLetterhead(self::LETTERHEAD_HEIGHT * 0.7);
+
+            $barHeight = 22.0;
             $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $barHeight, self::ink(self::INK_NAVY), true);
 
-            $logoWidth = $this->drawLogo($this->marginLeft, $this->y, $barHeight);
-
             $this->setFont(self::FONT_BOLD, 9.5);
-            // Centred on the room left over, so the title is not pushed off centre by the logo
-            // on one side only.
             $this->drawText(
-                $this->marginLeft + $logoWidth + (($this->contentWidth() - $logoWidth) / 2),
-                $this->y + 15.5,
-                $this->fit($this->title, $this->contentWidth() - $logoWidth - 16, 9.5, self::FONT_BOLD),
+                $centre,
+                $this->y + 14.5,
+                $this->fit($this->title, $this->contentWidth() - 24, 9.5, self::FONT_BOLD),
                 self::ink(self::INK_WHITE),
                 'center'
             );
-            $this->y += $barHeight + 8;
+            $this->y += $barHeight + 9;
 
             return;
         }
 
+        $this->drawLetterhead();
+
         $lines = [
-            ['text' => $heading['organisation'], 'size' => 17.0, 'font' => self::FONT_BOLD, 'ink' => self::INK_WHITE],
-            ['text' => $this->title, 'size' => 13.0, 'font' => self::FONT_BOLD, 'ink' => self::INK_GOLD],
+            ['text' => $this->title, 'size' => 15.0, 'font' => self::FONT_BOLD, 'ink' => self::INK_GOLD],
         ];
 
         foreach ($heading['subtitles'] as $index => $subtitle) {
@@ -392,39 +418,47 @@ final class PdfWriter
             ];
         }
 
-        $padding = 11.0;
-        $gap = 4.5;
+        /*
+         * Leading, not just the glyph height. Advancing the cursor by the font size alone puts
+         * consecutive baselines exactly one em apart, which is tighter than any font is drawn
+         * for: descenders on one line reach into the ascenders of the next and the block reads
+         * as tangled even though nothing technically overlaps. 1.35 em is ordinary text leading.
+         */
+        $padding = 12.0;
         $blockHeight = $padding * 2;
 
-        foreach ($lines as $line) {
-            $blockHeight += $line['size'] + $gap;
+        foreach ($lines as $index => $line) {
+            $blockHeight += $line['size'] * 1.35;
+
+            // A little extra under the title, so it reads as a title and not as the first of
+            // a list.
+            if ($index === 0 && count($lines) > 1) {
+                $blockHeight += 3.0;
+            }
         }
 
-        $blockHeight -= $gap;
-
-        // The letterhead sits in the top-left of the block. The title lines stay centred on
-        // the page, as the client's template has them, so the logo has to be narrow enough not
-        // to reach them — drawLogo() caps itself at a third of the width.
-        $logoHeight = min(38.0, $blockHeight - ($padding * 2));
-
         $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $blockHeight, self::ink(self::INK_NAVY), true);
-        $this->drawLogo($this->marginLeft + 6, $this->y + $padding, $logoHeight);
 
         $cursor = $this->y + $padding;
 
-        foreach ($lines as $line) {
+        foreach ($lines as $index => $line) {
+            $leading = $line['size'] * 1.35;
+
             $this->setFont($line['font'], $line['size']);
+            // Baseline sits on the text's own body rather than at the bottom of its leading, so
+            // the gap above and below a line is even.
             $this->drawText(
                 $centre,
-                $cursor + $line['size'],
-                $this->fit($line['text'], $this->contentWidth() - 16, $line['size'], $line['font']),
+                $cursor + $line['size'] + (($leading - $line['size']) / 2) - ($line['size'] * 0.18),
+                $this->fit($line['text'], $this->contentWidth() - 24, $line['size'], $line['font']),
                 self::ink($line['ink']),
                 'center'
             );
-            $cursor += $line['size'] + $gap;
+
+            $cursor += $leading + ($index === 0 && count($lines) > 1 ? 3.0 : 0.0);
         }
 
-        $this->y += $blockHeight + 9;
+        $this->y += $blockHeight + 10;
         $this->documentHeadingDrawn = true;
 
         if ($this->metaLines !== []) {
@@ -823,7 +857,14 @@ final class PdfWriter
         $columnWidth = $this->contentWidth() / $columns;
         $labelWidth = $columnWidth * 0.46;
         $valueWidth = $columnWidth - $labelWidth - 8;
-        $lineHeight = 10.0;
+        /*
+         * Leading for the label and value columns. 9pt type on a 10pt line is 1.11 em, which is
+         * tighter than Helvetica is drawn for: on a label that wraps — item 1 of the inspection
+         * form runs to three lines — the descenders of one line sit in the ascenders of the
+         * next and the block reads as tangled. 11.5 is 1.28 em on the label and 1.35 on the
+         * value.
+         */
+        $lineHeight = 11.5;
         $maxLines = 3;
 
         // Lay the pairs out in rows of $columns so a row can be sized to its
@@ -841,14 +882,53 @@ final class PdfWriter
                 $lines[$maxLines - 1] = $this->fit($lines[$maxLines - 1] . ' ...', $valueWidth, 8.5, self::FONT_BOLD);
             }
 
-            // Labels wrap rather than being cut. "Father's / Husband's Name :" is
-            // the borrower's parentage on a bank document; abbreviating it to
-            // "Father's / Husband's N..." is not something to print and sign.
-            $labelText = rtrim((string) $label, ' :') . ' :';
+            /*
+             * Labels wrap rather than being cut. "Father's / Husband's Name :" is the
+             * borrower's parentage on a bank document; abbreviating it to "Father's /
+             * Husband's N..." is not something to print and sign.
+             *
+             * The colon is put back on afterwards rather than wrapped with the text. " :" gives
+             * the wrapper a legal break immediately before the colon, and item 4 of the
+             * inspection form was long enough to take it — printing "4. Qualification of the
+             * BCA" on one line and a line containing nothing but ":" under it.
+             */
+            $labelText = rtrim((string) $label, " :\t\n");
             $labelLines = $this->wrap($labelText, $labelWidth - 6, 9.0, self::FONT_BOLD);
 
+            if ($labelLines === []) {
+                $labelLines = [$labelText];
+            }
+
+            // Same allowance as the value, and the cut is marked. It used to be sliced to two
+            // lines with no mark, so the tail of a long label simply disappeared.
+            if (count($labelLines) > $maxLines) {
+                $labelLines = array_slice($labelLines, 0, $maxLines);
+                $labelLines[$maxLines - 1] = $this->fit(
+                    $labelLines[$maxLines - 1] . ' ...',
+                    $labelWidth - 6,
+                    9.0,
+                    self::FONT_BOLD
+                );
+            }
+
+            $last = count($labelLines) - 1;
+            $withColon = $labelLines[$last] . ' :';
+
+            /*
+             * Measured against the full label column, not the 6pt-narrower width the text was
+             * wrapped to. That gutter exists to keep words off the value column, and a colon is
+             * two and a half points wide — letting it use the gutter keeps it on labels that
+             * would otherwise lose it, and it still cannot reach the value.
+             *
+             * Dropped rather than overflowed when even that does not fit. A colon is
+             * punctuation; a label crossing into the value column is a defect.
+             */
+            if ($this->textWidth($withColon, 9.0, self::FONT_BOLD) <= $labelWidth - 1) {
+                $labelLines[$last] = $withColon;
+            }
+
             $cells[] = [
-                'labelLines' => $labelLines === [] ? [$labelText] : array_slice($labelLines, 0, 2),
+                'labelLines' => $labelLines,
                 'lines' => $lines === [] ? ['—'] : $lines,
             ];
         }
@@ -1677,7 +1757,9 @@ final class PdfWriter
     private function footer(int $page, int $total, float $width, float $height): string
     {
         $text = sprintf('Page %d of %d', $page, $total);
-        $left = 'LRMS — Loan Recovery Management System. Confidential: contains customer information.';
+        // No system name: the letterhead at the top of the page identifies the document, and
+        // repeating it here was the organisation name the client asked to be rid of.
+        $left = 'Confidential: contains customer information.';
 
         $encodedLeft = $this->encode($left);
         $encodedRight = $this->encode($text);
