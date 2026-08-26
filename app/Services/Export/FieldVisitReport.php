@@ -710,10 +710,14 @@ final class FieldVisitReport
 
     private static function sectionDeclaration(PdfWriter $pdf, array $visit): void
     {
-        $pdf->sectionBand('11', 'Declaration');
+        // One cream block, as in the template, rather than loose paragraphs. It is the better
+        // part of a page and cannot be split, so the band is told to stay with it — otherwise
+        // "11. DECLARATION" ends a page and the declaration begins the next, which reads as a
+        // sheet having gone missing from a document somebody signs.
+        $declaration = self::declarationParagraphs();
 
-        // One cream block, as in the template, rather than loose paragraphs.
-        $pdf->noticeBox('fbf3df', self::declarationParagraphs(), null, 8.5);
+        $pdf->sectionBand('11', 'Declaration', $pdf->noticeBoxHeight($declaration, null, 8.5));
+        $pdf->noticeBox('fbf3df', $declaration, null, 8.5);
 
         $accepted = (int) ($visit['declaration_accepted'] ?? 0) === 1;
 

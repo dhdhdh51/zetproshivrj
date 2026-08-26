@@ -346,26 +346,20 @@ final class RecordExport
         }
 
         /*
-         * Item 26. Ruled lines, because the form is signed by hand on the printed copy —
-         * the same reason the field visit report stopped trying to capture a signature.
-         */
-        /*
-         * The client's form calls item 26 "the visiting official", and that wording stays
-         * because the printed paper says it. Who that official is, though, is named next to
-         * the line: the person who visits the outlet and signs this sheet is the BC
-         * Supervisor. The BCA is the agent being inspected and does not sign here.
-         */
-        $pdf->heading('26. Signature of the visiting official');
-        $pdf->signatureLines(['Visiting official (BC Supervisor)', 'Date']);
-
-        /*
          * The letterhead of the form the client issued, so a printed copy carries the office
-         * it belongs to rather than looking like a document of our own.
+         * it belongs to rather than looking like a document of our own, with the verification
+         * code beside it.
          *
-         * Editable from Settings rather than written here. It has already moved once — from
-         * the Bhopal zonal office to the Agra regional office — and an office moving is not a
-         * reason to need a developer. A line left blank is left out, so an office with no
-         * separate helpline does not print an empty label.
+         * One block rather than two stacked. Stacked, they did not fit on the last page of a
+         * three-page form and the code took a fourth page to itself, 621 points of it blank.
+         *
+         * The office is editable from Settings rather than written here. It has already moved
+         * once — from the Bhopal zonal office to the Agra regional office — and an office moving
+         * is not a reason to need a developer. A line left blank is left out, so an office with
+         * no separate helpline does not print an empty label.
+         *
+         * No reference line: the client asked for the system reference off this form, and the
+         * BCA, the BC code and the branch are already in the heading.
          */
         $office = array_values(array_filter([
             self::officeLine('Address', 'office_address', '37/2/4, First Floor, Sanjay Place, Agra'),
@@ -374,23 +368,11 @@ final class RecordExport
             self::officeLine('Toll Free Helpline', 'office_helpline', '1800 233 4035'),
         ], static fn (string $line): bool => $line !== ''));
 
-        $officeName = self::officeValue('office_name', 'Central Bank of India — Regional Office, Agra');
-
-        if ($office !== [] || $officeName !== '') {
-            $pdf->noticeBox('eef2f8', $office, $officeName !== '' ? $officeName : null);
-        }
-
-        // The reference line the other reports carry is left off this one, at the client's
-        // instruction. What identifies the inspection to a person is printed instead.
-        $pdf->verification(url('/r/inspection/' . $inspectionId), [
-            sprintf(
-                'BCA %s (%s)   •   %s   •   %s',
-                (string) $inspection['supervisor_name'],
-                (string) $inspection['bc_code'],
-                (string) $inspection['branch_name'],
-                format_date((string) $inspection['inspection_date'])
-            ),
-        ]);
+        $pdf->officeFooter(
+            self::officeValue('office_name', 'Central Bank of India — Regional Office, Agra'),
+            $office,
+            url('/r/inspection/' . $inspectionId)
+        );
 
         $fileName = sprintf(
             'inspection-report-%s-%s.pdf',
@@ -476,6 +458,34 @@ final class RecordExport
             switch ($type) {
                 case 'section':
                     $flush();
+
+                    /*
+                     * Item 26 is a signature, and the ruled lines belong under the words that
+                     * ask for it.
+                     *
+                     * They used to be appended after the whole walk had finished, which put
+                     * item 27 in between and made the page read 25, 26, 27, then 26 again — the
+                     * second time under a heading repeating the band word for word. Drawn as
+                     * one block here instead, the printed order is the paper's order.
+                     *
+                     * It is the one 'section' field that is a single item rather than a range
+                     * of them, and it already sits inside the "25-27" group, so it prints as an
+                     * item heading. A second navy bar nested in the group's own bar was what
+                     * made it look duplicated even once the repetition was gone.
+                     *
+                     * Who signs is named on the line rather than in the heading, because the
+                     * heading's wording is the client's: the person who visits the outlet and
+                     * signs is the BC Supervisor, and the BCA is the agent being inspected.
+                     */
+                    if ($key === 'signature_section') {
+                        $pdf->signatureBlock(
+                            $label,
+                            (string) ($field['help_text'] ?? ''),
+                            ['Visiting official (BC Supervisor)', 'Date']
+                        );
+
+                        break;
+                    }
 
                     // Section labels carry their item numbers — "1-6. Business
                     // Correspondent Agent" — so the band shows the same numbering the

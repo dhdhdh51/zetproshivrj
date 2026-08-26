@@ -37,6 +37,9 @@ final class PdfWriter
     private float $marginTop = 40.0;
     private float $marginBottom = 40.0;
 
+    /** Where content starts on the current page, below the letterhead and title band. */
+    private float $contentTop = 0.0;
+
     /** Current cursor, measured from the top of the page. */
     private float $y = 0.0;
 
@@ -283,6 +286,21 @@ final class PdfWriter
         $this->currentContent = '';
         $this->y = $this->marginTop;
         $this->drawHeaderBand();
+        $this->contentTop = $this->y;
+    }
+
+    /**
+     * How much room a page has below its letterhead and title band.
+     *
+     * Read off the page in hand, which is what lets a caller ask whether a block could ever
+     * fit on a page rather than only whether it fits in what is left of this one. The first
+     * page carries a taller title block than the ones after it, so asking there understates
+     * the room on the next page — in the safe direction, since the answer is used to decide
+     * whether to keep something together.
+     */
+    private function usableHeight(): float
+    {
+        return $this->pageHeight - $this->marginBottom - $this->contentTop;
     }
 
     private function ensurePage(float $needed = 0.0): void
@@ -514,10 +532,29 @@ final class PdfWriter
      * A numbered section band, as used by the field visit verification report
      * ("1. GENERAL INFORMATION").
      */
-    public function sectionBand(string $number, string $title): void
+    /**
+     * @param float $keepWith How much of what follows must fit on the same page. The default is
+     *                        roughly a label and its answer. Pass more when the band is followed
+     *                        by a block that cannot be split — see noticeBoxHeight().
+     */
+    public function sectionBand(string $number, string $title, float $keepWith = 46.0): void
     {
         $height = 19.0;
-        $this->ensurePage($height + 6);
+
+        /*
+         * Room for the band and for something to follow it.
+         *
+         * Reserving only the band's own height let one sit at the very bottom of a page with its
+         * contents overleaf — "11. DECLARATION" was the last thing on page three of the
+         * verification report and the declaration itself was on page four. A heading separated
+         * from what it heads is worse than a slightly shorter page, and on a form somebody signs
+         * it reads as a page having gone missing.
+         *
+         * A caller that follows a band with an indivisible block has to say how big it is,
+         * because this cannot see ahead and reserving the largest possible block after every band
+         * would waste a third of every page.
+         */
+        $this->ensurePage($height + 6 + max(0.0, $keepWith));
 
         // Navy bar, gold number, white title — the template's own styling. The
         // number and title are separate runs there too, in different colours.
@@ -540,21 +577,35 @@ final class PdfWriter
      *
      * @param array<int, string> $paragraphs
      */
-    public function noticeBox(string $fillHex, array $paragraphs, ?string $heading = null, float $size = 9.0): void
+    /**
+     * How tall a notice box would be, without drawing it.
+     *
+     * Exists so a section band can be told what it must stay with. The measurement is the one
+     * noticeBox() itself uses, rather than a second copy that could drift from it.
+     *
+     * @param array<int, string> $paragraphs
+     */
+    public function noticeBoxHeight(array $paragraphs, ?string $heading = null, float $size = 9.0): float
     {
         $paragraphs = array_values(array_filter($paragraphs, static fn (string $p): bool => trim($p) !== ''));
 
         if ($paragraphs === []) {
-            return;
+            return 0.0;
         }
 
+        return $this->measureNotice($paragraphs, $heading, $size)[0];
+    }
+
+    /**
+     * @param array<int, string> $paragraphs
+     * @return array{0: float, 1: array<int, array{lines: array<int, string>, font: string, size: float}>}
+     */
+    private function measureNotice(array $paragraphs, ?string $heading, float $size): array
+    {
         $padding = 8.0;
         $inner = $this->contentWidth() - ($padding * 2);
         $lineHeight = $size + 3.0;
 
-        // Measured first so the shading can be drawn behind the text in one
-        // piece; a block split mid-sentence across a page break looks like a
-        // fault on a document someone has to sign.
         $blocks = [];
         $height = $padding * 2;
 
@@ -568,6 +619,25 @@ final class PdfWriter
             $blocks[] = ['lines' => $lines, 'font' => self::FONT_REGULAR, 'size' => $size];
             $height += (count($lines) * $lineHeight) + 4.0;
         }
+
+        return [$height, $blocks];
+    }
+
+    public function noticeBox(string $fillHex, array $paragraphs, ?string $heading = null, float $size = 9.0): void
+    {
+        $paragraphs = array_values(array_filter($paragraphs, static fn (string $p): bool => trim($p) !== ''));
+
+        if ($paragraphs === []) {
+            return;
+        }
+
+        $padding = 8.0;
+        $lineHeight = $size + 3.0;
+
+        // Measured first so the shading can be drawn behind the text in one
+        // piece; a block split mid-sentence across a page break looks like a
+        // fault on a document someone has to sign.
+        [$height, $blocks] = $this->measureNotice($paragraphs, $heading, $size);
 
         $this->ensurePage($height + 4);
         $this->rect($this->marginLeft, $this->y, $this->contentWidth(), $height, self::ink($fillHex), true);
@@ -608,7 +678,7 @@ final class PdfWriter
         $columns = count($labels);
         $width = ($this->contentWidth() - ($gutter * ($columns - 1))) / $columns;
 
-        $this->ensurePage($boxHeight + 16);
+        $this->ensurePage($this->signatureLinesHeight($boxHeight));
 
         $top = $this->y;
 
@@ -624,7 +694,64 @@ final class PdfWriter
             $this->drawText($x, $ruleY + 9.5, $label, self::ink(self::INK_MUTED));
         }
 
-        $this->y = $top + $boxHeight + 15;
+        $this->y = $top + $this->signatureLinesHeight($boxHeight);
+    }
+
+    /**
+     * How much a block of signature rules occupies, the rules and their captions together.
+     *
+     * The caption sits 9.5pt below its rule, so the block does not end at the rule. Ending it
+     * 15pt past the rule left barely five points under the caption: on the verification
+     * report the descenders of "Signature - BC Agent / DRA" came within a couple of points of
+     * the "13. FINAL REPORT STATUS" band below, which read as the caption belonging to the
+     * band rather than to the line above it.
+     */
+    private function signatureLinesHeight(float $boxHeight): float
+    {
+        return $boxHeight + 9.5 + 12.0;
+    }
+
+    /**
+     * An item asking to be signed: its heading, the note explaining it, and the ruled lines.
+     *
+     * The three are measured together and placed as one block, because a signature belongs
+     * under the words that ask for it. Drawing them with three separate page checks let the
+     * heading finish a page and the rules open the next, which on a form somebody signs and
+     * files reads as a page having gone missing.
+     *
+     * The heading prints in the item's own case, like every other item on the form. It is
+     * deliberately not a section band: the bands are group headers covering a range of items
+     * ("25-27. VISITING OFFICIAL"), and giving a single item inside such a group the same
+     * navy bar at the same weight is what made this one read as a duplicate of its own group.
+     *
+     * @param array<int, string> $labels
+     */
+    public function signatureBlock(string $label, string $note, array $labels, float $boxHeight = 34.0): void
+    {
+        $noteSize = 9.0;
+        $height = 14.0;
+
+        if ($note !== '') {
+            // paragraph() lays the note out at this width; measuring it the same way is what
+            // makes the reservation below match what actually gets drawn.
+            $height += count($this->wrap($note, $this->contentWidth(), $noteSize, self::FONT_REGULAR))
+                * ($noteSize + 3);
+            $height += 4.0;
+        }
+
+        if ($labels !== []) {
+            $height += $this->signatureLinesHeight($boxHeight);
+        }
+
+        $this->ensurePage($height);
+
+        $this->fieldLabel($label);
+
+        if ($note !== '') {
+            $this->paragraph($note, $noteSize);
+        }
+
+        $this->signatureLines($labels, $boxHeight);
     }
 
     /**
@@ -655,10 +782,6 @@ final class PdfWriter
             return;
         }
 
-        if ($label !== null && $label !== '') {
-            $this->fieldLabel($label);
-        }
-
         $ticked = array_map(
             static fn (string $value): string => strtolower(trim($value)),
             $selected
@@ -671,6 +794,30 @@ final class PdfWriter
         $rowGap = 3.0;
         $box = 8.0;
         $index = 0;
+
+        /*
+         * The label and the options are placed as one block.
+         *
+         * The label used to be drawn first and each row then checked for room on its own, so a
+         * group could come apart at either seam. Both happened: "Sign board at the BC point"
+         * ended one page of the inspection with its Yes / No boxes opening the next, and a
+         * six-option group split mid-way and left three unlabelled tick boxes at the top of a
+         * page. Boxes with nothing to say what they answer are worse than a short page.
+         *
+         * A group that would fit on a page of its own is kept whole. One that could not — the
+         * list of 39 services, say — has to break somewhere, so the label is kept with the
+         * first row and the remaining rows are allowed to flow.
+         */
+        $hasLabel = $label !== null && $label !== '';
+        $labelHeight = $hasLabel ? 14.0 : 0.0;
+        $rowHeight = $cellHeight + $rowGap;
+        $whole = $labelHeight + ((int) ceil(count($options) / $columns) * $rowHeight) + 2.0;
+
+        $this->ensurePage($whole <= $this->usableHeight() ? $whole : $labelHeight + $rowHeight);
+
+        if ($hasLabel) {
+            $this->fieldLabel((string) $label);
+        }
 
         foreach ($options as $option) {
             $column = $index % $columns;
@@ -1379,6 +1526,114 @@ final class PdfWriter
 
             return null;
         }
+    }
+
+    /**
+     * The office letterhead and the verification code as one block at the foot of a form.
+     *
+     * They were two full-width blocks stacked. On the BCA inspection that cost a whole sheet:
+     * the letterhead ended 52 points above the bottom margin, the code needed 90, so it moved to
+     * a page of its own and left 621 points of that page blank. Four pages where three would do,
+     * on a form that gets photocopied for every BCA every month.
+     *
+     * Side by side they are one block the height of the taller half, which fits where the
+     * letterhead alone used to — and it is also how a printed bank footer is actually laid out.
+     *
+     * @param array<int, string> $lines
+     */
+    public function officeFooter(string $heading, array $lines, ?string $verifyUrl, string $caption = 'Scan to open this record'): void
+    {
+        $lines = array_values(array_filter($lines, static fn (string $l): bool => trim($l) !== ''));
+
+        if ($heading === '' && $lines === [] && $verifyUrl === null) {
+            return;
+        }
+
+        $padding = 9.0;
+        $size = 8.5;
+        $lineHeight = $size + 3.5;
+
+        $qr = $verifyUrl === null || $verifyUrl === '' ? null : $this->encodeVerification($verifyUrl);
+        $codeSize = 0.0;
+        $columnWidth = 0.0;
+        $captionSize = 6.5;
+
+        if ($qr !== null) {
+            // Same floor as the standalone panel: the module has to survive a photocopier.
+            $codeSize = max(58.0, min(($qr->size() + 8) * 1.45, 84.0));
+
+            /*
+             * The column carries the code and the caption beneath it, so it is sized for
+             * whichever of the two is wider.
+             *
+             * Sizing it for the code alone clipped the caption to "Scan to open this rec..."
+             * whenever the encoded URL was short enough to need only a small code — an
+             * ellipsis in the one line that tells a reader what the code is for, which is
+             * worse than printing no caption at all.
+             *
+             * Capped, so that a long caption cannot squeeze the office address beside it.
+             * Past the cap fit() shortens it, as a last resort rather than the normal case.
+             */
+            $columnWidth = min(
+                max($codeSize, $this->textWidth($caption, $captionSize, self::FONT_REGULAR)) + ($padding * 2),
+                $this->contentWidth() * 0.42
+            );
+        }
+
+        $textWidth = $this->contentWidth() - $columnWidth - ($padding * 2);
+
+        // Measured before anything is drawn, so the shading is one piece and the block is never
+        // split across a page break.
+        $blocks = [];
+        $textHeight = 0.0;
+
+        if ($heading !== '') {
+            $blocks[] = ['text' => $heading, 'font' => self::FONT_BOLD, 'size' => $size + 0.5, 'ink' => self::INK_NAVY];
+            $textHeight += $size + 0.5 + 4.5;
+        }
+
+        foreach ($lines as $line) {
+            foreach ($this->wrap($line, $textWidth, $size, self::FONT_REGULAR) as $wrapped) {
+                $blocks[] = ['text' => $wrapped, 'font' => self::FONT_REGULAR, 'size' => $size, 'ink' => self::INK_BODY];
+                $textHeight += $lineHeight;
+            }
+        }
+
+        $captionHeight = $qr === null ? 0.0 : 11.0;
+        $height = max($textHeight, $codeSize + $captionHeight) + ($padding * 2);
+
+        $this->ensurePage($height + 8);
+
+        $top = $this->y;
+        $this->rect($this->marginLeft, $top, $this->contentWidth(), $height, self::ink(self::FILL_NOTE), true);
+
+        if ($qr !== null) {
+            // Code and caption share one centre line, so the caption reads as belonging to
+            // the code above it however much wider than it the caption happens to be.
+            $columnLeft = $this->marginLeft + $this->contentWidth() - $columnWidth;
+            $centre = $columnLeft + ($columnWidth / 2);
+
+            $this->drawQr($qr, $centre - ($codeSize / 2), $top + $padding, $codeSize);
+
+            $this->setFont(self::FONT_REGULAR, $captionSize);
+            $this->drawText(
+                $centre,
+                $top + $padding + $codeSize + 8,
+                $this->fit($caption, $columnWidth - 4, $captionSize, self::FONT_REGULAR),
+                self::ink(self::INK_MUTED),
+                'center'
+            );
+        }
+
+        $cursor = $top + $padding;
+
+        foreach ($blocks as $block) {
+            $this->setFont($block['font'], $block['size']);
+            $this->drawText($this->marginLeft + $padding, $cursor + $block['size'], $block['text'], self::ink($block['ink']));
+            $cursor += $block['font'] === self::FONT_BOLD ? $block['size'] + 4.5 : $lineHeight;
+        }
+
+        $this->y = $top + $height + 8;
     }
 
     /**
