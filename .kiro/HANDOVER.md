@@ -296,12 +296,26 @@ Everything below is on the branch, green in CI, and live-ready.
 - Room is at **version 6** (`MIGRATION_5_6` adds `status` and `syncMessage` to
   `sss_enrolments`). 42 tables server-side; a fresh install needs **0** upgrade steps, and an
   existing one needs the rename step only.
-- APK **v1.6.2** is the published build, signed with the new key:
-  `https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.2-SIGNED.apk`
-  File SHA-256 `bc9c02d59900d34afa857f7b54d6935a5ab8fd398b8348c365ed2b24fe2fec3e`, verified by
-  downloading the published file. It carries the target screens and the BCA rename in both
-  `values/strings.xml` and `values-hi/strings.xml`. Installs over 1.6.0 and 1.6.1.
-- Web panel published to the `web-app` branch at `d674da9` — the server pulls from it.
+- APK **v1.6.3** is the published build, signed with the new key:
+  `https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.6.3-SIGNED.apk`
+  File SHA-256 `4ade099868587223b09dfb3b7ef2e3e9cf2fbc1b46c2128eb5fbaa94b282b98c`, verified by
+  downloading the published file and checking it against the D2 certificate. Installs over
+  1.6.0, 1.6.1 and 1.6.2. It carries the sign-in screen cleanup and all of the PDF placement
+  fixes.
+  - Checked from the built file rather than from the branch name: `versionName` read out of
+    the packaged `AndroidManifest.xml`, and `resources.arsc` confirmed to no longer carry the
+    two diagnostic strings. A build branch is named by hand and is the easy thing to get
+    wrong.
+  - 1.5.4 onwards all stay on the `apk` branch. A download link outlives its release — it
+    gets forwarded around a branch — so deleting one turns a saved link into a bare 404, and
+    the previous build is the only way back if a new one misbehaves on a handset. The README
+    there used to claim superseded builds were deleted, which was never what happened; it now
+    says what is actually true.
+- Web panel published to the `web-app` branch at `79c977c` — the server pulls from it.
+- The repository has been renamed twice and is now `dhdhdh51/zetproshivrj`. `git push` still
+  works through the old remote, GitHub redirects it; `gh api` does not follow the rename, so
+  it needs the current name. Old `raw.githubusercontent.com` links do still resolve, but new
+  documentation should use the current name.
 
 ## The signing key was replaced at v1.6.0
 
