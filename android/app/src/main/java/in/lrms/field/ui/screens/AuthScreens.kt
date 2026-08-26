@@ -33,7 +33,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -104,11 +103,6 @@ fun LoginScreen(viewModel: AppViewModel) {
                     Spacer(Modifier.height(12.dp))
                 }
 
-                if (auth.diagnostic != null) {
-                    InlineNotice(auth.diagnostic!!, Tone.INFO)
-                    Spacer(Modifier.height(12.dp))
-                }
-
                 OutlinedTextField(
                     value = username,
                     onValueChange = { username = it },
@@ -161,33 +155,30 @@ fun LoginScreen(viewModel: AppViewModel) {
 
                 Spacer(Modifier.height(4.dp))
 
-                // Nobody could previously tell which server an APK was built
-                // against, which made a wrong URL indistinguishable from a dead
-                // network. Now it is on the screen, and testable before sign-in.
-                // Before the login form, not after: someone who reads Hindi has to
-                // be able to switch first.
+                // Before the login form, not after: someone who reads Hindi has to be able to
+                // switch first.
                 LanguageSwitch()
 
-                TextButton(
-                    onClick = { viewModel.testConnection() },
-                    enabled = !auth.testing && !auth.busy,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (auth.testing) stringResource(R.string.login_testing) else stringResource(R.string.login_test_connection))
-                }
-
+                /*
+                 * A "Test connection" button and the full API address used to sit here. They
+                 * were built to tell a wrong server apart from a dead network, and on a
+                 * developer's screen they did — but this is the first thing a BCA sees, and to
+                 * them an address and a diagnostic button are two things that can go wrong
+                 * before they have even typed a password.
+                 *
+                 * Nothing is lost. A refusal already names the host it came from
+                 * (msg_server_error, msg_server_refused), and an APK built against a developer
+                 * endpoint still says so in the warning above.
+                 */
                 Text(
-                    ApiClient.baseUrl,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                Spacer(Modifier.height(4.dp))
-
-                Text(
-                    "${BuildConfig.ENVIRONMENT} · v${BuildConfig.VERSION_NAME} · Android ${android.os.Build.VERSION.RELEASE}",
+                    buildString {
+                        // Only a build that is not the real one announces which build it is.
+                        if (BuildConfig.ENVIRONMENT != "production") {
+                            append(BuildConfig.ENVIRONMENT).append(" · ")
+                        }
+                        append("v").append(BuildConfig.VERSION_NAME)
+                        append(" · Android ").append(android.os.Build.VERSION.RELEASE)
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
                     textAlign = TextAlign.Center,

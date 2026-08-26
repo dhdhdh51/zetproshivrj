@@ -29,9 +29,18 @@ $serverProcess = null;
 if ($base === null) {
     $base = 'http://127.0.0.1:8098';
     $descriptors = [1 => ['file', '/tmp/lrms-api-server.log', 'a'], 2 => ['file', '/tmp/lrms-api-server.log', 'a']];
+    /*
+     * PHP_CLI_SERVER_WORKERS is what makes the concurrency section below mean anything.
+     *
+     * The built-in server is single-process by default, so it accepts one request at a time
+     * and requests fired in parallel are served one after another. A test for a race that
+     * only happens when two requests overlap would then pass whether or not the code guards
+     * against it, which is worse than having no test at all. With workers the overlap is
+     * real: the unguarded version of the device check fails this suite.
+     */
     $serverProcess = proc_open(
         sprintf(
-            'LRMS_APP_URL=%s php -S 127.0.0.1:8098 -t %s %s',
+            'LRMS_APP_URL=%s PHP_CLI_SERVER_WORKERS=16 php -S 127.0.0.1:8098 -t %s %s',
             escapeshellarg($base),
             escapeshellarg(base_path('public')),
             escapeshellarg(base_path('public/index.php'))
@@ -399,6 +408,164 @@ if (count($pair) < 2) {
     );
 
     Database::delete('devices', 'device_uuid LIKE :like', ['like' => $handoverDevice . '%']);
+}
+
+/* -------------------------------------------------------------------------- */
+section('One handset per account holds when handsets bind at the same instant');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Every check above binds one handset at a time, and the one-handset rule held for all of
+ * them. It did not hold when two sign-ins overlapped.
+ *
+ * The check was a SELECT for an active device followed by an INSERT. Two requests could both
+ * run the SELECT before either had inserted, both find nothing, and both bind — leaving an
+ * account with two live handsets, which is the whole thing device binding exists to prevent.
+ * Reproduced before it was fixed: fourteen parallel sign-ins, and three rounds out of eight
+ * ended with two active rows.
+ *
+ * `devices.device_uuid` is unique but that does not help here, because each request carries a
+ * different handset. "One active row per user" is not something MySQL can be asked to
+ * enforce either — a partial unique index is not available — so the sign-in takes a row lock
+ * on the user for the duration of the check and the insert.
+ *
+ * This is a race, so it is run repeatedly rather than once. A single round proves nothing:
+ * an unguarded build has been seen pass three rounds cleanly and then break eight out of the
+ * next twelve. Ten rounds is enough to catch a regression almost every time, and cannot fail
+ * on guarded code, because with the lock in place the invariant is not a matter of timing.
+ *
+ * Asserting the lock head-on instead was tried and thrown away: holding the account row from
+ * another connection stalls an unguarded sign-in just as surely as a guarded one, because
+ * both `devices` and `api_tokens` reference `users`, and the foreign key on the insert needs
+ * the very row being held. A check that passes either way is worse than no check, and its
+ * message would blame the device logic for a stall coming from somewhere else.
+ */
+$racer = Database::selectOne(
+    'SELECT u.id AS user_id, u.username
+       FROM bc_supervisors s JOIN users u ON u.id = s.user_id
+      WHERE u.id <> :used ORDER BY s.id DESC LIMIT 1',
+    ['used' => (int) $supervisor['user_id']]
+);
+
+if ($racer === null) {
+    ok(false, 'A BCA is seeded to race sign-ins for');
+} else {
+    Database::update('users', [
+        'password' => Auth::hashPassword('AppTest@123'),
+        'must_change_password' => 0,
+        'failed_attempts' => 0,
+        'locked_until' => null,
+    ], 'id = :id', ['id' => (int) $racer['user_id']]);
+
+    $racePrefix = 'race-' . substr(sha1((string) getmypid()), 0, 8);
+    $racerId = (int) $racer['user_id'];
+
+    /**
+     * Fire `$count` sign-ins for one account at once, each naming a different handset.
+     *
+     * @return array<int, int> the status codes, in no particular order
+     */
+    $raceLogins = static function (string $username, string $prefix, int $round, int $count): array {
+        $multi = curl_multi_init();
+        $handles = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $handle = curl_init($GLOBALS['base'] . '/api/v1/auth/login');
+            curl_setopt_array($handle, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/json'],
+                CURLOPT_TIMEOUT => 60,
+                CURLOPT_POSTFIELDS => (string) json_encode([
+                    'username' => $username,
+                    'password' => 'AppTest@123',
+                    'device' => [
+                        'uuid' => sprintf('%s-r%d-%d', $prefix, $round, $i),
+                        'model' => 'Race Handset',
+                        'manufacturer' => 'LRMS',
+                    ],
+                ]),
+            ]);
+
+            curl_multi_add_handle($multi, $handle);
+            $handles[] = $handle;
+        }
+
+        // Added to the multi handle first, started only now, so they go out together rather
+        // than trickling out one behind the next.
+        do {
+            $status = curl_multi_exec($multi, $running);
+
+            if ($running > 0) {
+                curl_multi_select($multi, 1.0);
+            }
+        } while ($running > 0 && $status === CURLM_OK);
+
+        $codes = [];
+
+        foreach ($handles as $handle) {
+            $codes[] = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+            curl_multi_remove_handle($multi, $handle);
+            curl_close($handle);
+        }
+
+        curl_multi_close($multi);
+
+        return $codes;
+    };
+
+    $activeCounts = [];
+    $acceptedCounts = [];
+    $unexpected = [];
+
+    $rounds = 10;
+
+    for ($round = 1; $round <= $rounds; $round++) {
+        Database::delete('devices', 'user_id = :uid', ['uid' => $racerId]);
+
+        $codes = $raceLogins((string) $racer['username'], $racePrefix, $round, 14);
+
+        $activeCounts[] = (int) Database::scalar(
+            "SELECT COUNT(*) FROM devices WHERE user_id = :uid AND status = 'active'",
+            ['uid' => $racerId]
+        );
+        $acceptedCounts[] = count(array_filter($codes, static fn (int $c): bool => $c === 200));
+
+        foreach ($codes as $code) {
+            if ($code !== 200 && $code !== 403) {
+                $unexpected[] = $code;
+            }
+        }
+    }
+
+    equals(
+        array_fill(0, $rounds, 1),
+        $activeCounts,
+        'Fourteen simultaneous sign-ins leave exactly one active handset, every round ('
+            . implode(',', $activeCounts) . ')'
+    );
+
+    equals(
+        array_fill(0, $rounds, 1),
+        $acceptedCounts,
+        'Exactly one of the fourteen is accepted, every round (' . implode(',', $acceptedCounts) . ')'
+    );
+
+    // The losers must be told the ordinary thing, not a 500 from a duplicate-key collision or
+    // a 429 from the throttle. A field officer reading a crash has no idea their phone is fine.
+    equals([], $unexpected, 'The rest are refused normally, with no errors or throttling');
+
+    $racedRows = Database::select(
+        'SELECT status FROM devices WHERE user_id = :uid',
+        ['uid' => $racerId]
+    );
+    equals(
+        1,
+        count($racedRows),
+        'No half-written rows are left behind by the sign-ins that lost (' . count($racedRows) . ' rows)'
+    );
+
+    Database::delete('devices', 'user_id = :uid', ['uid' => $racerId]);
 }
 
 /* -------------------------------------------------------------------------- */

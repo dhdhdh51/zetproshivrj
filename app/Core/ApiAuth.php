@@ -192,6 +192,42 @@ final class ApiAuth
             return [null, 'A device identifier is required.'];
         }
 
+        /*
+         * One transaction, behind a lock on the account's own row.
+         *
+         * Everything below reads the state of this account's handsets and then writes based on
+         * what it read. Two sign-ins arriving together — a BCA moving to a new phone, or the app
+         * retrying a request that had in fact succeeded — could both find no other active
+         * handset and both bind one, leaving the account with two. "One live handset per
+         * account" is the rule this whole method exists to keep, so it cannot depend on the two
+         * requests not overlapping.
+         *
+         * MySQL has no way to express the rule as a constraint: there is no partial unique index,
+         * so "one row per user where status is active" cannot be declared and left to the
+         * database. Serialising the decision is the alternative.
+         *
+         * The lock is taken on `users`, not on `devices`. The user row certainly exists — the
+         * caller has just authenticated against it — so this is an ordinary row lock on a primary
+         * key. Locking `devices` instead would mean locking a set that is often empty, and an
+         * empty range in InnoDB is a gap lock, which deadlocks against a concurrent insert of the
+         * very row being waited for.
+         */
+        return Database::transaction(static function () use ($userId, $deviceUuid, $info): array {
+            Database::selectOne('SELECT id FROM users WHERE id = :id FOR UPDATE', ['id' => $userId]);
+
+            return self::bindDevice($userId, $deviceUuid, $info);
+        });
+    }
+
+    /**
+     * The binding decision itself. Runs inside the transaction opened by registerDevice(), so
+     * every read here is protected by the lock taken there.
+     *
+     * @param array<string, mixed> $info
+     * @return array{0:?array, 1:string}
+     */
+    private static function bindDevice(int $userId, string $deviceUuid, array $info): array
+    {
         $existing = Database::selectOne(
             'SELECT * FROM devices WHERE device_uuid = :uuid LIMIT 1',
             ['uuid' => $deviceUuid]

@@ -105,24 +105,6 @@ class FieldRepository(
         }
     }
 
-    /**
-     * Checks the server from the handset that is actually failing.
-     *
-     * A BCA standing in a village cannot read a log, and nobody can fix
-     * "no connection" without knowing which step broke. This calls the unauthenticated
-     * ping endpoint and reports plainly whether the phone reached the server, so the
-     * answer comes back over the phone in one sentence.
-     */
-    suspend fun testConnection(): String = withContext(Dispatchers.IO) {
-        when (val result = ApiClient.call { api.ping() }) {
-            is ApiResult.Success -> "Server reached: ${result.data.app ?: "LRMS"}. Sign-in should work."
-            is ApiResult.Offline -> result.message
-            is ApiResult.Failure ->
-                Localised.string(context, R.string.msg_server_error, ApiClient.host, result.message)
-            ApiResult.Unauthenticated ->
-                Localised.string(context, R.string.msg_server_refused, ApiClient.host)
-        }
-    }
 
     suspend fun verifyOtp(userId: Long, code: String): LoginOutcome = withContext(Dispatchers.IO) {
         when (val result = ApiClient.call { api.verifyOtp(OtpRequest(userId, code.trim(), deviceInfo())) }) {

@@ -219,10 +219,77 @@ Everything below is on the branch, green in CI, and live-ready.
   - The format bits were the one thing that had to be got right by brute force: rows and
     columns were transposed, which produces a code that looks entirely convincing and cannot
     be scanned at all. Nothing about the picture tells you.
+- **Nothing on a printed page is left hanging on its own.** The client said the reports simply
+  looked wrong, and five green suites had all been missing why. Every page of all four PDFs was
+  rendered and read, and the answer was seven separate defects, all of them about placement:
+  - **A whole wasted page.** The inspection's third page ended 52pt above the margin and the QR
+    panel needed 90, so it moved to a fourth page and left 621pt of it blank. The office
+    letterhead and the QR are now one block, `PdfWriter::officeFooter()`, QR on the right.
+    Four pages became three.
+  - **Item 26 appeared twice**, once as a band and once as a heading with the same words, and
+    its signature rules were drawn after the whole field walk — so the page read 25, 26, 27,
+    then 26 again. It is the only `section` field that is a single item rather than a range of
+    them, and it already sits inside the "25-27" group, so a second navy bar nested in the
+    group's own bar is what made it look duplicated even after the repetition went.
+    `PdfWriter::signatureBlock()` now prints heading, note and rules as one measured block in
+    the item's own case.
+  - **An orphaned section band.** "11. DECLARATION" ended a page with the declaration itself
+    overleaf. `sectionBand()` takes a `$keepWith` hint; the declaration passes the measured box
+    height through the new `noticeBoxHeight()`. Both read the same private `measureNotice()`,
+    so an accessor cannot drift from what gets drawn.
+  - **A clipped caption.** `officeFooter()` sized the QR column for the code alone, so whenever
+    a short URL needed a small code the caption was cut to "Scan to open this rec…" — an
+    ellipsis in the one line that says what the code is for. The column is sized for whichever
+    of code and caption is wider, capped at 42% of the content width.
+  - **Captions glued to the next thing.** A signature block ended 15pt past its rule, but the
+    caption sits 9.5pt below it, so the descenders of "Signature - BC Agent / DRA" came within
+    a few points of the "13. FINAL REPORT STATUS" band. `signatureLinesHeight()` is now the one
+    measurement both the drawing and the reservation use.
+  - **Tick boxes with nothing to say what they answered.** `checkboxes()` drew its label first
+    and checked each row for room on its own, so it broke at either seam: "Sign board at the BC
+    point" ended a page with its Yes / No overleaf, and a six-option group split leaving three
+    bare boxes at the top of a page. A group that would fit a page is kept whole; one that
+    could not — the 39-service list — keeps its label with the first row and lets the rest flow.
+    This needed `contentTop`, recorded at the end of `addPage()`, so a caller can ask what a
+    page holds rather than only what is left of this one.
+  - **A watermark that ate its photograph.** The band's height came from the line count alone,
+    so on a small image it was taller than the picture and `imagecopymerge()` covered the whole
+    frame — the evidence photograph printed as white letters on black. It is capped now, with
+    trailing lines dropped (address before timestamp before coordinates), and each line
+    truncated to what the frame is wide enough to show.
+  - Verified by rendering all nine pages and reading them, and by decoding every QR at 300 DPI:
+    four documents, four codes, each resolving to its own record.
+- **Two devices can no longer bind to one account at the same instant.** The check was a SELECT
+  for an active device followed by an INSERT, so two overlapping sign-ins could both find
+  nothing and both bind. `ApiAuth::registerDevice()` now takes a row lock on the account
+  (`SELECT id FROM users WHERE id = :id FOR UPDATE`) for the length of the check and the write,
+  with the body moved into `bindDevice()`.
+  - The lock is on `users`, not on `devices`: the device set for an account is often empty, and
+    locking an empty range takes gap locks that deadlock against the very insert being waited
+    for. "One active row per user" cannot be a constraint either — MySQL has no partial unique
+    index.
+  - It is guarded by a section of `tests/api-smoke.php` that fires ten rounds of fourteen
+    parallel sign-ins. That needs `PHP_CLI_SERVER_WORKERS`, which the suite now sets: the
+    built-in server is single-process by default, so parallel requests are served in turn and
+    the test would pass on unguarded code. Checked both ways — the pre-fix version fails it.
+  - Asserting the lock directly was tried and thrown out. Holding the account row from another
+    connection stalls an unguarded sign-in just as surely as a guarded one, because `devices`
+    and `api_tokens` both reference `users` and the foreign key on the insert needs the held
+    row. A check that passes either way is worse than no check.
+- **The app no longer ships its own test tools.** The "Test connection" button and the
+  diagnostic notice under the sign-in form are gone, with `AppViewModel.testConnection()`,
+  `FieldRepository.testConnection()`, the two `AuthState` fields behind them and their strings
+  in both languages. The base URL is no longer printed under the form; the host still appears in
+  the two error messages that need it, so support has not lost anything. The version line hides
+  the build environment when it is `production`, and still announces a staging build.
+  - The developer-build warning stayed. It only fires on `10.0.2.2`, `127.0.0.1` or
+    `localhost`, which is a genuine warning that somebody is about to use a debug APK in the
+    field, not leftover scaffolding. `api.ping()` stayed too — a declared endpoint the app is
+    entitled to call, not test code.
 
 ## Current state
 
-- Suites: `160 / 374 / 216 / 444 / 107`
+- Suites: `160 / 374 / 220 / 444 / 107`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.

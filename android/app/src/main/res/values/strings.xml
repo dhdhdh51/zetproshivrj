@@ -26,8 +26,6 @@
     <string name="login_button">Sign in</string>
     <string name="login_enter_both">Enter your BCBF code and password.</string>
     <string name="login_device_note">Your account is bound to this device. Ask your BC Supervisor to reset the binding if you change handset.</string>
-    <string name="login_test_connection">Test connection</string>
-    <string name="login_testing">Checking the server…</string>
     <string name="login_developer_build">This is a developer build. It is set to %1$s, which only exists on an emulator, so sign-in cannot work on a phone. Install the release APK instead.</string>
 
     <!-- Verification code -->

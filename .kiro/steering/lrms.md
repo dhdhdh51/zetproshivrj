@@ -114,14 +114,20 @@ them — run it first and the API suite quietly reports zero allocated accounts.
 bash /projects/sandbox/mysql-up.sh          # sandbox only; MariaDB is not persistent
 php database/migrate.php --fresh --demo
 php tests/test-import.php
-php -S 127.0.0.1:8000 -t public &           # http- and api-smoke need a server
+PHP_CLI_SERVER_WORKERS=16 php -S 127.0.0.1:8000 -t public &   # http- and api-smoke need a server
 php tests/http-smoke.php http://127.0.0.1:8000
 php tests/api-smoke.php  http://127.0.0.1:8000
 php tests/test-reports.php
 php tests/test-qr.php                       # pure computation, no server or database
 ```
 
-Counts: `160 / 374 / 216 / 444 / 107`.
+Counts: `160 / 374 / 220 / 444 / 107`.
+
+`PHP_CLI_SERVER_WORKERS` is not decoration. `api-smoke.php` has a section that fires fourteen
+sign-ins at once to prove an account cannot end up with two live handsets, and the built-in
+server is single-process by default — it would serve them in turn and the section would pass
+whether or not the code guards against it. The suite sets the variable itself when it starts its
+own server; hand it a base URL and it is yours to set.
 
 Lint everything:
 

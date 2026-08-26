@@ -382,7 +382,32 @@ final class Photos
         $scale = max(1, (int) round($width / 640));
         $lineHeight = 13 * $scale;
         $padding = 6 * $scale;
-        $bandHeight = ($lineHeight * count($lines)) + ($padding * 2);
+
+        /*
+         * The band has to stay a caption on the photograph rather than become the photograph.
+         *
+         * Its height came from the number of lines alone, so on a small image it worked out
+         * taller than the picture and imagecopymerge() pasted it over the whole frame — the
+         * evidence photograph on a verification report came out as nothing but white letters
+         * on black, with no photograph visible at all. Lines beyond what will fit are dropped
+         * from the end, which gives up the address before the time and the coordinates.
+         */
+        $maxBandHeight = max($lineHeight + ($padding * 2), (int) floor($height * 0.5));
+
+        while (count($lines) > 1 && ($lineHeight * count($lines)) + ($padding * 2) > $maxBandHeight) {
+            array_pop($lines);
+        }
+
+        $bandHeight = min(($lineHeight * count($lines)) + ($padding * 2), $height);
+
+        /*
+         * It has to stay inside the frame sideways as well. Both branches below advance a fixed
+         * number of pixels per character, so what fits can be counted rather than guessed: a
+         * long address on a narrow photo used to run past the right edge and stop mid-character,
+         * which on a report reads as data having gone missing.
+         */
+        $charWidth = imagefontwidth($baseFont) * ($scale === 1 ? 1.0 : $scale * 0.95);
+        $maxChars = max(1, (int) floor(($width - ($padding * 2)) / $charWidth));
 
         $band = imagecreatetruecolor($width, $bandHeight);
         imagefill($band, 0, 0, imagecolorallocate($band, 0, 0, 0));
@@ -391,6 +416,12 @@ final class Photos
         $y = $padding;
 
         foreach ($lines as $line) {
+            // Single-byte bitmap font, and every line has already been transliterated, so
+            // counting bytes is counting characters here.
+            if (strlen($line) > $maxChars) {
+                $line = substr($line, 0, $maxChars);
+            }
+
             if ($scale === 1) {
                 imagestring($band, $baseFont, $padding, $y, $line, $textColour);
             } else {

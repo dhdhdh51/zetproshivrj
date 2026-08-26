@@ -27,8 +27,6 @@
     <string name="login_button">साइन इन</string>
     <string name="login_enter_both">अपना BCBF कोड और पासवर्ड दर्ज करें।</string>
     <string name="login_device_note">आपका खाता इसी डिवाइस से जुड़ा है। फ़ोन बदलने पर अपने एडमिन/सुपरवाइज़र से डिवाइस बाइंडिंग रीसेट करवाएँ।</string>
-    <string name="login_test_connection">कनेक्शन जाँचें</string>
-    <string name="login_testing">सर्वर जाँचा जा रहा है…</string>
     <string name="login_developer_build">यह डेवलपर बिल्ड है। यह %1$s पर सेट है, जो सिर्फ़ एमुलेटर पर चलता है, इसलिए फ़ोन पर साइन इन नहीं होगा। रिलीज़ APK इंस्टॉल करें।</string>
 
     <!-- Verification code -->
