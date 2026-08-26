@@ -161,6 +161,38 @@ $negative = inspection_result_is_negative((string) $inspection['result']);
     </div>
 <?php endif; ?>
 
+<?php if ($sss !== null): ?>
+    <div class="card">
+        <div class="card-head">
+            <div class="grow">
+                <h2>Social Security Scheme performance</h2>
+                <div class="tiny muted">
+                    What the agent enrolled over the window this inspection measured. Read from the
+                    enrolment records, never typed on the form.
+                </div>
+            </div>
+            <div class="page-actions" style="margin:0">
+                <a class="btn btn-secondary btn-sm"
+                   href="<?= e(url('/admin/sss?' . http_build_query([
+                       'bc_supervisor_id' => (int) $inspection['bc_supervisor_id'],
+                       'from' => $sss['window']['from'],
+                       'to' => $sss['window']['to'],
+                   ]))) ?>"><?= icon('chart', '', 14) ?> Open in the SSS register</a>
+            </div>
+        </div>
+        <div class="card-body">
+            <?= view_partial('partials.sss-block', ['sss' => $sss]) ?>
+            <?php if ($sss['frozen']): ?>
+                <p class="help" style="margin-bottom:0">
+                    Held as they were when this inspection was submitted. A day corrected since then
+                    shows in the register, and deliberately not here — this sheet has been signed, and
+                    a reprint has to match the copy in the file.
+                </p>
+            <?php endif; ?>
+        </div>
+    </div>
+<?php endif; ?>
+
 <div class="card">
     <div class="card-head"><h2>Inspector remarks</h2></div>
     <div class="card-body">

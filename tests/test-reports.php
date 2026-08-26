@@ -31,6 +31,8 @@ use App\Services\Forms;
 use App\Services\Inspections;
 use App\Services\KrmOts;
 use App\Services\Photos;
+use App\Services\Reports;
+use App\Services\Sss;
 use App\Services\Visits;
 
 $admin = Database::selectOne(
@@ -123,6 +125,29 @@ function lrms_test_photo(int $visitId): void
 
     (new Photos())->storeForVisit($visitId, base64_encode($binary), [
         'photo_type' => 'house',
+        'latitude' => 27.6890,
+        'longitude' => 78.9720,
+        'accuracy' => 8.0,
+    ]);
+}
+
+/**
+ * A real photograph on an inspection, through the real pipeline so the file exists on disk.
+ *
+ * It has to be a real file: the printed sheet decides whether to print the photographs heading
+ * by whether anything can actually be read, so a row pointing at nothing proves the wrong thing.
+ */
+function lrms_test_inspection_photo(int $inspectionId): void
+{
+    $image = imagecreatetruecolor(120, 90);
+    imagefilledrectangle($image, 0, 0, 120, 90, imagecolorallocate($image, 200, 210, 225));
+    ob_start();
+    imagejpeg($image, null, 85);
+    $binary = (string) ob_get_clean();
+    imagedestroy($image);
+
+    (new Photos())->storeForInspection($inspectionId, base64_encode($binary), [
+        'photo_type' => 'outlet',
         'latitude' => 27.6890,
         'longitude' => 78.9720,
         'accuracy' => 8.0,
@@ -1765,6 +1790,413 @@ ok(
     'Nothing comes through as the string "null"'
 );
 ok(array_key_exists('bca_name', $blank), 'The name is still filled in, because a user always has one');
+
+
+/* -------------------------------------------------------------------------- */
+section('The inspection carries the scheme figures for a window the inspector picks');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The client asked for the Social Security Scheme performance to appear on the inspection, for
+ * dates chosen at the time, and to print the same way it reads in the SSS register.
+ *
+ * Two things are being defended here beyond "it appears".
+ *
+ * Nobody types these figures. Sss says why in its own header: a number the system already holds
+ * must not also be entered by hand, or the agent is measured on one and defends the other. So
+ * they are read from the enrolment records, and the window is the only thing anybody chooses.
+ *
+ * And once the sheet is signed the figures stop moving. A day's enrolments can be corrected
+ * afterwards — an Admin can hand a submitted day back for exactly that — so a reprint that
+ * recomputed would disagree with the copy in the branch's file. That is the last check in this
+ * section and the one most worth keeping.
+ */
+
+Auth::setUser($admin);
+
+$schemeBcId = (int) Database::scalar(
+    'SELECT id FROM bc_supervisors ORDER BY id LIMIT 1'
+);
+$schemeBranchId = (int) Database::scalar(
+    'SELECT branch_id FROM bc_supervisors WHERE id = :id',
+    ['id' => $schemeBcId]
+);
+
+// A target of ten a working day, and five days actually reported.
+Sss::saveTarget($schemeBcId, date('Y-m-01'), [
+    'apy_target' => 2,
+    'pmjjby_target' => 3,
+    'pmsby_target' => 1,
+    'pmjdy_target' => 4,
+]);
+
+Database::delete('sss_enrolments', 'bc_supervisor_id = :bc', ['bc' => $schemeBcId]);
+
+foreach ([2, 3, 4, 5, 6] as $dayOfMonth) {
+    Database::insert('sss_enrolments', [
+        'uuid' => sprintf('aaaa5555-2222-4333-8444-5555666600%02d', $dayOfMonth),
+        'bc_supervisor_id' => $schemeBcId,
+        'branch_id' => $schemeBranchId,
+        'enrolment_date' => date('Y-m-') . sprintf('%02d', $dayOfMonth),
+        'apy_count' => $dayOfMonth,
+        'pmjjby_count' => 2,
+        'pmsby_count' => 0,
+        'pmjdy_count' => 5,
+        'source' => 'panel',
+        'status' => 'submitted',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+}
+
+/* The window, before anything is signed ---------------------------------- */
+
+$inspectionsService = new Inspections();
+$schemeStart = $inspectionsService->start([
+    'bc_supervisor_id' => $schemeBcId,
+    'inspection_date' => date('Y-m-12'),
+    'uuid' => 'aaaa5555-2222-4333-8444-555566660aa1',
+]);
+$schemeInspectionId = (int) $schemeStart['id'];
+$schemeDraft = Database::selectOne('SELECT * FROM inspections WHERE id = :id', ['id' => $schemeInspectionId]);
+
+equals(
+    ['from' => date('Y-m-01'), 'to' => date('Y-m-12')],
+    Inspections::sssWindow($schemeDraft),
+    "A window nobody has set covers the inspection's own month, up to the inspection date"
+);
+
+// A slip, not a request for nothing. The panel's own SSS screen swaps a reversed range too.
+equals(
+    ['from' => date('Y-m-05'), 'to' => date('Y-m-20')],
+    Inspections::sssWindow([
+        'inspection_date' => date('Y-m-12'),
+        'sss_from' => date('Y-m-20'),
+        'sss_to' => date('Y-m-05'),
+    ]),
+    'A window entered backwards is swapped rather than read as empty'
+);
+
+// Half a window would otherwise measure a period nobody asked for.
+equals(
+    ['from' => date('Y-m-01'), 'to' => date('Y-m-12')],
+    Inspections::sssWindow([
+        'inspection_date' => date('Y-m-12'),
+        'sss_from' => date('Y-m-03'),
+        'sss_to' => '',
+    ]),
+    'One date without the other falls back to the default window entirely'
+);
+
+// A draft shows live figures, and they are the register's figures for the same window.
+$draftBlock = Inspections::sssPerformance($schemeDraft);
+$registerBlock = Sss::forSupervisor($schemeBcId, date('Y-m-01'), date('Y-m-12'));
+
+ok($draftBlock !== null, 'A draft inspection offers the scheme block');
+equals(false, $draftBlock['frozen'] ?? true, 'And says its figures are not frozen yet');
+equals(
+    [(int) $registerBlock['total_achievement'], (int) $registerBlock['total_target']],
+    [(int) $draftBlock['total_achievement'], (int) $draftBlock['total_target']],
+    'A draft reads the same achievement and target as the SSS register does'
+);
+
+/* Signing it freezes them ------------------------------------------------- */
+
+lrms_test_inspection_photo($schemeInspectionId);
+
+$schemeFrom = date('Y-m-01');
+$schemeTo = date('Y-m-12');
+
+$inspectionsService->submit($schemeInspectionId, [
+    'form' => [
+        'sss_awareness' => 'Explains all four schemes and keeps the leaflets on the counter.',
+        'observation' => 'Good',
+    ],
+    'sss_from' => $schemeFrom,
+    'sss_to' => $schemeTo,
+    'remarks' => 'Outlet visited, registers seen.',
+]);
+
+$schemeSigned = Database::selectOne('SELECT * FROM inspections WHERE id = :id', ['id' => $schemeInspectionId]);
+
+equals($schemeFrom, (string) $schemeSigned['sss_from'], 'Submitting records the window the sheet was signed against');
+equals($schemeTo, (string) $schemeSigned['sss_to'], 'Both ends of it');
+
+$frozenRow = Database::selectOne(
+    'SELECT * FROM inspection_sss WHERE inspection_id = :id',
+    ['id' => $schemeInspectionId]
+);
+
+ok($frozenRow !== null, 'And freezes the figures against that window');
+
+// 2+3+4+5+6 across five reported days, and two Sundays inside a twelve day window.
+equals(20, (int) ($frozenRow['apy_count'] ?? 0), 'The APY count is the sum of the days in the window');
+equals(10, (int) ($frozenRow['pmjjby_count'] ?? 0), 'And PMJJBY');
+equals(0, (int) ($frozenRow['pmsby_count'] ?? 0), 'A scheme with nothing enrolled is frozen as zero, not left out');
+equals(25, (int) ($frozenRow['pmjdy_count'] ?? 0), 'And PMJDY');
+equals(5, (int) ($frozenRow['days_reported'] ?? 0), 'The days that were reported are recorded too');
+
+$schemeWorkingDays = Sss::workingDaysBetween($schemeFrom, $schemeTo);
+equals(
+    $schemeWorkingDays,
+    (int) ($frozenRow['working_days'] ?? 0),
+    sprintf('The working days behind the target are stored (%d), because that setting can change', $schemeWorkingDays)
+);
+equals(
+    2 * $schemeWorkingDays,
+    (int) ($frozenRow['apy_target'] ?? 0),
+    'A target is the daily figure times those working days'
+);
+
+$signedBlock = Inspections::sssPerformance($schemeSigned);
+equals(true, $signedBlock['frozen'] ?? false, 'A signed sheet reports its figures as frozen');
+equals(55, (int) $signedBlock['total_achievement'], 'Achievement adds up across the four schemes');
+equals(
+    10 * $schemeWorkingDays,
+    (int) $signedBlock['total_target'],
+    'And so does the target'
+);
+
+/* It prints, in the register's own columns, in the right place ------------- */
+
+$schemePdf = RecordExport::inspectionPdf($schemeInspectionId);
+$schemeText = pdf_text_flat($schemePdf['path']);
+
+ok(str_contains($schemeText, 'Social Security Scheme performance'), 'The printed sheet carries the scheme block');
+ok(
+    str_contains($schemeText, 'Read from the enrolment records, not answered on this form'),
+    'And says on the page that the figures were not answered by hand'
+);
+ok(
+    str_contains($schemeText, 'working day(s) of the daily figure'),
+    'And explains that a target is a daily figure times working days, as the register does'
+);
+ok(
+    str_contains($schemeText, 'signed against'),
+    'And that these are the figures it was signed against'
+);
+
+foreach (Sss::schemes() as $abbreviation) {
+    ok(str_contains($schemeText, $abbreviation), 'The table names the ' . $abbreviation . ' column');
+}
+
+ok(str_contains($schemeText, '20/' . (2 * $schemeWorkingDays)), 'A scheme cell reads achievement of target');
+
+/*
+ * Position. Item 16 asks whether the agent is aware of the schemes, so the figures belong
+ * directly under it — not after item 27, where the walk ends and the signature lines are.
+ */
+$item16At = strpos($schemeText, '16. BC awareness');
+$blockAt = strpos($schemeText, 'Social Security Scheme performance');
+$item17At = strpos($schemeText, '17. Complaint box');
+
+ok($item16At !== false && $blockAt !== false && $item17At !== false, 'Items 16 and 17 and the block are all on the sheet');
+ok(
+    $item16At !== false && $blockAt !== false && $item16At < $blockAt,
+    'The block comes after item 16, which is the question it answers'
+);
+ok(
+    $blockAt !== false && $item17At !== false && $blockAt < $item17At,
+    'And before item 17, rather than being appended past the signature'
+);
+
+/* The point of freezing them ---------------------------------------------- */
+
+Database::update(
+    'sss_enrolments',
+    ['apy_count' => 900, 'status' => Sss::STATUS_REOPENED, 'updated_at' => now()],
+    'bc_supervisor_id = :bc AND enrolment_date = :day',
+    ['bc' => $schemeBcId, 'day' => date('Y-m-02')]
+);
+
+$afterCorrection = Inspections::sssPerformance(
+    Database::selectOne('SELECT * FROM inspections WHERE id = :id', ['id' => $schemeInspectionId])
+);
+
+equals(
+    55,
+    (int) $afterCorrection['total_achievement'],
+    'A day corrected after the sheet was signed does not change what the sheet says'
+);
+ok(
+    (int) Sss::forSupervisor($schemeBcId, $schemeFrom, $schemeTo)['total_achievement'] > 55,
+    'Though the correction did land, and the live register shows it'
+);
+
+$reprint = pdf_text_flat(RecordExport::inspectionPdf($schemeInspectionId)['path']);
+ok(
+    str_contains($reprint, '20/' . (2 * $schemeWorkingDays)),
+    'So a reprint still matches the copy in the file'
+);
+
+/* A sheet signed before any of this existed -------------------------------- */
+
+$preSchemeId = Database::insert('inspections', [
+    'uuid' => 'aaaa5555-2222-4333-8444-555566660aa2',
+    'admin_user_id' => (int) $admin['id'],
+    'bc_supervisor_id' => $schemeBcId,
+    'branch_id' => $schemeBranchId,
+    'form_id' => (int) $inspectionForm['id'],
+    'inspection_date' => date('Y-m-d', strtotime('-200 days')),
+    'started_at' => now(),
+    'submitted_at' => now(),
+    'result' => 'good',
+    'status' => 'submitted',
+    'created_at' => now(),
+    'updated_at' => now(),
+]);
+
+equals(
+    null,
+    Inspections::sssPerformance(Database::selectOne('SELECT * FROM inspections WHERE id = :id', ['id' => $preSchemeId])),
+    'An inspection signed before the scheme block existed is given no figures at all'
+);
+ok(
+    !str_contains(pdf_text_flat(RecordExport::inspectionPdf($preSchemeId)['path']), 'Social Security Scheme performance'),
+    'And its reprint carries no scheme block, rather than gaining one it was never signed with'
+);
+
+/* And the register agrees with the sheet ----------------------------------- */
+
+$schemeRegister = Reports::run('bc_inspection', ['from' => date('Y-m-01'), 'to' => today()], 1, 100);
+$schemeLabels = array_map(static fn (array $c): string => (string) $c['label'], $schemeRegister['columns']);
+
+ok(in_array('Scheme window', $schemeLabels, true), 'The inspection register has a scheme window column');
+ok(in_array('Schemes', $schemeLabels, true), 'And the achievement against target');
+ok(in_array('Remarks', $schemeLabels, true), 'Remarks survived the addition');
+
+// writePdf() prints only the first eleven columns of a wide report, so the count is the
+// guard: one more and something already on the page would silently drop off it.
+ok(
+    count($schemeRegister['columns']) <= 11,
+    sprintf('The register still fits the printed page (%d columns)', count($schemeRegister['columns']))
+);
+
+$schemeColumn = ['key' => 'sss_achievement', 'type' => 'computed'];
+$windowColumn = ['key' => 'sss_window', 'type' => 'computed'];
+$signedRow = null;
+$preSchemeRow = null;
+
+foreach ($schemeRegister['rows'] as $registerRow) {
+    if ((int) $registerRow['id'] === $schemeInspectionId) {
+        $signedRow = $registerRow;
+    }
+}
+
+equals(
+    '55/' . (10 * $schemeWorkingDays),
+    Reports::value($schemeColumn, $signedRow ?? []),
+    'The register reads the same achievement of target as the sheet'
+);
+ok(
+    str_contains((string) Reports::value($windowColumn, $signedRow ?? []), format_date($schemeFrom)),
+    'And names the window it measured'
+);
+
+$preSchemeRegister = Reports::run(
+    'bc_inspection',
+    ['from' => date('Y-m-d', strtotime('-210 days')), 'to' => date('Y-m-d', strtotime('-190 days'))],
+    1,
+    100
+);
+
+foreach ($preSchemeRegister['rows'] as $registerRow) {
+    if ((int) $registerRow['id'] === $preSchemeId) {
+        $preSchemeRow = $registerRow;
+    }
+}
+
+equals(
+    null,
+    Reports::value($schemeColumn, $preSchemeRow ?? []),
+    'A sheet with no scheme figures leaves the column empty rather than claiming nought of nought'
+);
+
+/* -------------------------------------------------------------------------- */
+section('A heading is never printed without the thing it heads');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Two faults, both found by rendering a sheet and reading it.
+ *
+ * The photographs heading was printed from a count of database rows, while the grid below it
+ * skips any file it cannot read without a word. A site whose uploads had been moved therefore
+ * printed "Photographs at the BC point" with nothing whatever underneath.
+ *
+ * And the heading was drawn before the first row of pictures was measured, so it could finish a
+ * page with the photographs overleaf — a reader turning over finds pictures with no caption and
+ * the page before ends on a promise.
+ */
+
+$photoInspectionId = (int) Database::scalar(
+    'SELECT inspection_id FROM inspection_photos ORDER BY inspection_id DESC LIMIT 1'
+);
+$photoRow = Database::selectOne(
+    'SELECT * FROM inspection_photos WHERE inspection_id = :id ORDER BY id LIMIT 1',
+    ['id' => $photoInspectionId]
+);
+
+if ($photoRow === null) {
+    ok(false, 'An inspection photograph is on record to check the heading against');
+} else {
+    $photoFile = storage_path((string) $photoRow['file_path']);
+    $withPhoto = RecordExport::inspectionPdf($photoInspectionId);
+
+    ok(
+        str_contains(pdf_text_flat($withPhoto['path']), 'Photographs at the BC point'),
+        'A sheet with a readable photograph prints the photographs heading'
+    );
+
+    // The heading and the picture have to be on one page.
+    $headingPage = null;
+
+    foreach (pdf_text_runs($withPhoto['path']) as $run) {
+        if (str_contains($run['text'], 'Photographs at the BC point')) {
+            $headingPage = (int) $run['page'];
+        }
+    }
+
+    /*
+     * pdf_image_draws_per_page() is indexed from nought and pdf_text_runs() numbers pages from
+     * one, so the keys have to be shifted before the two can be compared. Its values are counts
+     * and can read higher than the number of pictures — it tallies every resource dictionary the
+     * name appears in — so only "more than none" is meaningful.
+     */
+    $imagePages = array_map(
+        static fn (int $index): int => $index + 1,
+        array_keys(array_filter(
+            pdf_image_draws_per_page($withPhoto['path'], $photoFile),
+            static fn (int $drawn): bool => $drawn > 0
+        ))
+    );
+
+    ok($headingPage !== null, 'The photographs heading is on the page somewhere');
+    ok(
+        $headingPage !== null && in_array($headingPage, $imagePages, true),
+        sprintf(
+            'And on the same page as the photograph itself (heading page %s, picture on %s)',
+            (string) $headingPage,
+            $imagePages === [] ? 'no page' : implode(',', $imagePages)
+        )
+    );
+
+    /*
+     * Now the same sheet with the file gone. The row stays, because that is the state a site
+     * gets into: the record of the photograph outlives the file.
+     */
+    $movedTo = $photoFile . '.moved';
+    rename($photoFile, $movedTo);
+
+    ok(
+        !str_contains(
+            pdf_text_flat(RecordExport::inspectionPdf($photoInspectionId)['path']),
+            'Photographs at the BC point'
+        ),
+        'A photograph whose file has gone takes its heading with it, rather than leaving it bare'
+    );
+
+    rename($movedTo, $photoFile);
+}
 
 /* -------------------------------------------------------------------------- */
 section('Every exported PDF carries a QR code back to its record');

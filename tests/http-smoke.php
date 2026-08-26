@@ -816,12 +816,28 @@ if ($visitId > 0) {
 $inspectionId = (int) Database::scalar("SELECT id FROM inspections WHERE status = 'submitted' ORDER BY id LIMIT 1");
 
 if ($inspectionId > 0) {
-    page('/admin/inspections/' . $inspectionId, 'Inspection report');
+    $inspectionReport = page('/admin/inspections/' . $inspectionId, 'Inspection report');
 
     $pdf = request($base . '/admin/inspections/' . $inspectionId . '/pdf');
     ok(
         $pdf['status'] === 200 && str_starts_with($pdf['body'], '%PDF-'),
         sprintf('Inspection report PDF (%d bytes)', strlen($pdf['body']))
+    );
+
+    // The seeded inspection was written straight into the database rather than submitted
+    // through the form, so it carries no frozen scheme figures. The screen has to render
+    // without them rather than showing a row of noughts for a period nobody measured.
+    $hasFrozenSchemes = (int) Database::scalar(
+        'SELECT COUNT(*) FROM inspection_sss WHERE inspection_id = :id',
+        ['id' => $inspectionId]
+    ) > 0;
+
+    equals(
+        $hasFrozenSchemes,
+        str_contains($inspectionReport, 'Social Security Scheme performance'),
+        $hasFrozenSchemes
+            ? 'The report shows the scheme figures it was signed against'
+            : 'A report with no scheme figures shows no scheme block, and still renders'
     );
 } else {
     ok(true, 'No submitted inspections to open (skipped)');
@@ -939,6 +955,45 @@ if ($supervisorId > 0) {
             str_contains($draftPage, 'item 24'),
             'It points at item 24 as the assessment instead'
         );
+
+        /*
+         * The Social Security Scheme block. Item 16 asks whether the agent is aware of the
+         * schemes; this is how many people they actually enrolled, over a window the inspector
+         * chooses.
+         *
+         * The dates are inside the main form on purpose. There is no draft save on this screen —
+         * it posts straight to submit — so a reload to refresh the figures would throw away
+         * every answer already typed into a form this long.
+         */
+        ok(
+            str_contains($draftPage, 'Social Security Scheme performance'),
+            'The inspection screen shows the scheme performance block'
+        );
+        ok(
+            str_contains($draftPage, 'name="sss_from"') && str_contains($draftPage, 'name="sss_to"'),
+            'With a from and a to date the inspector can set'
+        );
+        ok(
+            str_contains($draftPage, 'PMJJBY'),
+            'And the four schemes by name, as the SSS register lists them'
+        );
+        ok(
+            str_contains($draftPage, 'Open in the SSS register'),
+            'And a way through to the register itself for any other window'
+        );
+
+        /*
+         * The figures are read, never asked for. Sss says why in its own header: a number the
+         * system already holds must not also be typed by hand, or the agent is measured on one
+         * and defends the other. So no input on this page may carry a scheme count.
+         */
+        foreach (array_keys(\App\Services\Sss::schemes()) as $schemeColumn) {
+            ok(
+                !str_contains($draftPage, 'name="' . $schemeColumn . '"')
+                && !str_contains($draftPage, 'name="form[' . $schemeColumn . ']"'),
+                'Nothing on the screen asks anybody to type ' . $schemeColumn
+            );
+        }
     }
 }
 

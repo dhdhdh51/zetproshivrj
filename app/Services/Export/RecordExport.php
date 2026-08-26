@@ -12,6 +12,7 @@ use App\Services\Audit;
 use App\Services\Forms;
 use App\Services\Gps;
 use App\Services\Inspections;
+use App\Services\Sss;
 
 /**
  * Single-record documents.
@@ -177,7 +178,6 @@ final class RecordExport
         }
 
         if ($photos !== []) {
-            $pdf->heading('Photographic evidence');
             $pdf->imageGrid(array_map(static fn (array $photo): array => [
                 'path' => storage_path((string) $photo['file_path']),
                 'caption' => sprintf(
@@ -185,7 +185,7 @@ final class RecordExport
                     photo_types()[$photo['photo_type']] ?? ucfirst((string) $photo['photo_type']),
                     format_datetime($photo['captured_at'])
                 ),
-            ], $photos), 3);
+            ], $photos), 3, 'Photographic evidence');
         }
 
         self::signatures($pdf, [
@@ -292,11 +292,10 @@ final class RecordExport
             ? []
             : Forms::fields(Forms::KIND_INSPECTION, (int) $inspection['form_id']);
 
-        self::inspectionItems($pdf, $fields, $answers);
+        self::inspectionItems($pdf, $fields, $answers, $detail['sss'] ?? null);
 
         /* Item 23's photographs, and anything the BCA's own visit carried. */
         if ($detail['photos'] !== []) {
-            $pdf->heading('Photographs at the BC point');
             $pdf->imageGrid(array_map(static fn (array $photo): array => [
                 'path' => storage_path((string) $photo['file_path']),
                 'caption' => sprintf(
@@ -304,11 +303,10 @@ final class RecordExport
                     inspection_photo_types()[$photo['photo_type']] ?? ucfirst((string) $photo['photo_type']),
                     format_datetime($photo['captured_at'])
                 ),
-            ], $detail['photos']), 3);
+            ], $detail['photos']), 3, 'Photographs at the BC point');
         }
 
         if ($detail['visit_photos'] !== []) {
-            $pdf->heading('Photographs submitted by the BCA');
             $pdf->imageGrid(array_map(static fn (array $photo): array => [
                 'path' => storage_path((string) $photo['file_path']),
                 'caption' => sprintf(
@@ -316,7 +314,7 @@ final class RecordExport
                     photo_types()[$photo['photo_type']] ?? ucfirst((string) $photo['photo_type']),
                     format_datetime($photo['captured_at'])
                 ),
-            ], $detail['visit_photos']), 3);
+            ], $detail['visit_photos']), 3, 'Photographs submitted by the BCA');
         }
 
         /* The inspector's own remarks, kept separate from item 22 and item 27. */
@@ -436,10 +434,20 @@ final class RecordExport
         return array_key_exists($key, $stored) ? trim((string) $stored[$key]) : $default;
     }
 
-    private static function inspectionItems(PdfWriter $pdf, array $fields, array $answers): void
-    {
+    /**
+     * @param array<int, array<string, mixed>> $fields
+     * @param array<string, string>            $answers
+     * @param array<string, mixed>|null        $sss null on a sheet that carries no scheme figures
+     */
+    private static function inspectionItems(
+        PdfWriter $pdf,
+        array $fields,
+        array $answers,
+        ?array $sss = null
+    ): void {
         /** @var array<string, string> $pending */
         $pending = [];
+        $sssPrinted = false;
 
         $flush = static function () use ($pdf, &$pending): void {
             if ($pending !== []) {
@@ -563,9 +571,109 @@ final class RecordExport
                 default:
                     $pending[$label] = self::inspectionValue($type, $value);
             }
+
+            /*
+             * The scheme figures go directly under item 16.
+             *
+             * Item 16 asks whether the agent is aware of the Social Security Schemes; this is
+             * how many people they actually enrolled. Printed here rather than after the walk,
+             * for the same reason item 26's signature lines are: the walk ends at item 27 and
+             * the signature block, and a table of figures after the place somebody signs reads
+             * as an afterthought stapled on.
+             */
+            if ($key === 'sss_awareness' && $sss !== null) {
+                $flush();
+                self::inspectionSssTable($pdf, $sss);
+                $sssPrinted = true;
+            }
         }
 
         $flush();
+
+        // A form that has no item 16 — the retired eleven-question one, or a form edited in the
+        // builder — still prints the figures if the inspection carries them. Better at the end
+        // than not at all.
+        if ($sss !== null && !$sssPrinted) {
+            self::inspectionSssTable($pdf, $sss);
+        }
+    }
+
+    /**
+     * The Social Security Scheme standing, in the columns the panel's SSS register uses.
+     *
+     * The client asked for this to read the same as the register the figures come from, so the
+     * headings, the `achieved/target` cell and the working-day sentence are that screen's own.
+     * The register lists one row per agent; this is one agent, so one row, without the rank,
+     * name and branch that only mean something in a ranking.
+     *
+     * @param array<string, mixed> $sss a block from App\Services\Inspections::sssPerformance()
+     */
+    private static function inspectionSssTable(PdfWriter $pdf, array $sss): void
+    {
+        $schemes = Sss::schemes();
+
+        $headers = ['Days'];
+        $weights = [0.7];
+        $aligns = ['center'];
+
+        foreach ($schemes as $abbreviation) {
+            $headers[] = $abbreviation;
+            $weights[] = 1.0;
+            $aligns[] = 'center';
+        }
+
+        foreach (['Target', 'Achieved', '%', 'Gap'] as $trailing) {
+            $headers[] = $trailing;
+            $weights[] = $trailing === 'Gap' ? 0.7 : 0.9;
+            $aligns[] = 'right';
+        }
+
+        $days = number_format((int) $sss['days_reported']);
+
+        if ((int) $sss['days_reopened'] > 0) {
+            // Named on the page, because a day handed back for correction is the one thing that
+            // explains a figure changing after somebody signed for it.
+            $days .= sprintf(' (%d re-opened)', (int) $sss['days_reopened']);
+        }
+
+        $row = [$days];
+
+        foreach (array_keys($schemes) as $column) {
+            $row[] = sprintf(
+                '%s/%s',
+                number_format((int) ($sss['achievement'][$column] ?? 0)),
+                number_format((int) ($sss['target'][$column] ?? 0))
+            );
+        }
+
+        $row[] = number_format((int) $sss['total_target']);
+        $row[] = number_format((int) $sss['total_achievement']);
+        // "No target" rather than 0%: an agent nobody set a figure for has not failed to meet
+        // one, and printing 0% on a sheet that gets filed would say they had.
+        $row[] = $sss['has_target'] ? number_format((float) $sss['percent'], 1) . '%' : 'No target';
+        $row[] = number_format((int) $sss['gap']);
+
+        $caption = sprintf(
+            '%s to %s. Read from the enrolment records, not answered on this form. Each scheme '
+                . 'cell reads achievement of target. Targets are set per working day, so this '
+                . 'window is %s working day(s) of the daily figure.',
+            format_date($sss['window']['from']),
+            format_date($sss['window']['to']),
+            number_format((int) $sss['working_days'])
+        );
+
+        if ($sss['frozen']) {
+            $caption .= ' These are the figures this inspection was signed against.';
+        }
+
+        $pdf->captionedTable(
+            'Social Security Scheme performance',
+            $caption,
+            $headers,
+            [$row],
+            $weights,
+            $aligns
+        );
     }
 
     /**
@@ -630,7 +738,6 @@ final class RecordExport
             return;
         }
 
-        $pdf->heading('Signatures');
         $pdf->imageGrid(array_map(
             static fn (string $path, string $label): array => [
                 'path' => storage_path($path),
@@ -638,7 +745,7 @@ final class RecordExport
             ],
             array_values($present),
             array_keys($present)
-        ), 2);
+        ), 2, 'Signatures');
     }
 
     private static function yesNo(mixed $value): string

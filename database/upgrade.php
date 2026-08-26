@@ -122,6 +122,34 @@ $newTables = [
   KEY `ix_sss_targets_month` (`target_month`),
   CONSTRAINT `fk_sss_target_bc` FOREIGN KEY (`bc_supervisor_id`) REFERENCES `bc_supervisors` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    /* The scheme figures a signed inspection was signed against. --------------
+     *
+     * See the note above this table in schema.sql for why figures that can be derived are
+     * stored at all: an inspection is a sheet in a file, and the days behind it can be
+     * corrected after it is signed. */
+    'inspection_sss' => "CREATE TABLE `inspection_sss` (
+  `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `inspection_id`  BIGINT UNSIGNED NOT NULL,
+  `period_from`    DATE NOT NULL,
+  `period_to`      DATE NOT NULL,
+  `working_days`   SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `days_reported`  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `days_reopened`  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `apy_count`      INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjjby_count`   INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmsby_count`    INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjdy_count`    INT UNSIGNED NOT NULL DEFAULT 0,
+  `apy_target`     INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjjby_target`  INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmsby_target`   INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjdy_target`   INT UNSIGNED NOT NULL DEFAULT 0,
+  `created_at`     DATETIME NULL,
+  `updated_at`     DATETIME NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_inspection_sss` (`inspection_id`),
+  CONSTRAINT `fk_insp_sss_inspection` FOREIGN KEY (`inspection_id`) REFERENCES `inspections` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
 /**
@@ -249,6 +277,14 @@ $columns = [
     ['sss_enrolments', 'submitted_at', 'DATETIME NULL', 'status'],
     ['sss_enrolments', 'reopened_by', 'BIGINT UNSIGNED NULL', 'submitted_at'],
     ['sss_enrolments', 'reopened_at', 'DATETIME NULL', 'reopened_by'],
+
+    /* The window the scheme figures on a printed inspection cover. ------------
+     *
+     * Nullable with no default, and nothing backfills it: an inspection signed before this
+     * existed measured no window, and inventing one for it would put figures on a reprint
+     * that were never on the sheet somebody signed. */
+    ['inspections', 'sss_from', 'DATE NULL', 'photo_count'],
+    ['inspections', 'sss_to', 'DATE NULL', 'sss_from'],
 ];
 
 /**

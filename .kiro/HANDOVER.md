@@ -276,6 +276,49 @@ Everything below is on the branch, green in CI, and live-ready.
     connection stalls an unguarded sign-in just as surely as a guarded one, because `devices`
     and `api_tokens` both reference `users` and the foreign key on the insert needs the held
     row. A check that passes either way is worse than no check.
+- **The monthly inspection carries the agent's Social Security Scheme figures**, for a window the
+  inspector chooses. Item 16 of the client's form asks whether the agent is *aware* of the
+  schemes; what the sheet could never say was how many people they had actually enrolled, because
+  those figures lived only in the panel's SSS register.
+  - **Nobody types them.** They are read from the enrolment records. `Sss`'s own header states the
+    rule — a figure the system already holds must not also be entered by hand, or the agent ends
+    up measured on one number while defending another — and a form field on the inspection screen
+    is an editable box, so these are deliberately *not* form fields. `http-smoke` asserts that no
+    input on the screen is named for a scheme count.
+  - The window is two columns on `inspections` (`sss_from`, `sss_to`), defaulting to the
+    inspection's own month up to the inspection date, which is the window the SSS screen opens on.
+    A range entered backwards is swapped; one date without the other reverts to the default
+    rather than quietly measuring a period nobody asked for.
+  - **Signing the sheet freezes the figures** into `inspection_sss`. This is the one place a
+    derivable number is stored, and the reason is that an inspection is a sheet somebody signs and
+    files: a day's enrolments can be corrected afterwards, and an Admin can hand a submitted day
+    back for exactly that, so a reprint that recomputed would disagree with the copy in the
+    branch's file. The same reasoning already freezes `photo_count` and copies a field's label and
+    type onto `inspection_form_values`. Only the raw counts are stored — no total, percentage or
+    gap, because a stored total is one that can end up disagreeing with its parts.
+    - A draft has no frozen row and shows live figures. An inspection **submitted before this
+      existed** has none either, and gets no block at all: putting today's arithmetic onto a sheet
+      signed last year is the same mistake pointing the other way.
+  - It prints directly under item 16 — not after the walk, which ends at item 27 and the signature
+    lines — in the register's own columns, with each scheme cell reading achievement of target.
+    Verified to cost **no extra pages**: the same inspection renders to the same page count with
+    and without the block.
+  - The inspection register gained two columns, "Scheme window" and "Schemes" (achievement of
+    target). Two and not five because `writePdf()` prints only the first eleven columns of a wide
+    report and this one already had nine — a target, an achievement, a percentage and a gap would
+    have pushed Remarks off the printed page, and the percentage is the one figure a reader can
+    work out from the pair. A test asserts the column count still fits.
+- **A heading is never printed without the thing it heads.** Two faults in the photograph grid,
+  both found by rendering a sheet and reading it rather than by a failing assertion:
+  - The photographs heading was printed from a **count of database rows**, while the grid below it
+    skips any file it cannot read without a word. A site whose uploads had been moved printed
+    "Photographs at the BC point" with nothing whatever underneath.
+  - The heading was drawn **before the first row of pictures was measured**, so it could finish a
+    page with the photographs overleaf.
+  - `imageGrid()` now takes the heading, filters to files it can actually read first, returns
+    without a word when none survive, and reserves the heading and the first row together. All
+    five callers pass their heading in. Both faults are covered by tests that were checked to fail
+    against the old behaviour.
 - **The app no longer ships its own test tools.** The "Test connection" button and the
   diagnostic notice under the sign-in form are gone, with `AppViewModel.testConnection()`,
   `FieldRepository.testConnection()`, the two `AuthState` fields behind them and their strings
@@ -289,7 +332,7 @@ Everything below is on the branch, green in CI, and live-ready.
 
 ## Current state
 
-- Suites: `160 / 374 / 220 / 444 / 107`
+- Suites: `160 / 383 / 220 / 491 / 107`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
 - Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
   `lintDebug` clean, release APK and AAB build.

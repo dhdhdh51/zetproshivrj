@@ -121,7 +121,7 @@ php tests/test-reports.php
 php tests/test-qr.php                       # pure computation, no server or database
 ```
 
-Counts: `160 / 374 / 220 / 444 / 107`.
+Counts: `160 / 383 / 220 / 491 / 107`.
 
 `PHP_CLI_SERVER_WORKERS` is not decoration. `api-smoke.php` has a section that fires fourteen
 sign-ins at once to prove an account cannot end up with two live handsets, and the built-in

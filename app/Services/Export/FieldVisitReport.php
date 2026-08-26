@@ -661,7 +661,6 @@ final class FieldVisitReport
             return;
         }
 
-        $pdf->heading('Photographs captured in the field', 9.0);
         $pdf->imageGrid(array_map(
             static fn (array $photo): array => [
                 'path' => storage_path((string) $photo['file_path']),
@@ -672,7 +671,7 @@ final class FieldVisitReport
                 ),
             ],
             $photos
-        ), 3);
+        ), 3, 'Photographs captured in the field', 9.0);
     }
 
     /* ------------------------------------------------------------------ */
