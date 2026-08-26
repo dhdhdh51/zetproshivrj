@@ -4,10 +4,11 @@ This branch exists only to give the app a download link. Nothing else lives on i
 
 ## Download
 
-**[LRMS-v1.6.2-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetprobbbvHGY/apk/LRMS-v1.6.2-SIGNED.apk)**
+**[LRMS-v1.6.3-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.6.3-SIGNED.apk)**
 — open that link on the phone and Android will offer to install it.
 
-> **Coming from 1.6.0 or 1.6.1:** it installs straight over it. Nothing to uninstall, nothing lost.
+> **Coming from 1.6.0, 1.6.1 or 1.6.2:** it installs straight over it. Nothing to uninstall,
+> nothing lost.
 >
 > **Coming from 1.5.5 or older:** 1.6.0 changed the signing key, so the app has to be
 > replaced once. On each handset: **open the app and sync until nothing is waiting**, then
@@ -16,6 +17,57 @@ This branch exists only to give the app a download link. Nothing else lives on i
 > only copy of that day's work. After this one time, every release installs over the last.
 >
 > Certificate: `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4`
+
+## 1.6.3 — the sign-in screen is for signing in
+
+Two things sat under the sign-in form that were never meant for the field: a **Test
+connection** button, and the full server address printed underneath it. They were added to
+tell a wrong server apart from a dead network, and on a developer's screen they did exactly
+that. But the sign-in screen is the first thing a BCA sees, and to them a diagnostic button
+and a web address are two more things that can be wrong before they have typed a password.
+
+Both are gone. Nothing is lost by it: when the server refuses something, the message already
+names the host it came from, so anyone helping over the phone still gets the same answer.
+
+The line at the foot of the screen no longer says `production` in front of the version — the
+real build has no need to announce that it is the real one. A staging build still says so.
+
+The warning that an APK is pointed at a developer machine has deliberately **stayed**. It
+only appears when the app is built against `localhost`, and it is the one thing that stops a
+test build being handed out and used at an outlet by mistake.
+
+### The printed reports
+
+The rest of this release is the PDFs, which the client said simply looked wrong. Every page of
+all four documents was rendered and read, and there were seven separate problems — all of them
+about where things landed on the page rather than what they said:
+
+- **The inspection wasted a whole sheet.** Its third page stopped just short of the bottom and
+  the QR code went onto a fourth, leaving that page almost entirely blank. The office address
+  and the QR now share one block at the foot of the form. Three pages instead of four.
+- **Item 26 was printed twice**, and its signature lines came after item 27 — so the sheet read
+  25, 26, 27, then 26 again, with the ruled lines under the second one. It now appears once, in
+  its place, with the lines directly beneath it.
+- **"Scan to open this record" was cut to "Scan to open this rec…"** on the inspection form.
+- **"11. DECLARATION"** on the verification report ended a page with the declaration itself
+  overleaf. A heading now stays with what it heads.
+- **Signature captions sat right on top of the next section's heading bar.**
+- **Tick boxes turned up with nothing to say what they answered** — "Sign board at the BC
+  point" ended a page and its Yes / No boxes started the next, and a group of six options split
+  in half across a page break. A group of boxes now stays with its question.
+- **An evidence photograph printed as a solid black box** with white lettering across it,
+  because the stamp burnt into the picture came out taller than the picture.
+
+Every QR code on every document was scanned back out of the printed page to check it still
+leads where it should.
+
+### And one thing you would never have seen
+
+Two phones signing in at the very same moment could both bind to one account, which is the
+single thing device binding exists to prevent. It needed the two sign-ins to overlap within a
+few milliseconds, so it would have shown up as a BCA whose phone stopped working for no
+reason anybody could reproduce. Closed, and there is now a test that fires fourteen sign-ins
+at once, ten times over, to keep it closed.
 
 ## 1.6.2 — the app calls you a BCA, because that is what you are
 
@@ -164,23 +216,24 @@ visit, not a transaction.
 ## Details
 
 Built by CI, then signed with the D2 release key. Verified before publishing: zipalign
-ok, signature schemes **v2 and v3**, and the Hindi resources confirmed present in the
-built file.
+ok, signature schemes **v2 and v3**, the version name read back out of the built
+manifest, the Hindi resources confirmed present, and the two diagnostic strings this
+release removes confirmed absent from the packaged resources.
 
 | | |
 | --- | --- |
-| Version | 1.6.2 |
+| Version | 1.6.3 |
 | Server | https://cvbuilder.bharatseo.site/api/v1/ |
 | Signed by | D2 Recovery Solution, Patna, Bihar, IN |
 | Certificate SHA-256 | `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4` |
-| File SHA-256 | `bc9c02d59900d34afa857f7b54d6935a5ab8fd398b8348c365ed2b24fe2fec3e` |
+| File SHA-256 | `4ade099868587223b09dfb3b7ef2e3e9cf2fbc1b46c2128eb5fbaa94b282b98c` |
 | Size | 3.3M |
 
-Same certificate as 1.6.0 and 1.6.1, so this installs straight over either without
-uninstalling. Builds up to 1.5.5 used a different key — see the note at the top.
+Same certificate as 1.6.0, 1.6.1 and 1.6.2, so this installs straight over any of them
+without uninstalling. Builds up to 1.5.5 used a different key — see the note at the top.
 
 ```
-sha256sum LRMS-v1.6.2-SIGNED.apk     # must match the File SHA-256 above
+sha256sum LRMS-v1.6.3-SIGNED.apk     # must match the File SHA-256 above
 ```
 
 If the certificate fingerprint ever differs from the one above, it was signed with a
@@ -189,5 +242,10 @@ asking why.
 
 ## Older builds
 
-Superseded APKs are removed rather than left downloadable. Every version is rebuildable
-from its commit.
+1.5.4 onwards are all still on this branch, and stay there. A download link for a build
+gets forwarded round a branch by WhatsApp and lives far longer than the release does, so
+deleting one turns somebody's saved link into a 404 with nothing to explain it. The
+previous build is also the only way back if a new one turns out to be wrong on a handset.
+
+Install the newest one unless you have been told otherwise. Every version is also
+rebuildable from its commit.
