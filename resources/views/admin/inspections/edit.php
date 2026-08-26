@@ -346,6 +346,54 @@ foreach ($gps as $point) {
         </div>
     </div>
 
+    <?php if ($sss !== null): ?>
+        <div class="card">
+            <div class="card-head">
+                <div class="grow">
+                    <h2>Social Security Scheme performance</h2>
+                    <div class="tiny muted">
+                        Item 16 above asks whether the agent is <em>aware</em> of the schemes. This is what
+                        they actually enrolled, read from the enrolment records — there is nothing to type
+                        here, and nothing typed here could disagree with the register.
+                    </div>
+                </div>
+                <div class="page-actions" style="margin:0">
+                    <a class="btn btn-secondary btn-sm" target="_blank" rel="noopener"
+                       data-sss-register="<?= e(url('/admin/sss')) ?>"
+                       data-sss-supervisor="<?= (int) $inspection['bc_supervisor_id'] ?>"
+                       href="<?= e(url('/admin/sss?' . http_build_query([
+                           'bc_supervisor_id' => (int) $inspection['bc_supervisor_id'],
+                           'from' => $sss['window']['from'],
+                           'to' => $sss['window']['to'],
+                       ]))) ?>"><?= icon('chart', '', 14) ?> Open in the SSS register</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="sss_from">Scheme figures from</label>
+                        <input type="date" id="sss_from" name="sss_from" data-sss-from
+                               value="<?= e($sss['window']['from']) ?>">
+                    </div>
+                    <div class="field">
+                        <label for="sss_to">to</label>
+                        <input type="date" id="sss_to" name="sss_to" data-sss-to
+                               value="<?= e($sss['window']['to']) ?>">
+                    </div>
+                </div>
+
+                <?= view_partial('partials.sss-block', ['sss' => $sss]) ?>
+
+                <p class="help" style="margin-bottom:0">
+                    The dates are submitted with the rest of the form, and the sheet is printed for
+                    whatever they say. The table above is for the dates as they were when this page
+                    loaded — change them and the link above opens the register for the new window in a
+                    new tab, so nothing typed on this page is lost checking.
+                </p>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <div class="card">
         <div class="card-head">
             <div class="grow">

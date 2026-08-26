@@ -722,6 +722,15 @@ CREATE TABLE `inspections` (
   `status`            ENUM('draft','submitted') NOT NULL DEFAULT 'draft',
   `gps_verified`      TINYINT(1) NOT NULL DEFAULT 0,
   `photo_count`       INT UNSIGNED NOT NULL DEFAULT 0,
+  -- The window the Social Security Scheme figures on this sheet cover. Chosen by the
+  -- inspector, because "how has this agent been doing on the schemes" is a question about a
+  -- period and not about the day of the visit. Null on an inspection recorded before the
+  -- block existed, and on one where the inspector left it alone.
+  --
+  -- Only the window is stored here. The figures themselves are in `inspection_sss`, and are
+  -- never asked for: see the note on that table.
+  `sss_from`          DATE NULL,
+  `sss_to`            DATE NULL,
   `inspector_signature` VARCHAR(255) NULL,
   `bc_signature`      VARCHAR(255) NULL,
   `created_at`        DATETIME NULL,
@@ -757,6 +766,58 @@ CREATE TABLE `inspection_form_values` (
   KEY `ix_insp_values_field` (`field_id`),
   CONSTRAINT `fk_insp_values_inspection` FOREIGN KEY (`inspection_id`) REFERENCES `inspections` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_insp_values_field` FOREIGN KEY (`field_id`) REFERENCES `inspection_form_fields` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The Social Security Scheme standing this sheet was signed against.
+--
+-- WHY THIS IS STORED AT ALL
+--
+-- Every figure here can be derived from `sss_enrolments` and `sss_targets`, and ordinarily
+-- that is exactly what should happen — Sss keeps no column for a percentage or a gap for
+-- precisely that reason. This is the exception, because an inspection is a sheet somebody
+-- signs and files. A day's enrolments can be corrected afterwards, and an Admin can hand a
+-- submitted day back for exactly that (`Sss::reopen()`), so recomputing at print time would
+-- make a reprint disagree with the copy in the branch's file. The same reasoning already
+-- freezes `photo_count` onto `inspections` and copies the label and type of a form field
+-- onto `inspection_form_values`.
+--
+-- Written once, when the inspection is submitted. A draft has no row and shows live figures,
+-- which is right: until it is signed there is nothing to hold still.
+--
+-- WHAT IS DELIBERATELY NOT HERE
+--
+-- No total, no percentage, no gap. Those are arithmetic over the columns that are here, and
+-- a stored total is a total that can end up disagreeing with the parts it came from.
+--
+-- The counts are INT and not the SMALLINT the daily table uses. `sss_enrolments` caps a
+-- single day at 999 per scheme, but these are sums over a window: a year of that is 364,635,
+-- which a SMALLINT would silently wrap.
+DROP TABLE IF EXISTS `inspection_sss`;
+CREATE TABLE `inspection_sss` (
+  `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `inspection_id`  BIGINT UNSIGNED NOT NULL,
+  -- Copied from `inspections`, so this row says which window it measured even if the
+  -- inspection's own dates are later changed.
+  `period_from`    DATE NOT NULL,
+  `period_to`      DATE NOT NULL,
+  -- What the target was multiplied by. Stored because `report_working_days` is a setting: a
+  -- later change to it must not silently restate what this sheet claimed.
+  `working_days`   SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `days_reported`  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `days_reopened`  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `apy_count`      INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjjby_count`   INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmsby_count`    INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjdy_count`    INT UNSIGNED NOT NULL DEFAULT 0,
+  `apy_target`     INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjjby_target`  INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmsby_target`   INT UNSIGNED NOT NULL DEFAULT 0,
+  `pmjdy_target`   INT UNSIGNED NOT NULL DEFAULT 0,
+  `created_at`     DATETIME NULL,
+  `updated_at`     DATETIME NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_inspection_sss` (`inspection_id`),
+  CONSTRAINT `fk_insp_sss_inspection` FOREIGN KEY (`inspection_id`) REFERENCES `inspections` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `inspection_gps`;

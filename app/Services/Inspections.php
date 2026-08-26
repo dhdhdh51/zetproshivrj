@@ -55,6 +55,236 @@ final class Inspections
     ];
 
     /* ------------------------------------------------------------------ */
+    /* Social Security Scheme standing, as at the inspection              */
+    /* ------------------------------------------------------------------ */
+
+    /*
+     * The inspection asks, at item 16, whether the agent is aware of the Social Security
+     * Schemes. What it could not say was how many people they had actually enrolled — the
+     * figures were in the panel's own SSS register and nowhere on the sheet the branch signs.
+     *
+     * So the sheet now carries them, for a window the inspector chooses.
+     *
+     * NOBODY TYPES THEM
+     *
+     * They are read from the enrolment records, never asked for. Sss says why in its own
+     * header: a figure the system already holds must not also be typed by a person, or the
+     * agent ends up measured on one number while defending another. That rules out making
+     * these form fields, because a form field on this screen is an editable box.
+     */
+
+    /**
+     * The window the scheme figures on a sheet cover.
+     *
+     * Defaults to the inspection's own month up to the inspection date: the window the panel's
+     * SSS screen opens on, and what "as at this inspection" means on a monthly visit. It is a
+     * default and not a rule — the inspector sets the dates, because how long a period is worth
+     * looking at is a judgement. A fortnight after a warning is a different question from a
+     * quarter before handing someone more work.
+     *
+     * @param array<string, mixed> $inspection
+     * @return array{from: string, to: string}
+     */
+    public static function sssWindow(array $inspection): array
+    {
+        $date = trim((string) ($inspection['inspection_date'] ?? '')) ?: today();
+        $from = trim((string) ($inspection['sss_from'] ?? ''));
+        $to = trim((string) ($inspection['sss_to'] ?? ''));
+
+        // Half a window is not a window. One end without the other goes back to the default
+        // rather than reading the missing end as "today", which would quietly measure a period
+        // nobody asked for.
+        if ($from === '' || $to === '') {
+            $from = date('Y-m-01', (int) strtotime($date));
+            $to = $date;
+        }
+
+        // Entered backwards is a slip, not a request for nothing. Every other date range in the
+        // panel swaps them — SssController does the same with its own from/to.
+        return $to < $from ? ['from' => $to, 'to' => $from] : ['from' => $from, 'to' => $to];
+    }
+
+    /**
+     * The scheme block for an inspection, or null when there is none to show.
+     *
+     * A submitted sheet reads its own frozen row and nothing else. Recomputing would be worse
+     * than useless: a day's enrolments can be corrected after the event, and an Admin can hand
+     * a submitted day back for exactly that, so a reprint would carry figures that were never
+     * on the copy in the branch's file.
+     *
+     * An inspection submitted before this block existed has no frozen row, and gets no block.
+     * Putting today's arithmetic onto a sheet signed last year is the same mistake pointing the
+     * other way.
+     *
+     * A draft has nothing frozen yet, so it shows live figures for its window. Until it is
+     * signed there is nothing to hold still.
+     *
+     * @param array<string, mixed> $inspection
+     * @return array<string, mixed>|null
+     */
+    public static function sssPerformance(array $inspection): ?array
+    {
+        $frozen = Database::selectOne(
+            'SELECT * FROM inspection_sss WHERE inspection_id = :id',
+            ['id' => (int) $inspection['id']]
+        );
+
+        if ($frozen !== null) {
+            $achievement = [];
+            $target = [];
+
+            foreach (array_keys(Sss::schemes()) as $column) {
+                $achievement[$column] = (int) ($frozen[$column] ?? 0);
+                $target[$column] = (int) ($frozen[Sss::targetColumn($column)] ?? 0);
+            }
+
+            return self::sssBlock(
+                ['from' => (string) $frozen['period_from'], 'to' => (string) $frozen['period_to']],
+                $achievement,
+                $target,
+                (int) $frozen['working_days'],
+                (int) $frozen['days_reported'],
+                (int) $frozen['days_reopened'],
+                true
+            );
+        }
+
+        if ((string) ($inspection['status'] ?? '') === 'submitted') {
+            return null;
+        }
+
+        $window = self::sssWindow($inspection);
+        $live = Sss::forSupervisor((int) $inspection['bc_supervisor_id'], $window['from'], $window['to']);
+
+        return self::sssBlock(
+            $window,
+            $live['achievement'],
+            $live['target'],
+            (int) $live['working_days'],
+            (int) $live['days_reported'],
+            (int) $live['days_reopened'],
+            false
+        );
+    }
+
+    /**
+     * One shape for the scheme block, whether it came from the frozen row or from live records.
+     *
+     * The total, the percentage and the gap are worked out here and stored nowhere, which is
+     * why the frozen row holds only the counts. Two places building this by hand is how a
+     * printed sheet and a screen come to disagree about the same arithmetic.
+     *
+     * @param array{from: string, to: string} $window
+     * @param array<string, int> $achievement keyed by the *_count columns
+     * @param array<string, int> $target      keyed by the same *_count columns, not *_target
+     * @return array<string, mixed>
+     */
+    private static function sssBlock(
+        array $window,
+        array $achievement,
+        array $target,
+        int $workingDays,
+        int $daysReported,
+        int $daysReopened,
+        bool $frozen
+    ): array {
+        $totalAchievement = array_sum($achievement);
+        $totalTarget = array_sum($target);
+
+        return [
+            'window' => $window,
+            // True once the inspection is signed. The screens say so, because "these figures
+            // are as they were on the day" is different from "these figures are current".
+            'frozen' => $frozen,
+            'working_days' => $workingDays,
+            'days_reported' => $daysReported,
+            'days_reopened' => $daysReopened,
+            'achievement' => $achievement,
+            'target' => $target,
+            'total_achievement' => $totalAchievement,
+            'total_target' => $totalTarget,
+            'has_target' => $totalTarget > 0,
+            'percent' => percent_of($totalAchievement, $totalTarget),
+            'gap' => max(0, $totalTarget - $totalAchievement),
+        ];
+    }
+
+    /**
+     * A posted window, reduced to two dates or to nothing.
+     *
+     * @param array<string, mixed> $payload
+     * @return array{from: ?string, to: ?string}
+     */
+    private static function sssWindowInput(array $payload): array
+    {
+        $clean = static function (mixed $value): ?string {
+            $value = trim((string) $value);
+
+            if ($value === '') {
+                return null;
+            }
+
+            // An unparseable date is dropped rather than raising: the window is not what the
+            // inspector came to record, and refusing a whole sheet of observations over a
+            // mistyped date would lose the visit.
+            $stamp = strtotime($value);
+
+            return $stamp === false ? null : date('Y-m-d', $stamp);
+        };
+
+        return [
+            'from' => $clean($payload['sss_from'] ?? ''),
+            'to' => $clean($payload['sss_to'] ?? ''),
+        ];
+    }
+
+    /**
+     * Freeze the scheme figures this sheet is being signed against.
+     *
+     * @param array{from: string, to: string} $window
+     */
+    private static function writeSssSnapshot(int $inspectionId, int $bcSupervisorId, array $window): void
+    {
+        $block = Sss::forSupervisor($bcSupervisorId, $window['from'], $window['to']);
+
+        $figures = [];
+
+        foreach (array_keys(Sss::schemes()) as $column) {
+            $figures[$column] = (int) ($block['achievement'][$column] ?? 0);
+            // The target arrives keyed by the count column, and is stored under its own name.
+            $figures[Sss::targetColumn($column)] = (int) ($block['target'][$column] ?? 0);
+        }
+
+        $row = array_merge($figures, [
+            'period_from' => $window['from'],
+            'period_to' => $window['to'],
+            'working_days' => (int) $block['working_days'],
+            'days_reported' => (int) $block['days_reported'],
+            'days_reopened' => (int) $block['days_reopened'],
+            'updated_at' => now(),
+        ]);
+
+        // An upsert against the unique key, not a plain insert. submit() is deliberately
+        // idempotent and the panel's submit button can be double-pressed, and two rows claiming
+        // different figures for one sheet is not a state anything downstream could resolve.
+        $existing = Database::selectOne(
+            'SELECT id FROM inspection_sss WHERE inspection_id = :id',
+            ['id' => $inspectionId]
+        );
+
+        if ($existing !== null) {
+            Database::update('inspection_sss', $row, 'id = :id', ['id' => (int) $existing['id']]);
+
+            return;
+        }
+
+        Database::insert('inspection_sss', array_merge($row, [
+            'inspection_id' => $inspectionId,
+            'created_at' => now(),
+        ]));
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Context: what has the supervisor been doing?                       */
     /* ------------------------------------------------------------------ */
 
@@ -389,6 +619,22 @@ final class Inspections
 
         $followupRequired = self::followupRequired($payload, $validated['values'], $result);
 
+        /*
+         * The scheme window, resolved before the write so the sheet records the period it was
+         * actually signed against.
+         *
+         * Whatever the inspector chose wins; anything they left alone falls back to what the
+         * draft already held, and then to the default. It is written back to the inspection so
+         * that a later change to the default cannot restate what this sheet measured.
+         */
+        $posted = self::sssWindowInput($payload);
+        $sssWindow = self::sssWindow([
+            'inspection_date' => $inspection['inspection_date'] ?? null,
+            'sss_from' => $posted['from'] ?? $inspection['sss_from'] ?? null,
+            'sss_to' => $posted['to'] ?? $inspection['sss_to'] ?? null,
+        ]);
+        $bcSupervisorId = (int) $inspection['bc_supervisor_id'];
+
         Database::transaction(function () use (
             $inspectionId,
             $result,
@@ -398,7 +644,9 @@ final class Inspections
             $photoCount,
             $inspectorSignature,
             $bcSignature,
-            $followupRequired
+            $followupRequired,
+            $bcSupervisorId,
+            $sssWindow
         ): void {
             Database::update('inspections', [
                 'result' => $result,
@@ -407,6 +655,8 @@ final class Inspections
                 'status' => 'submitted',
                 'submitted_at' => now(),
                 'photo_count' => $photoCount,
+                'sss_from' => $sssWindow['from'],
+                'sss_to' => $sssWindow['to'],
                 'inspector_signature' => $inspectorSignature,
                 'bc_signature' => $bcSignature,
                 'updated_at' => now(),
@@ -415,6 +665,11 @@ final class Inspections
             if ($fields !== []) {
                 Forms::saveValues(Forms::KIND_INSPECTION, $inspectionId, $fields, $validated['values']);
             }
+
+            // Inside the transaction with the rest of the sheet: a submitted inspection whose
+            // figures did not get frozen would print no scheme block at all, and there would be
+            // nothing to say whether that was the intent or a failure halfway through.
+            self::writeSssSnapshot($inspectionId, $bcSupervisorId, $sssWindow);
         });
 
         $fresh = Database::selectOne('SELECT * FROM inspections WHERE id = :id', ['id' => $inspectionId]) ?? [];
@@ -688,6 +943,9 @@ final class Inspections
         return [
             'inspection' => $inspection,
             'answers' => Forms::values(Forms::KIND_INSPECTION, $inspectionId),
+            // Null on a sheet that carries no scheme figures, which every consumer treats as
+            // "print nothing" rather than as zeros. See sssPerformance().
+            'sss' => self::sssPerformance($inspection),
             'photos' => Database::select(
                 'SELECT * FROM inspection_photos WHERE inspection_id = :id ORDER BY id ASC',
                 ['id' => $inspectionId]

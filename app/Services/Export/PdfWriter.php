@@ -1219,6 +1219,59 @@ final class PdfWriter
     }
 
     /**
+     * A table under a heading and a line of explanation, opened as one block.
+     *
+     * table() repeats its column headers after a page break, so a long table breaking is
+     * already handled. What is not handled is the heading and its caption finishing a page with
+     * the table itself overleaf: the reader turns over and finds a grid of figures with nothing
+     * to say what they count. So the opening of the whole block is reserved together — heading,
+     * caption, column headers and one row.
+     *
+     * @param array<int, string>            $headers
+     * @param array<int, array<int, mixed>> $rows
+     * @param array<int, float>|null        $weights
+     * @param array<int, string>|null       $aligns
+     */
+    public function captionedTable(
+        string $heading,
+        string $caption,
+        array $headers,
+        array $rows,
+        ?array $weights = null,
+        ?array $aligns = null
+    ): void {
+        if ($headers === []) {
+            return;
+        }
+
+        $headingSize = 10.5;
+        $captionSize = 8.0;
+
+        // Measured the way each piece actually advances the cursor, so the reservation cannot
+        // drift from what gets drawn: heading() moves by size + 8, paragraph() by a line height
+        // of size + 3 each plus 4, and table() opens with an 18pt header band and a 15pt row.
+        $needed = $headingSize + 8.0;
+
+        if ($caption !== '') {
+            $needed += count($this->wrap($caption, $this->contentWidth(), $captionSize, self::FONT_REGULAR))
+                * ($captionSize + 3.0);
+            $needed += 4.0;
+        }
+
+        $needed += 18.0 + 15.0;
+
+        $this->ensurePage($needed);
+
+        $this->heading($heading, $headingSize);
+
+        if ($caption !== '') {
+            $this->paragraph($caption, $captionSize);
+        }
+
+        $this->table($headers, $rows, $weights, $aligns);
+    }
+
+    /**
      * @param array<int, string> $headers
      * @param array<int, float>  $widths
      * @param array<int, string> $aligns
@@ -1295,9 +1348,17 @@ final class PdfWriter
      * Lay photographs out in a grid, which is how the visit and inspection
      * reports present their evidence.
      *
+     * Pass the heading in rather than printing it first: only this method knows how many of the
+     * files can actually be read, and how much room the first row of pictures needs.
+     *
      * @param array<int, array{path:string, caption?:string}> $photos
      */
-    public function imageGrid(array $photos, int $columns = 3): void
+    public function imageGrid(
+        array $photos,
+        int $columns = 3,
+        ?string $heading = null,
+        float $headingSize = 10.5
+    ): void
     {
         if ($photos === []) {
             return;
@@ -1308,10 +1369,39 @@ final class PdfWriter
         $cellWidth = ($this->contentWidth() - ($gap * ($columns - 1))) / $columns;
         $cellHeight = $cellWidth * 0.75;
 
+        /*
+         * Which of these can actually be drawn, settled before anything reaches the page.
+         *
+         * Two separate faults needed this. The heading was printed from a count of database
+         * rows, and a row whose file is no longer on disk is skipped further down without a
+         * word — so a sheet could carry "Photographs at the BC point" with nothing at all
+         * underneath it. And the heading was drawn before the first row of pictures was
+         * measured, so it could finish a page with the photographs overleaf.
+         *
+         * prepareImage() caches by path, so asking a second time below costs nothing.
+         */
+        $drawable = [];
+
+        foreach ($photos as $photo) {
+            if ($this->prepareImage((string) $photo['path']) !== null) {
+                $drawable[] = $photo;
+            }
+        }
+
+        if ($drawable === []) {
+            return;
+        }
+
+        if ($heading !== null && $heading !== '') {
+            // The heading, the first row of pictures, and the caption line under it.
+            $this->ensurePage($headingSize + 8.0 + $cellHeight + 16.0);
+            $this->heading($heading, $headingSize);
+        }
+
         $index = 0;
         $rowTop = null;
 
-        foreach ($photos as $photo) {
+        foreach ($drawable as $photo) {
             $prepared = $this->prepareImage($photo['path']);
 
             if ($prepared === null) {

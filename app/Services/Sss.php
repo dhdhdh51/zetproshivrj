@@ -534,6 +534,49 @@ final class Sss
     }
 
     /**
+     * One named BCA's standing over a window, in the shape performance() gives for many.
+     *
+     * performance() returns nothing at all for an agent with no target and no recorded day.
+     * That is right for a register, which should not be padded with empty rows, and wrong for
+     * a caller asking about one named person: "nothing recorded" is itself the answer there.
+     * Filled in here rather than in each caller, so nobody has to know that an empty result
+     * means zeros and not an error.
+     *
+     * @return array<string, mixed>
+     */
+    public static function forSupervisor(int $bcSupervisorId, string $from, string $to): array
+    {
+        $rows = self::performance($from, $to, null, $bcSupervisorId);
+
+        if ($rows !== []) {
+            return $rows[0];
+        }
+
+        // No enrolments in the window. A target may still exist, and the gap against it is the
+        // whole point of asking, so the target is read rather than assumed to be zero too.
+        $target = self::targetForRange($bcSupervisorId, $from, $to);
+        $achievement = [];
+
+        foreach (array_keys(self::schemes()) as $column) {
+            $achievement[$column] = 0;
+        }
+
+        return [
+            'bc_supervisor_id' => $bcSupervisorId,
+            'days_reported' => 0,
+            'days_reopened' => 0,
+            'working_days' => $target['working_days'],
+            'has_target' => $target['total'] > 0,
+            'achievement' => $achievement,
+            'target' => $target['schemes'],
+            'total_target' => $target['total'],
+            'total_achievement' => 0,
+            'percent' => percent_of(0, $target['total']),
+            'gap' => $target['total'],
+        ];
+    }
+
+    /**
      * One supervisor's day and month-to-date standing, for the handset.
      *
      * The app shows this and cannot change any of it: the target arrives from the server,

@@ -310,4 +310,50 @@
       if (form) { form.submit(); }
     });
   });
+
+  /* ------------------------------- Scheme window on an inspection ---------- */
+
+  /**
+   * Keeps the "Open in the SSS register" link pointing at whatever dates are in the two
+   * scheme inputs.
+   *
+   * The inspection form has no draft save — the edit screen posts straight to submit — so
+   * reloading it to recompute the figures would throw away every answer typed into a form
+   * this long. The dates therefore travel with the submit, and checking a different window
+   * happens in the register, in another tab, where there is nothing to lose.
+   *
+   * Progressive enhancement only. With no JavaScript the link still works; it just points at
+   * the window the page was loaded with, which is the window the table below it is showing.
+   */
+  var sssLink = document.querySelector('[data-sss-register]');
+  var sssFrom = document.querySelector('[data-sss-from]');
+  var sssTo = document.querySelector('[data-sss-to]');
+
+  if (sssLink && sssFrom && sssTo) {
+    var syncSssLink = function () {
+      var from = sssFrom.value;
+      var to = sssTo.value;
+
+      if (!from || !to) {
+        return;
+      }
+
+      // Entered backwards is a slip, and the server swaps them too rather than reporting an
+      // empty period. Swapping here as well means the link opens what the sheet will say.
+      if (to < from) {
+        var held = from;
+        from = to;
+        to = held;
+      }
+
+      sssLink.setAttribute('href',
+        sssLink.getAttribute('data-sss-register')
+          + '?bc_supervisor_id=' + encodeURIComponent(sssLink.getAttribute('data-sss-supervisor'))
+          + '&from=' + encodeURIComponent(from)
+          + '&to=' + encodeURIComponent(to));
+    };
+
+    sssFrom.addEventListener('change', syncSssLink);
+    sssTo.addEventListener('change', syncSssLink);
+  }
 })();

@@ -531,6 +531,22 @@ final class Reports
             $params['search'] = '%' . trim((string) $filters['search']) . '%';
         }
 
+        /*
+         * The scheme figures the sheet was signed against, from the snapshot rather than from
+         * the live enrolments — so a row in this register says what the printed inspection says,
+         * even after a day behind it has been corrected.
+         *
+         * The two sums are built from Sss::schemes() rather than written out, because that list
+         * is meant to be the only place a scheme is named. Nothing here is user input.
+         */
+        $achievedSum = [];
+        $targetSum = [];
+
+        foreach (array_keys(Sss::schemes()) as $countColumn) {
+            $achievedSum[] = sprintf('ss.`%s`', $countColumn);
+            $targetSum[] = sprintf('ss.`%s`', Sss::targetColumn($countColumn));
+        }
+
         $sql = "SELECT i.id, i.uuid, i.inspection_date, i.submitted_at, i.result, i.remarks,
                        i.followup_required, i.status, i.gps_verified, i.photo_count,
                        admin.name AS inspector_name,
@@ -538,7 +554,11 @@ final class Reports
                        b.name AS branch_name, b.code AS branch_code,
                        a.account_number, a.borrower_name, a.village,
                        v.visit_date, v.visit_status,
-                       g.latitude, g.longitude, g.accuracy, g.address, g.distance_to_visit_metres
+                       g.latitude, g.longitude, g.accuracy, g.address, g.distance_to_visit_metres,
+                       ss.period_from AS sss_period_from, ss.period_to AS sss_period_to,
+                       ss.working_days AS sss_working_days,
+                       (" . implode(' + ', $achievedSum) . ") AS sss_achieved,
+                       (" . implode(' + ', $targetSum) . ") AS sss_target_total
                   FROM inspections i
                   JOIN users admin ON admin.id = i.admin_user_id
                   JOIN bc_supervisors s ON s.id = i.bc_supervisor_id
@@ -546,6 +566,7 @@ final class Reports
                   JOIN branches b ON b.id = i.branch_id
              LEFT JOIN loan_accounts a ON a.id = i.loan_account_id
              LEFT JOIN visits v ON v.id = i.visit_id
+             LEFT JOIN inspection_sss ss ON ss.inspection_id = i.id
              LEFT JOIN inspection_gps g ON g.id = (
                        SELECT id FROM inspection_gps WHERE inspection_id = i.id ORDER BY id ASC LIMIT 1
                   )
@@ -569,6 +590,22 @@ final class Reports
                 ['key' => 'result', 'label' => 'Observation', 'type' => 'inspection_result', 'weight' => 1.4],
                 ['key' => 'photo_count', 'label' => 'Photos', 'align' => 'center', 'weight' => 0.6],
                 ['key' => 'followup_required', 'label' => 'Follow-up', 'type' => 'boolean', 'align' => 'center', 'weight' => 0.8],
+                /*
+                 * The scheme standing as at each inspection, in the register's own
+                 * `achievement/target` shorthand rather than as four more columns.
+                 *
+                 * Two columns and not five on purpose. writePdf() prints only the first eleven
+                 * columns of a wide report, and this report already has nine — a target, an
+                 * achievement, a percentage and a gap would push Remarks off the printed page,
+                 * and the percentage is the one figure a reader can work out from the pair.
+                 * Anyone who wants the per-scheme breakdown has the SSS Target vs Achievement
+                 * report, and the inspection's own sheet.
+                 *
+                 * Empty on an inspection that carries no scheme figures, which reads as "not
+                 * measured" rather than as zero.
+                 */
+                ['key' => 'sss_window', 'label' => 'Scheme window', 'type' => 'computed', 'weight' => 1.3],
+                ['key' => 'sss_achievement', 'label' => 'Schemes', 'type' => 'computed', 'align' => 'right', 'weight' => 0.8],
                 ['key' => 'remarks', 'label' => 'Remarks', 'weight' => 2.0],
             ],
         ];
@@ -1662,6 +1699,18 @@ final class Reports
                         (int) ($row['total_target'] ?? 0)
                     ) . '%'
                     : null,
+                // The scheme window an inspection measured, and its standing in that window.
+                // Null rather than zero when the inspection has no snapshot: a sheet signed
+                // before the scheme block existed measured no window, and printing "0/0"
+                // against it would be an assertion nobody made.
+                'sss_window' => ($row['sss_period_from'] ?? null) === null
+                    ? null
+                    : format_date((string) $row['sss_period_from'])
+                        . ' to ' . format_date((string) $row['sss_period_to']),
+                'sss_achievement' => ($row['sss_period_from'] ?? null) === null
+                    ? null
+                    : number_format((int) ($row['sss_achieved'] ?? 0))
+                        . '/' . number_format((int) ($row['sss_target_total'] ?? 0)),
                 default => null,
             };
         }
