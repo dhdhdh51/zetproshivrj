@@ -213,11 +213,11 @@ object Reminders {
      * silence.
      */
     fun raise(context: Context, id: Int, title: String, body: String) {
-        val notifications = NotificationManagerCompat.from(context)
-
-        if (!notifications.areNotificationsEnabled()) {
+        if (!canNotify(context)) {
             return
         }
+
+        val notifications = NotificationManagerCompat.from(context)
 
         val open = PendingIntent.getActivity(
             context,
@@ -239,7 +239,33 @@ object Reminders {
             .setContentIntent(open)
             .build()
 
-        runCatching { notifications.notify(id, note) }
+        // Still guarded. The permission can be revoked between the check above and here, and a
+        // SecurityException thrown out of a broadcast receiver would take the process with it —
+        // over a reminder, which is the least important thing the app does.
+        try {
+            notifications.notify(id, note)
+        } catch (denied: SecurityException) {
+            return
+        }
+    }
+
+    /**
+     * Whether a notification can be shown at all.
+     *
+     * Two separate things, and both have to hold. From Android 13 POST_NOTIFICATIONS is a runtime
+     * permission and notify() throws without it, so it is checked explicitly rather than inferred.
+     * Below that there is no permission to grant, but the user can still switch the app's
+     * notifications off in settings, which areNotificationsEnabled() reports.
+     */
+    fun canNotify(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+
+        return NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
     /** A distinct notification id for a server row, so several can be on screen at once. */

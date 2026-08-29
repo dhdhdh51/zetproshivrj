@@ -50,7 +50,6 @@ import `in`.lrms.field.BuildConfig
 import `in`.lrms.field.camera.PhotoFiles
 import `in`.lrms.field.data.local.SyncState
 import `in`.lrms.field.ui.AppViewModel
-import androidx.core.app.NotificationManagerCompat
 import `in`.lrms.field.reminders.ReminderClock
 import `in`.lrms.field.reminders.Reminders
 import `in`.lrms.field.ui.components.DetailRow
@@ -729,7 +728,9 @@ private fun RemindersCard(viewModel: AppViewModel) {
 
     // Re-read on every recomposition after a return from the phone's settings, so the notice
     // disappears once the permission has been granted rather than lingering until a restart.
-    val allowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    // canNotify() rather than areNotificationsEnabled() alone: from Android 13 the runtime
+    // permission is the thing that actually stops a notification, and it is a separate switch.
+    val allowed = Reminders.canNotify(context)
     val exact = Reminders.canBeExact(context)
 
     Card(Modifier.fillMaxWidth()) {
