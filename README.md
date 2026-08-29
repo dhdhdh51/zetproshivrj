@@ -4,19 +4,56 @@ This branch exists only to give the app a download link. Nothing else lives on i
 
 ## Download
 
-**[LRMS-v1.6.3-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.6.3-SIGNED.apk)**
+**[LRMS-v1.6.4-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.6.4-SIGNED.apk)**
 — open that link on the phone and Android will offer to install it.
 
-> **Coming from 1.6.0, 1.6.1 or 1.6.2:** it installs straight over it. Nothing to uninstall,
+> **The app has been renamed.** On the phone it is now **D2 SQUARE CREDIT SOLUTIONS**, with the
+> new logo. It is the same app and the same signing key, so it installs straight over whatever is
+> there — the name and icon simply change.
+>
+> **The server has moved** to `server.d2squarecreditsolutions.in`. That is compiled into this
+> build, so **1.6.3 and older will stop working once the old address is switched off.** Everyone
+> needs this one.
+>
+> **Coming from 1.6.0 through 1.6.3:** it installs straight over it. Nothing to uninstall,
 > nothing lost.
 >
 > **Coming from 1.5.5 or older:** 1.6.0 changed the signing key, so the app has to be
 > replaced once. On each handset: **open the app and sync until nothing is waiting**, then
-> uninstall **D2 RECOVERY SOLUTION**, then install from the link above and sign in again.
-> Uninstalling deletes the phone's local data, and until a signal returns the outbox is the
-> only copy of that day's work. After this one time, every release installs over the last.
+> uninstall the old app, then install from the link above and sign in again. Uninstalling
+> deletes the phone's local data, and until a signal returns the outbox is the only copy of that
+> day's work. After this one time, every release installs over the last.
 >
 > Certificate: `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4`
+
+## 1.6.4 — the new name, and the phone finally reminds you
+
+### The reminders
+
+The app now reminds you, and it works without a signal.
+
+- **Before the daily deadline.** An hour before, then half an hour, then ten minutes — the same
+  points your BC Supervisor's panel is set to. Nothing arrives if you have already sent the day's
+  report.
+- **Each morning**, at a time you choose, telling you how many of your allocated accounts have
+  still not been visited.
+- **Whenever your BC Supervisor sends you something** — a follow-up due today, a promise that was
+  not kept, a late report approved or refused.
+
+That last one is worth explaining. The panel has been sending those messages all along and the
+app was quietly filing them in a list. Nothing ever made a sound. Now they do.
+
+Turn them on or off, and set the morning time, under **Profile ▸ Reminders**. That screen also
+tells you when the next reminder is due — and if nothing is arriving, it says which of the
+phone's own settings is stopping it, rather than leaving you guessing.
+
+### The new brand
+
+New name, new launcher icon, new mark on the sign-in screen.
+
+### The server
+
+This build talks to `https://server.d2squarecreditsolutions.in/api/v1/`.
 
 ## 1.6.3 — the sign-in screen is for signing in
 
@@ -215,25 +252,33 @@ visit, not a transaction.
 
 ## Details
 
-Built by CI, then signed with the D2 release key. Verified before publishing: zipalign
-ok, signature schemes **v2 and v3**, the version name read back out of the built
-manifest, the Hindi resources confirmed present, and the two diagnostic strings this
-release removes confirmed absent from the packaged resources.
+Built by CI, then signed with the D2 release key. Everything below was read back out of
+the built file rather than taken on trust: zipalign ok, signature schemes **v2 and v3**,
+the version name out of the packaged manifest, the server address out of the compiled
+BuildConfig, the new app name out of the packaged resources with the old one confirmed
+gone, both reminder receivers and their permissions in the merged manifest, the reminder
+wording present in English *and* Hindi, and all sixteen brand images accounted for by size.
 
 | | |
 | --- | --- |
-| Version | 1.6.3 |
-| Server | https://cvbuilder.bharatseo.site/api/v1/ |
+| Version | 1.6.4 |
+| Server | https://server.d2squarecreditsolutions.in/api/v1/ |
 | Signed by | D2 Recovery Solution, Patna, Bihar, IN |
 | Certificate SHA-256 | `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4` |
-| File SHA-256 | `4ade099868587223b09dfb3b7ef2e3e9cf2fbc1b46c2128eb5fbaa94b282b98c` |
-| Size | 3.3M |
+| File SHA-256 | `74b74a975c00b094e17de9790373ef4899bd0fde1ae35c5f563da20fcaa8bd4b` |
+| Size | 3.5M |
 
-Same certificate as 1.6.0, 1.6.1 and 1.6.2, so this installs straight over any of them
+Same certificate as 1.6.0 through 1.6.3, so this installs straight over any of them
 without uninstalling. Builds up to 1.5.5 used a different key — see the note at the top.
 
+The certificate still reads **D2 Recovery Solution**, and will keep reading that. A
+certificate's subject cannot be edited, so changing it means a new key — and a new key is a
+new app to every handset in the field, all of which would have to be uninstalled first,
+taking any unsent field work with them. A phone identifies an app by its key, not by the
+name printed on it.
+
 ```
-sha256sum LRMS-v1.6.3-SIGNED.apk     # must match the File SHA-256 above
+sha256sum LRMS-v1.6.4-SIGNED.apk     # must match the File SHA-256 above
 ```
 
 If the certificate fingerprint ever differs from the one above, it was signed with a
