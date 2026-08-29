@@ -112,6 +112,18 @@ data class DeadlineDto(
     @Json(name = "has_passed") val hasPassed: Boolean = false,
     val locked: Boolean = false,
     @Json(name = "late_requests_allowed") val lateRequestsAllowed: Boolean = true,
+    /*
+     * The three fields below were on the wire from the first release and thrown away here,
+     * which is why the app could show a countdown but never raise a reminder: it had no idea
+     * which days carry a deadline or how far ahead the panel wants people warned.
+     *
+     * They are the Admin's settings — report_working_days, report_reminder_minutes and the
+     * server's timezone — and the local alarms are armed from them rather than from constants,
+     * so changing the deadline in the panel moves the phone's reminders with it.
+     */
+    @Json(name = "working_days") val workingDays: List<Int> = emptyList(),
+    @Json(name = "reminder_minutes") val reminderMinutes: List<Int> = emptyList(),
+    @Json(name = "server_timezone") val serverTimezone: String? = null,
 )
 
 data class AttendanceDto(

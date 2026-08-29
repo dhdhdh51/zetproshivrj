@@ -9,6 +9,18 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Reminders.
+         The alarms are put back after a restart, which clears every one an app has set;
+         without this the reminders work until the first reboot and then never again.
+
+         SCHEDULE_EXACT_ALARM and not USE_EXACT_ALARM: the second is granted automatically
+         but Google restricts it to clock and calendar apps, and a deadline nudge is not one.
+         So the app asks, checks canScheduleExactAlarms(), and falls back to an inexact alarm
+         when the answer is no — a few minutes of drift on "your report is due in an hour"
+         costs nothing. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
     <!-- Field work needs GPS and a camera; the app is not usable without them.
          Calling a customer uses ACTION_DIAL, which needs no permission, so
          telephony is optional. -->
@@ -55,6 +67,32 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Reminder alarms. Not exported: nothing outside the app has any business
+             raising these, and an exported receiver would let any app on the phone fake a
+             deadline warning. -->
+        <receiver
+            android:name=".reminders.ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="in.lrms.field.REMINDER" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Re-arming after the events that silently drop alarms. MY_PACKAGE_REPLACED is
+             included because an app update clears them too, and an update is the most likely
+             moment for somebody to conclude the reminders are broken. -->
+        <receiver
+            android:name=".reminders.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- WorkManager is initialised on demand from LrmsApp. -->
         <provider

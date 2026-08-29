@@ -11,8 +11,8 @@
     This is a flat composite of the same two layers the adaptive icon uses, so
     there is one source of truth for the artwork. The mark sits in the central
     two thirds because that is how the foreground is drawn for masking, which
-    leaves a little more navy around it here than on Android 8+. That is the
-    trade for not maintaining a second copy of the art or five PNG renders.
+    leaves a little more of the black field around it here than on Android 8+.
+    That is the trade for not maintaining a second copy of the art.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/ic_launcher_background" />

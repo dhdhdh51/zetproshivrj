@@ -199,6 +199,33 @@
     <string name="notifications_mark_all">सभी को पढ़ा हुआ चिह्नित करें</string>
     <string name="notifications_mark_read">पढ़ा हुआ चिह्नित करें</string>
     <string name="profile_this_device">यह डिवाइस</string>
+    <!-- Reminders -->
+    <string name="reminders_channel_name">काम की याद</string>
+    <string name="reminders_channel_description">दैनिक रिपोर्ट की समय-सीमा, दिन का बाकी काम, और आपके BC Supervisor का कोई संदेश।</string>
+    <string name="reminders_title">याद दिलाना</string>
+    <string name="reminders_note">फ़ोन आपको दैनिक समय-सीमा से पहले, हर सुबह एक बार, और जब आपके BC Supervisor कुछ भेजें तब याद दिलाएगा। ये बिना नेटवर्क भी काम करते हैं।</string>
+    <string name="reminders_enabled">मुझे याद दिलाएँ</string>
+    <string name="reminders_morning_time">सुबह की याद</string>
+    <string name="reminders_next">अगली याद: %1$s</string>
+    <string name="reminders_next_none">कोई याद बाकी नहीं — कार्य-दिवस अपने BC Supervisor से जाँच लें।</string>
+    <string name="reminders_blocked">फ़ोन की सेटिंग में इस ऐप की सूचनाएँ बंद हैं, इसलिए कुछ दिखाया नहीं जा सकता। वहाँ से चालू करें।</string>
+    <string name="reminders_inexact">फ़ोन इस ऐप को सटीक अलार्म लगाने नहीं दे रहा, इसलिए याद कुछ मिनट देर से आ सकती है।</string>
+    <string name="reminder_deadline_title">दैनिक रिपोर्ट बाकी है</string>
+    <string name="reminder_morning_title">आज का काम</string>
+    <string name="reminder_morning_clear">हर आवंटित खाते पर विज़िट हो गई है। दैनिक रिपोर्ट भेजना याद रखें।</string>
+    <plurals name="reminder_deadline_minutes">
+        <item quantity="one">आज की रिपोर्ट भेजने के लिए %1$d मिनट बाकी।</item>
+        <item quantity="other">आज की रिपोर्ट भेजने के लिए %1$d मिनट बाकी।</item>
+    </plurals>
+    <plurals name="reminder_deadline_hours">
+        <item quantity="one">आज की रिपोर्ट भेजने के लिए %1$d घंटा बाकी।</item>
+        <item quantity="other">आज की रिपोर्ट भेजने के लिए %1$d घंटे बाकी।</item>
+    </plurals>
+    <plurals name="reminder_morning_pending">
+        <item quantity="one">%1$d आवंटित खाते पर अभी विज़िट नहीं हुई।</item>
+        <item quantity="other">%1$d आवंटित खातों पर अभी विज़िट नहीं हुई।</item>
+    </plurals>
+
     <string name="sign_out_title">साइन आउट करें?</string>
     <string name="case_type_ckcc_od2">CKCC OD-2 नवीनीकरण</string>
     <plurals name="notifications_unread">

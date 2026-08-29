@@ -19,12 +19,15 @@
         D2 mark appears immediately instead of a blank navy rectangle.
 
         The splash attributes are API 31+; older versions ignore them and simply
-        show windowBackground, which is the brand navy, so nothing looks broken at
+        show windowBackground, which is the same black, so nothing looks broken at
         minSdk 24 — it just does not animate the mark.
+
+        Black rather than the brand navy: the emblem is photographic and carries its
+        own black field, so on navy it would read as a box pasted onto the screen.
     -->
     <style name="Theme.LRMS.Launch" parent="Theme.LRMS">
-        <item name="android:windowBackground">@color/brand</item>
-        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/brand</item>
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/splash_background</item>
         <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="31">@drawable/ic_splash_logo</item>
     </style>
 </resources>

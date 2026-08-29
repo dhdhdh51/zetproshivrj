@@ -62,6 +62,15 @@ interface AccountDao {
 
     @Query("SELECT COUNT(*) FROM accounts WHERE visitCount = 0")
     fun observePendingCount(): Flow<Int>
+
+    /**
+     * The same figure, read once rather than observed.
+     *
+     * The morning reminder needs it from a broadcast receiver, which lives for a few hundred
+     * milliseconds and has nothing to collect a Flow into.
+     */
+    @Query("SELECT COUNT(*) FROM accounts WHERE visitCount = 0")
+    suspend fun pendingCount(): Int
 }
 
 @Dao

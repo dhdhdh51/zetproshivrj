@@ -9,6 +9,7 @@ import `in`.lrms.field.data.prefs.SessionStore
 import `in`.lrms.field.data.remote.ApiClient
 import `in`.lrms.field.data.remote.ApiService
 import `in`.lrms.field.data.repo.FieldRepository
+import `in`.lrms.field.reminders.Reminders
 import `in`.lrms.field.sync.SyncWorker
 import `in`.lrms.field.util.AppLanguage
 
@@ -31,8 +32,18 @@ class LrmsApp : Application() {
                 .build(),
         )
 
+        // The channel is created whether or not anybody is signed in, because it is what the
+        // phone's own settings screen lists — somebody should be able to find and adjust the
+        // reminders before the first one arrives rather than after.
+        Reminders.ensureChannel(this)
+
         if (ServiceLocator.session(this).isSignedIn()) {
             SyncWorker.schedule(this)
+
+            // Re-armed on every launch as well as after a reboot. Alarms are cheap to replace and
+            // the settings behind them may have moved on the last sync, so recomputing is always
+            // more correct than trusting whatever was armed before.
+            Reminders.arm(this)
         }
     }
 }

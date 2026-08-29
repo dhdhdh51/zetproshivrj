@@ -50,6 +50,9 @@ import `in`.lrms.field.BuildConfig
 import `in`.lrms.field.camera.PhotoFiles
 import `in`.lrms.field.data.local.SyncState
 import `in`.lrms.field.ui.AppViewModel
+import androidx.core.app.NotificationManagerCompat
+import `in`.lrms.field.reminders.ReminderClock
+import `in`.lrms.field.reminders.Reminders
 import `in`.lrms.field.ui.components.DetailRow
 import `in`.lrms.field.ui.components.EmptyState
 import `in`.lrms.field.ui.components.InlineNotice
@@ -640,6 +643,10 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
                 }
             }
 
+            // Beside the language, for the same reason: a considered device setting rather than
+            // something to decide during a visit.
+            RemindersCard(viewModel)
+
             OutlinedButton(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.password_change))
             }
@@ -698,5 +705,110 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
                 androidx.compose.material3.TextButton(onClick = { confirmSignOut = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
+    }
+}
+
+
+/**
+ * The reminders card on Profile: the switch, the morning time, and what is actually wrong when
+ * nothing is arriving.
+ *
+ * The two notices matter more than the controls. A reminder that cannot be shown is the failure
+ * people report as "the alarm does not work", and there are exactly two reasons for it — the
+ * phone's notification permission was refused, or the phone will not allow an exact alarm. Both
+ * are settings only the user can change, so both are named here with the reason, rather than
+ * failing silently the way this app did before it had any reminders at all.
+ */
+@Composable
+private fun RemindersCard(viewModel: AppViewModel) {
+    val context = LocalContext.current
+    val session = viewModel.session
+
+    var enabled by remember { mutableStateOf(session.remindersEnabled()) }
+    var morning by remember { mutableStateOf(session.morningReminderTime()) }
+
+    // Re-read on every recomposition after a return from the phone's settings, so the notice
+    // disappears once the permission has been granted rather than lingering until a restart.
+    val allowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    val exact = Reminders.canBeExact(context)
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            Text(stringResource(R.string.reminders_title), style = MaterialTheme.typography.titleSmall)
+
+            Spacer(Modifier.height(6.dp))
+
+            Text(
+                stringResource(R.string.reminders_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.reminders_enabled), Modifier.weight(1f))
+                androidx.compose.material3.Switch(
+                    checked = enabled,
+                    onCheckedChange = {
+                        enabled = it
+                        session.setRemindersEnabled(it)
+
+                        // Arm or drop immediately: a switch that only takes effect on the next
+                        // launch is a switch people press twice and then distrust.
+                        if (it) Reminders.arm(context) else Reminders.cancel(context)
+                    },
+                )
+            }
+
+            if (enabled) {
+                Spacer(Modifier.height(4.dp))
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.reminders_morning_time), Modifier.weight(1f))
+                    OutlinedButton(onClick = {
+                        val (hour, minute) = ReminderClock.parseTimeOfDay(morning) ?: (9 to 0)
+
+                        android.app.TimePickerDialog(
+                            context,
+                            { _, picked, pickedMinute ->
+                                morning = String.format(java.util.Locale.US, "%02d:%02d", picked, pickedMinute)
+                                session.setMorningReminderTime(morning)
+                                Reminders.arm(context)
+                            },
+                            hour,
+                            minute,
+                            true,
+                        ).show()
+                    }) {
+                        Text(morning)
+                    }
+                }
+
+                Spacer(Modifier.height(6.dp))
+
+                Text(
+                    Reminders.describeNext(context)
+                        ?.let { stringResource(R.string.reminders_next, it) }
+                        ?: stringResource(R.string.reminders_next_none),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                if (!allowed) {
+                    Spacer(Modifier.height(8.dp))
+                    InlineNotice(stringResource(R.string.reminders_blocked), Tone.WARNING)
+                } else if (!exact) {
+                    Spacer(Modifier.height(8.dp))
+                    InlineNotice(stringResource(R.string.reminders_inexact), Tone.INFO)
+                }
+            }
+        }
     }
 }

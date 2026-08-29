@@ -2,8 +2,13 @@
 <!--
     Round launcher icon for API 24 and 25 - see ic_launcher.xml in this folder.
     Launchers on those versions that ask for the round variant expect artwork
-    that is already circular, so the navy is drawn as an oval rather than a
+    that is already circular, so the field is drawn as an oval rather than a
     filled rectangle. Android 8+ takes the adaptive icon and applies its own mask.
+
+    The foreground on top of it is an opaque square, so on these two versions the
+    oval is hidden behind it and the icon reads as a rounded square. Acceptable for
+    two releases of Android that between them are a rounding error of the install
+    base; the alternative is a second, cut-out copy of a photographic mark.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>

@@ -16,6 +16,7 @@ import `in`.lrms.field.data.local.VisitEntity
 import `in`.lrms.field.data.repo.FieldRepository
 import `in`.lrms.field.location.FieldLocation
 import `in`.lrms.field.location.LocationCapture
+import `in`.lrms.field.reminders.Reminders
 import `in`.lrms.field.sync.SyncWorker
 import `in`.lrms.field.util.Times
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -90,6 +91,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 FieldRepository.LoginOutcome.Success -> {
                     _auth.value = AuthState(signedIn = true, mustChangePassword = session.mustChangePassword())
                     SyncWorker.schedule(getApplication())
+                    // The first sync has not happened yet, so this arms from the defaults and is
+                    // re-armed with the panel's real settings as soon as one lands.
+                    Reminders.arm(getApplication())
                     syncNow()
                 }
 
@@ -118,6 +122,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 FieldRepository.LoginOutcome.Success -> {
                     _auth.value = AuthState(signedIn = true, mustChangePassword = session.mustChangePassword())
                     SyncWorker.schedule(getApplication())
+                    // The first sync has not happened yet, so this arms from the defaults and is
+                    // re-armed with the panel's real settings as soon as one lands.
+                    Reminders.arm(getApplication())
                     syncNow()
                 }
 
@@ -137,6 +144,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun signOut() {
         viewModelScope.launch {
             SyncWorker.cancelAll(getApplication())
+            // Alongside the worker and the database wipe: a handset changing hands must not go on
+            // reminding its new holder about the last person's round.
+            Reminders.cancel(getApplication())
             repository.logout()
             ServiceLocator.reset()
             _auth.value = AuthState(signedIn = false)

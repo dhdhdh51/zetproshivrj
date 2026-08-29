@@ -27,6 +27,7 @@ import `in`.lrms.field.data.remote.OtpRequest
 import `in`.lrms.field.data.remote.SyncItem
 import `in`.lrms.field.data.remote.SyncPushRequest
 import `in`.lrms.field.location.FieldLocation
+import `in`.lrms.field.reminders.Reminders
 import `in`.lrms.field.util.Json
 import `in`.lrms.field.util.Network
 import `in`.lrms.field.util.Times
@@ -194,6 +195,11 @@ class FieldRepository(
     fun observeVisitCountForDate(date: String): Flow<Int> = db.visits().observeCountForDate(date)
 
     fun observeNotifications(): Flow<List<NotificationEntity>> = db.notifications().observe()
+
+    /** Accounts allocated but never visited. Read once, for the morning reminder. */
+    suspend fun pendingAccountCount(): Int = withContext(Dispatchers.IO) {
+        db.accounts().pendingCount()
+    }
 
     fun observeUnreadNotifications(): Flow<Int> = db.notifications().observeUnreadCount()
 
@@ -533,6 +539,12 @@ class FieldRepository(
     }
 
     suspend fun queueDailyReport(summary: String, lateReason: String?): Unit = withContext(Dispatchers.IO) {
+        // Remembered so the deadline reminder can hold its tongue for somebody who has filed.
+        // Written before the queue call rather than after a successful sync: the report is filed
+        // as far as its author is concerned the moment they submit it, and nagging them because
+        // there is no signal would be blaming them for the network.
+        session.setDailyReportFiledOn(Times.today())
+
         queue(
             OutboxType.DAILY_REPORT,
             null,
@@ -822,6 +834,8 @@ class FieldRepository(
                             )
                         },
                     )
+
+                    announce(data.notifications)
                 }
 
                 data.deadline?.let { cacheDeadline(it) }
@@ -962,12 +976,57 @@ class FieldRepository(
         outboxUuids.forEach { db.outbox().markSync(it, SyncState.PENDING, null, now) }
     }
 
+    /**
+     * Show the server's own reminders, once each.
+     *
+     * The panel's cron writes a notification row when a follow-up falls due, when a promise has
+     * gone unkept, and when a late report is approved or refused. Every one of them has been
+     * arriving on the handset since the first release and going straight into a list nobody had
+     * reason to open. This is what makes them audible.
+     *
+     * A high-water mark rather than the unread flag: forty rows come down on every sync, and
+     * "unread" stays true until somebody opens the screen, so without it the same reminders would
+     * be announced again every fifteen minutes. Ids are database ids and only ever increase, so
+     * the highest one already announced is a sound line to draw.
+     *
+     * Rows the server has already seen read are skipped too — that means they were dealt with on
+     * the panel, and repeating them on the phone would be noise.
+     */
+    private fun announce(notifications: List<`in`.lrms.field.data.remote.NotificationDto>) {
+        val previous = session.lastAnnouncedNotificationId()
+        val fresh = notifications.filter { it.id > previous && !it.isRead }
+
+        // Move the mark even when nothing is shown, so a first sync on a new install does not
+        // announce a backlog the person has no way to act on.
+        notifications.maxOfOrNull { it.id }?.let { session.setLastAnnouncedNotificationId(it) }
+
+        if (previous == 0L) {
+            return
+        }
+
+        // Oldest first, so the newest ends up on top of the shade.
+        fresh.sortedBy { it.id }.take(5).forEach { row ->
+            Reminders.raise(
+                context,
+                Reminders.serverNoteId(row.id),
+                row.title.ifBlank { context.getString(R.string.reminders_channel_name) },
+                row.body.orEmpty().ifBlank { row.title },
+            )
+        }
+    }
+
     private fun cacheDeadline(deadline: `in`.lrms.field.data.remote.DeadlineDto) {
         session.saveDeadline(
             deadlineAt = deadline.deadlineAt,
             serverTime = deadline.serverTime,
             secondsRemaining = deadline.secondsRemaining,
             locked = deadline.locked,
+            // The Admin's own settings, so the phone's reminders move when the panel's deadline
+            // does instead of being armed from constants compiled into the app.
+            deadlineTime = deadline.deadlineTime,
+            workingDays = deadline.workingDays,
+            reminderMinutes = deadline.reminderMinutes,
+            serverTimezone = deadline.serverTimezone,
         )
     }
 

@@ -209,6 +209,34 @@
     <string name="notifications_mark_all">Mark all read</string>
     <string name="notifications_mark_read">Mark read</string>
     <string name="profile_this_device">This device</string>
+
+    <!-- Reminders. The channel name and description are what the phone's own settings screen
+         lists, so they have to read as something a person recognises. -->
+    <string name="reminders_channel_name">Work reminders</string>
+    <string name="reminders_channel_description">The daily report deadline, the day\'s pending work, and anything your BC Supervisor sends you.</string>
+    <string name="reminders_title">Reminders</string>
+    <string name="reminders_note">The phone reminds you before the daily deadline, once each morning, and whenever your BC Supervisor sends you something. These work without a signal.</string>
+    <string name="reminders_enabled">Remind me</string>
+    <string name="reminders_morning_time">Morning reminder</string>
+    <string name="reminders_next">Next reminder: %1$s</string>
+    <string name="reminders_next_none">No reminder is due — check the working days with your BC Supervisor.</string>
+    <string name="reminders_blocked">Notifications are switched off for this app in the phone\'s settings, so nothing can be shown. Turn them on there.</string>
+    <string name="reminders_inexact">The phone will not let this app set an exact alarm, so a reminder may arrive a few minutes late.</string>
+    <string name="reminder_deadline_title">Daily report is due</string>
+    <string name="reminder_morning_title">Today\'s work</string>
+    <string name="reminder_morning_clear">Every allocated account has been visited. Remember the daily report.</string>
+    <plurals name="reminder_deadline_minutes">
+        <item quantity="one">%1$d minute left to send today\'s report.</item>
+        <item quantity="other">%1$d minutes left to send today\'s report.</item>
+    </plurals>
+    <plurals name="reminder_deadline_hours">
+        <item quantity="one">%1$d hour left to send today\'s report.</item>
+        <item quantity="other">%1$d hours left to send today\'s report.</item>
+    </plurals>
+    <plurals name="reminder_morning_pending">
+        <item quantity="one">%1$d allocated account has not been visited yet.</item>
+        <item quantity="other">%1$d allocated accounts have not been visited yet.</item>
+    </plurals>
     <string name="sign_out_title">Sign out?</string>
     <plurals name="notifications_unread">
         <item quantity="one">%1$d unread notification</item>

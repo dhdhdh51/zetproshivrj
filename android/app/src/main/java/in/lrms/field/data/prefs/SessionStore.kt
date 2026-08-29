@@ -103,20 +103,89 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_LAST_SYNC_MESSAGE, value).apply()
     }
 
-    /** Cached deadline so the countdown survives going offline. */
-    fun saveDeadline(deadlineAt: String?, serverTime: String?, secondsRemaining: Long, locked: Boolean) {
-        prefs.edit()
+    /**
+     * Cached deadline so the countdown survives going offline.
+     *
+     * The last four are what the reminder alarms are armed from: the time of day the deadline
+     * falls at, which weekdays carry one, how far ahead the panel wants people warned, and the
+     * zone all of that is expressed in. Stored rather than read live because an alarm has to be
+     * re-armed after a reboot, when there may be no signal for hours.
+     */
+    fun saveDeadline(
+        deadlineAt: String?,
+        serverTime: String?,
+        secondsRemaining: Long,
+        locked: Boolean,
+        deadlineTime: String? = null,
+        workingDays: List<Int> = emptyList(),
+        reminderMinutes: List<Int> = emptyList(),
+        serverTimezone: String? = null,
+    ) {
+        val edit = prefs.edit()
             .putString(KEY_DEADLINE_AT, deadlineAt)
             .putLong(KEY_DEADLINE_SECONDS, secondsRemaining)
             .putLong(KEY_DEADLINE_SYNCED_ELAPSED, monotonicMillis())
             .putBoolean(KEY_DEADLINE_LOCKED, locked)
             .putString(KEY_SERVER_TIME, serverTime)
-            .apply()
+
+        // Only overwritten when the server actually said something. A response that omits a
+        // field must not wipe what the last one taught us, or a reboot after such a sync would
+        // arm nothing at all.
+        if (!deadlineTime.isNullOrBlank()) {
+            edit.putString(KEY_DEADLINE_TIME, deadlineTime)
+        }
+
+        if (workingDays.isNotEmpty()) {
+            edit.putString(KEY_DEADLINE_WORKING_DAYS, workingDays.joinToString(","))
+        }
+
+        if (reminderMinutes.isNotEmpty()) {
+            edit.putString(KEY_DEADLINE_REMINDER_MINUTES, reminderMinutes.joinToString(","))
+        }
+
+        if (!serverTimezone.isNullOrBlank()) {
+            edit.putString(KEY_SERVER_TIMEZONE, serverTimezone)
+        }
+
+        edit.apply()
     }
 
     fun deadlineAt(): String? = prefs.getString(KEY_DEADLINE_AT, null)
 
     fun deadlineLocked(): Boolean = prefs.getBoolean(KEY_DEADLINE_LOCKED, false)
+
+    /**
+     * The deadline's time of day, as HH:mm.
+     *
+     * Defaults to the same 18:00 the server defaults to. A default is needed because the alarms
+     * may be armed on a handset that has not synced since it was installed, and no reminder at
+     * all is worse than one at the standard hour.
+     */
+    fun deadlineTime(): String = prefs.getString(KEY_DEADLINE_TIME, null)?.takeIf { it.isNotBlank() } ?: "18:00"
+
+    /** ISO weekday numbers, 1 = Monday. Defaults to Monday–Saturday, as the server does. */
+    fun deadlineWorkingDays(): List<Int> = readIntList(KEY_DEADLINE_WORKING_DAYS, listOf(1, 2, 3, 4, 5, 6))
+        .filter { it in 1..7 }
+        .distinct()
+        .ifEmpty { listOf(1, 2, 3, 4, 5, 6) }
+
+    /** Minutes before the deadline to warn at, largest first. */
+    fun deadlineReminderMinutes(): List<Int> = readIntList(KEY_DEADLINE_REMINDER_MINUTES, listOf(60, 30, 10))
+        .filter { it > 0 }
+        .distinct()
+        .sortedDescending()
+        .ifEmpty { listOf(60, 30, 10) }
+
+    /** The zone the deadline is expressed in; blank means fall back to the phone's own. */
+    fun serverTimezone(): String? = prefs.getString(KEY_SERVER_TIMEZONE, null)?.takeIf { it.isNotBlank() }
+
+    private fun readIntList(key: String, fallback: List<Int>): List<Int> {
+        val raw = prefs.getString(key, null) ?: return fallback
+
+        val parsed = raw.split(',').mapNotNull { it.trim().toIntOrNull() }
+
+        return parsed.ifEmpty { fallback }
+    }
 
     /**
      * Seconds left, counted down using the monotonic clock since the last sync.
@@ -174,6 +243,20 @@ class SessionStore(context: Context) {
 
     /** Keeps the device id so a re-install is recognised, clears everything else. */
     /**
+     * The date the daily report was last filed from this handset, as yyyy-MM-dd.
+     *
+     * Recorded so a deadline reminder can hold its tongue for somebody who has already filed.
+     * Local rather than asked of the server, because the whole point of the alarm is that it
+     * works with no signal — and the account is bound to one device, so this phone's record of
+     * having filed is the only record there could be.
+     */
+    fun dailyReportFiledOn(): String? = prefs.getString(KEY_DAILY_REPORT_DATE, null)
+
+    fun setDailyReportFiledOn(date: String) {
+        prefs.edit().putString(KEY_DAILY_REPORT_DATE, date).apply()
+    }
+
+    /**
      * The chosen app language as a BCP-47 tag, or "" to follow the phone.
      *
      * Survives sign-out: the language someone reads in is a property of the person
@@ -186,14 +269,69 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_LANGUAGE, tag).apply()
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Reminders                                                          */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Whether the phone should raise reminders at all.
+     *
+     * On by default. The reminders exist because the deadline is the thing people were missing,
+     * and a safeguard nobody switched on is not a safeguard — but it is a switch, because the
+     * one person who genuinely does not want it should not have to uninstall the app.
+     *
+     * Survives sign-out for the same reason the language does: it is a preference of whoever is
+     * holding the handset, and a shared phone changing hands should not silently rearm something
+     * the last person turned off.
+     */
+    fun remindersEnabled(): Boolean = prefs.getBoolean(KEY_REMINDERS_ENABLED, true)
+
+    fun setRemindersEnabled(value: Boolean) {
+        prefs.edit().putBoolean(KEY_REMINDERS_ENABLED, value).apply()
+    }
+
+    /**
+     * The time of the morning reminder, as HH:mm.
+     *
+     * Nine o'clock by default, which is when a field day starts rather than when the office
+     * opens. Nothing derives this from the server: it is about the person's own routine, and the
+     * panel has no setting for it.
+     */
+    fun morningReminderTime(): String =
+        prefs.getString(KEY_REMINDER_MORNING, null)?.takeIf { it.matches(TIME_OF_DAY) } ?: "09:00"
+
+    fun setMorningReminderTime(value: String) {
+        if (value.matches(TIME_OF_DAY)) {
+            prefs.edit().putString(KEY_REMINDER_MORNING, value).apply()
+        }
+    }
+
+    /**
+     * The highest notification id already raised on this phone, so a row is announced once.
+     *
+     * The server's own reminders — a follow-up due today, a promise gone unkept — arrive as
+     * notification rows on every sync. Without a high-water mark the same forty rows would be
+     * announced again every fifteen minutes.
+     */
+    fun lastAnnouncedNotificationId(): Long = prefs.getLong(KEY_LAST_ANNOUNCED_NOTIFICATION, 0L)
+
+    fun setLastAnnouncedNotificationId(value: Long) {
+        prefs.edit().putLong(KEY_LAST_ANNOUNCED_NOTIFICATION, value).apply()
+    }
+
     fun clear() {
         val device = deviceUuid()
         val language = languageTag()
+        val reminders = remindersEnabled()
+        val morning = morningReminderTime()
 
         prefs.edit()
             .clear()
             .putString(KEY_DEVICE, device)
             .putString(KEY_LANGUAGE, language)
+            // Device preferences, not session state — see remindersEnabled().
+            .putBoolean(KEY_REMINDERS_ENABLED, reminders)
+            .putString(KEY_REMINDER_MORNING, morning)
             .apply()
     }
 
@@ -221,6 +359,16 @@ class SessionStore(context: Context) {
         const val KEY_SSS_TARGET_DAY = "sss_target_day"
         const val KEY_SSS_TARGET_MONTH = "sss_target_month"
         const val KEY_SSS_TARGET_WORKING_DAYS = "sss_target_working_days"
+        const val KEY_DEADLINE_TIME = "deadline_time"
+        const val KEY_DEADLINE_WORKING_DAYS = "deadline_working_days"
+        const val KEY_DEADLINE_REMINDER_MINUTES = "deadline_reminder_minutes"
+        const val KEY_SERVER_TIMEZONE = "server_timezone"
+        const val KEY_REMINDERS_ENABLED = "reminders_enabled"
+        const val KEY_REMINDER_MORNING = "reminder_morning_time"
+        const val KEY_LAST_ANNOUNCED_NOTIFICATION = "last_announced_notification"
+        const val KEY_DAILY_REPORT_DATE = "daily_report_filed_on"
+
+        val TIME_OF_DAY = Regex("^([01]\\d|2[0-3]):[0-5]\\d$")
     }
 }
 
