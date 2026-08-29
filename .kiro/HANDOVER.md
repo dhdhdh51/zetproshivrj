@@ -330,57 +330,84 @@ Everything below is on the branch, green in CI, and live-ready.
     field, not leftover scaffolding. `api.ping()` stayed too — a declared endpoint the app is
     entitled to call, not test code.
 
-## Do not publish an APK yet — the new server does not resolve
+## The rename, the new server, and the reminders
 
-The company was renamed to **D2 Square Credit Solutions** and the app and the committed API URL
-have been changed with it. The URL is not usable yet, so a release built from this commit would
-point every handset at nothing.
+The company is **D2 Square Credit Solutions**. The app carries the name and the new logo, and
+talks to `https://server.d2squarecreditsolutions.in/api/v1/`.
 
-Measured on 29 August 2026:
+The server was not resolving when the rename landed — `server.` had no A record at all and the
+apex answered `/api/v1/ping` with the hosting's own 404 — so no APK went out until it did. It
+answers now, and **v1.6.4 is published**.
 
-| host | state |
-| --- | --- |
-| `server.d2squarecreditsolutions.in` | **no A record at all.** Public resolvers return SERVFAIL |
-| `d2squarecreditsolutions.in` | resolves to 35.172.174.242, valid HTTPS, but `/api/v1/ping` is the hosting's own **404** — LRMS is not deployed on that vhost |
-| `cvbuilder.bharatseo.site` | 35.172.174.242, LRMS answering normally. This is what v1.6.3 in the field talks to |
+Two things that will not change and should not be "fixed":
 
-So two things have to happen before a build goes out: the `server.` record has to exist, and LRMS
-has to be served from it. `https://server.d2squarecreditsolutions.in/api/v1/ping` returning the
-ping JSON is the whole test.
+- **The signing certificate still reads D2 RECOVERY SOLUTION.** A subject cannot be edited, so
+  changing it means a new key, and a new key is a new app to every handset — all of which would
+  have to be uninstalled, taking unsent field work with them. See docs/KEYSTORE-SETUP.md.
+- **The Central Bank of India letterhead on the printed reports is the bank's**, not the vendor's.
+  The rename does not touch it.
 
-Until then **v1.6.3 stays the published APK**, because it points at the server that is actually
-up. Nothing in this commit reaches a handset on its own — `gradle.properties` only takes effect
-when someone builds.
+One thing to watch at build time: CI's `LRMS_API_URL` repository variable **overrides**
+`lrmsReleaseApiUrl`. Reading it needs repository admin rights, so the way to confirm which server
+a build actually points at is to read it back out of the APK's compiled BuildConfig, which is what
+was done for 1.6.4.
 
-One more thing to check at build time: CI's `LRMS_API_URL` repository variable **overrides**
-`lrmsReleaseApiUrl`. If it is still set to the old host, a CI build silently ignores the change.
-The run summary prints "Server this APK talks to", which is the place to confirm it — reading the
-variable needs repository admin rights.
+**Keep the old domain redirecting.** Every QR already printed onto a sheet in a branch file points
+at `cvbuilder.bharatseo.site`. Switching that off kills every printed QR.
+
+### The reminders
+
+The app had no notification code at all — no channel, no alarm, no receiver — while the server had
+been writing reminders since the first release. They arrived on the handset and went into a list
+nobody had reason to open.
+
+`in.lrms.field.reminders` now holds all of it: `ReminderClock` (pure arithmetic, unit tested),
+`Reminders` (channel, arming, notifying), `ReminderReceiver` and `BootReceiver`.
+
+- **The panel's own settings drive it.** `working_days`, `reminder_minutes` and `server_timezone`
+  had been on the wire from the first release and were being discarded by `DeadlineDto`, which is
+  why the app could show a countdown but never raise a warning. They are parsed now, so moving the
+  deadline in the panel moves the phone.
+- **One alarm is armed at a time and the receiver arms the next**, so the schedule walks itself
+  forward and repairs itself. `BOOT_COMPLETED`, `TIME_SET`, `TIMEZONE_CHANGED` and
+  `MY_PACKAGE_REPLACED` all re-arm — Android clears alarms on all four and says nothing, which is
+  the fault that gets reported as "it worked for a week".
+- **`SCHEDULE_EXACT_ALARM`, never `USE_EXACT_ALARM`.** The second is granted without asking but
+  Google restricts it to clock and calendar apps. `canScheduleExactAlarms()` is checked and an
+  inexact alarm used otherwise. A test asserts the entitlement is *absent*.
+- **The working-day test is applied to the day of the deadline, not the day the alarm rings**,
+  because `report_reminder_minutes` is free text in the panel and a value over 24 hours is
+  somebody's to type.
+- **Everything is computed in the server's timezone.** The deadline is the server's.
+- **Nothing fires signed out**, and the alarms are dropped at sign-out beside the database wipe.
+- The server's own notification rows are announced on sync, gated on a high-water mark rather than
+  the unread flag — forty rows come down every sync and unread stays true until somebody opens the
+  screen. This is what makes the follow-up and promise crons audible.
+
+Not verified: a notification visibly appearing on a handset. There is no Android SDK or emulator in
+the sandbox. The arithmetic is unit tested, the wiring is asserted against the built manifest, and
+the packaging was read back out of the APK.
 
 ## Current state
 
 - Suites: `160 / 383 / 220 / 491 / 107`
   (test-import / http-smoke / api-smoke / test-reports / test-qr).
-- Both CI workflows green on the branch. Android: Kotlin compiles, 46 unit tests,
+- Both CI workflows green on the branch. Android: Kotlin compiles, 75 unit tests,
   `lintDebug` clean, release APK and AAB build.
 - Room is at **version 6** (`MIGRATION_5_6` adds `status` and `syncMessage` to
   `sss_enrolments`). 42 tables server-side; a fresh install needs **0** upgrade steps, and an
   existing one needs the rename step only.
-- APK **v1.6.3** is the published build, signed with the new key:
-  `https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.6.3-SIGNED.apk`
-  File SHA-256 `4ade099868587223b09dfb3b7ef2e3e9cf2fbc1b46c2128eb5fbaa94b282b98c`, verified by
-  downloading the published file and checking it against the D2 certificate. Installs over
-  1.6.0, 1.6.1 and 1.6.2. It carries the sign-in screen cleanup and all of the PDF placement
-  fixes.
-  - Checked from the built file rather than from the branch name: `versionName` read out of
-    the packaged `AndroidManifest.xml`, and `resources.arsc` confirmed to no longer carry the
-    two diagnostic strings. A build branch is named by hand and is the easy thing to get
-    wrong.
-  - 1.5.4 onwards all stay on the `apk` branch. A download link outlives its release — it
-    gets forwarded around a branch — so deleting one turns a saved link into a bare 404, and
-    the previous build is the only way back if a new one misbehaves on a handset. The README
-    there used to claim superseded builds were deleted, which was never what happened; it now
-    says what is actually true.
+- APK **v1.6.4** is the published build, signed with the same key as every release since 1.6.0:
+  `https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.6.4-SIGNED.apk`
+  File SHA-256 `74b74a975c00b094e17de9790373ef4899bd0fde1ae35c5f563da20fcaa8bd4b`, verified by
+  downloading the published file and checking it against the D2 certificate. Installs over 1.6.0
+  through 1.6.3. It carries the rename, the new logo, the new server and the reminders.
+  - Read back out of the built APK rather than trusted: versionName, the server URL from the
+    compiled BuildConfig, the app name from the packaged resources with the old one confirmed
+    gone, both reminder receivers and their permissions from the merged manifest, the Hindi
+    reminder wording, and all sixteen brand images by size — R8 obfuscates resource names in a
+    release build, so size is what identifies them.
+  - 1.5.4 onwards all stay on the `apk` branch. A download link outlives its release.
 - Web panel published to the `web-app` branch at `79c977c` — the server pulls from it.
 - The repository has been renamed twice and is now `dhdhdh51/zetproshivrj`. `git push` still
   works through the old remote, GitHub redirects it; `gh api` does not follow the rename, so
