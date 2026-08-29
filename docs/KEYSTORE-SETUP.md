@@ -21,6 +21,18 @@ Expires  6 January 2054
 `EXPECTED_CERT_SHA256` in `.github/workflows/android-build.yml` holds that fingerprint, and
 the workflow refuses to publish a tag signed by anything else.
 
+### The subject still says the old company name, and has to
+
+The company was renamed to **D2 Square Credit Solutions**, and the app was renamed with it. This
+certificate was not, and must not be: a subject cannot be edited, so changing it means generating
+a new key, and a new key is a new app to every handset in the field. Every one of them would have
+to be uninstalled — taking any field work still waiting in the outbox with it — to install the
+next release.
+
+Nothing depends on the wording. The first line of this file is the reason: a phone identifies an
+app by the key, not by the name on it. The name people see comes from `app_name`, which has been
+changed. Leave the subject alone; it is a fingerprint, not a letterhead.
+
 Every published APK is verified against it. To check one by hand:
 
 ```bash

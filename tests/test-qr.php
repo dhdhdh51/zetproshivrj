@@ -460,14 +460,17 @@ section('A longer link is printed larger, not denser');
  */
 $floor = 0.5;
 $payloads = [
-    'a record link' => 'https://cvbuilder.bharatseo.site/r/inspection/1',
-    'a report with no filters' => 'https://cvbuilder.bharatseo.site/r/report/customer_visit',
-    'a report with a date range' => 'https://cvbuilder.bharatseo.site/r/report/branch_performance'
+    'a record link' => 'https://server.d2squarecreditsolutions.in/r/inspection/1',
+    'a report with no filters' => 'https://server.d2squarecreditsolutions.in/r/report/customer_visit',
+    'a report with a date range' => 'https://server.d2squarecreditsolutions.in/r/report/branch_performance'
         . '?from=2026-08-01&to=2026-08-31',
-    'a report with filters at the cap' => 'https://cvbuilder.bharatseo.site/r/report/branch_performance?'
+    'a report with filters at the cap' => 'https://server.d2squarecreditsolutions.in/r/report/branch_performance?'
         . str_repeat('a', 119),
-    'the longest link that can be encoded' => 'https://cvbuilder.bharatseo.site/r/report/x?'
-        . str_repeat('b', 169),
+    // Exactly the 213 bytes the encoder accepts and not a byte more. The filler is sized to the
+    // host, which is why it changed when the server was renamed: a longer address leaves less
+    // room for the filters, and this fixture is here to sit on that boundary.
+    'the longest link that can be encoded' => 'https://server.d2squarecreditsolutions.in/r/report/x?'
+        . str_repeat('b', 160),
 ];
 
 foreach ($payloads as $description => $payload) {
@@ -513,7 +516,7 @@ $survived = true;
 
 try {
     $refused->verification(
-        'https://cvbuilder.bharatseo.site/r/report/x?' . str_repeat('z', 300),
+        'https://server.d2squarecreditsolutions.in/r/report/x?' . str_repeat('z', 300),
         ['Reference: still printed']
     );
 } catch (Throwable $e) {

@@ -57,7 +57,9 @@ These came from the client directly and have each been stated more than once.
   ordinary text leading. `pdf_tight_leading()` in tests/lib.php fails any pair of stacked lines
   set closer than 1.15 em.
 - **British spelling** in identifiers and copy: `organisation`, `enrolment`.
-- App name is **D2 RECOVERY SOLUTION**.
+- App name is **D2 SQUARE CREDIT SOLUTIONS**. It was D2 Recovery Solutions & Services until the
+  company was renamed; the signing certificate still carries the old name and must not be
+  reissued — see docs/KEYSTORE-SETUP.md.
 - **Who is called what.** The agent at the outlet is the **BCA** (Business Correspondent
   Agent) and uses the Android app. The panel account that monitors them, inspects their
   outlet and approves their visits is the **BC Supervisor** — what the code used to call

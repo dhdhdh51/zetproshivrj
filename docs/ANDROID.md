@@ -62,9 +62,9 @@ build type, and `-PlrmsApiUrl` overrides any of them.
 
 | Build type | applicationId | Default API URL | Cleartext HTTP |
 | --- | --- | --- | --- |
-| `debug` | `in.lrms.field.debug` | `https://cvbuilder.bharatseo.site/api/v1/` (the production server) | allowed |
+| `debug` | `in.lrms.field.debug` | `https://server.d2squarecreditsolutions.in/api/v1/` (the production server) | allowed |
 | `staging` | `in.lrms.field.staging` | `https://staging.example.com/api/v1/` | refused |
-| `release` | `in.lrms.field` | `https://cvbuilder.bharatseo.site/api/v1/` (`lrmsReleaseApiUrl`) | refused |
+| `release` | `in.lrms.field` | `https://server.d2squarecreditsolutions.in/api/v1/` (`lrmsReleaseApiUrl`) | refused |
 
 All three can be installed side by side, so a supervisor can keep production
 while testing a staging build.

@@ -330,6 +330,33 @@ Everything below is on the branch, green in CI, and live-ready.
     field, not leftover scaffolding. `api.ping()` stayed too — a declared endpoint the app is
     entitled to call, not test code.
 
+## Do not publish an APK yet — the new server does not resolve
+
+The company was renamed to **D2 Square Credit Solutions** and the app and the committed API URL
+have been changed with it. The URL is not usable yet, so a release built from this commit would
+point every handset at nothing.
+
+Measured on 29 August 2026:
+
+| host | state |
+| --- | --- |
+| `server.d2squarecreditsolutions.in` | **no A record at all.** Public resolvers return SERVFAIL |
+| `d2squarecreditsolutions.in` | resolves to 35.172.174.242, valid HTTPS, but `/api/v1/ping` is the hosting's own **404** — LRMS is not deployed on that vhost |
+| `cvbuilder.bharatseo.site` | 35.172.174.242, LRMS answering normally. This is what v1.6.3 in the field talks to |
+
+So two things have to happen before a build goes out: the `server.` record has to exist, and LRMS
+has to be served from it. `https://server.d2squarecreditsolutions.in/api/v1/ping` returning the
+ping JSON is the whole test.
+
+Until then **v1.6.3 stays the published APK**, because it points at the server that is actually
+up. Nothing in this commit reaches a handset on its own — `gradle.properties` only takes effect
+when someone builds.
+
+One more thing to check at build time: CI's `LRMS_API_URL` repository variable **overrides**
+`lrmsReleaseApiUrl`. If it is still set to the old host, a CI build silently ignores the change.
+The run summary prints "Server this APK talks to", which is the place to confirm it — reading the
+variable needs repository admin rights.
+
 ## Current state
 
 - Suites: `160 / 383 / 220 / 491 / 107`
