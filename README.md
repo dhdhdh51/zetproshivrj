@@ -2,29 +2,67 @@
 
 This branch exists only to give the app a download link. Nothing else lives on it.
 
+## Read this before you send the link to anyone
+
+**1.7.0 will not install over 1.6.x.** The app was signed with a new key so that the
+certificate carries the company's own name, and to a phone a new key means a different app. The
+old one has to come off first.
+
+**Uninstalling deletes the phone's local data, and the outbox is part of it.** Anything a BCA
+has recorded but not yet managed to send is the only copy of that work. It goes when the app
+goes.
+
+So on every handset, in this order:
+
+1. **Open the app and sync until nothing is left waiting.** Not "mostly synced" — empty. On a
+   handset with no signal, wait for one. Do not skip ahead.
+2. **Then uninstall** the old app.
+3. **Then install** from the link below and sign in again.
+
+If somebody installs without uninstalling, Android just refuses with **"App not installed"**.
+Nothing is damaged, the old app carries on working, and they can go back and do step 1 — so a
+mistake here is recoverable. Getting the order wrong is not.
+
+This is the second and hopefully last time. Every release after 1.7.0 installs straight over it.
+
 ## Download
 
-**[LRMS-v1.6.4-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.6.4-SIGNED.apk)**
-— open that link on the phone and Android will offer to install it.
+**[LRMS-v1.7.0-SIGNED.apk](https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.7.0-SIGNED.apk)**
+— open that link on the phone, after the three steps above.
 
-> **The app has been renamed.** On the phone it is now **D2 SQUARE CREDIT SOLUTIONS**, with the
-> new logo. It is the same app and the same signing key, so it installs straight over whatever is
-> there — the name and icon simply change.
+> **The certificate now carries the company name.** It reads **D2 SQUARE CREDIT SOLUTIONS**,
+> matching the rename. That is the whole reason this release needs a reinstall; nothing else
+> about it required one.
 >
-> **The server has moved** to `server.d2squarecreditsolutions.in`. That is compiled into this
-> build, so **1.6.3 and older will stop working once the old address is switched off.** Everyone
-> needs this one.
+> **The server is** `server.d2squarecreditsolutions.in`, as it has been since 1.6.4. Anything
+> older than that stops working when the old address is switched off, so everyone needs this
+> build regardless.
 >
-> **Coming from 1.6.0 through 1.6.3:** it installs straight over it. Nothing to uninstall,
-> nothing lost.
+> **Coming from 1.6.x, or 1.5.5, or anything else:** the three steps above apply. There is no
+> version this installs straight over.
 >
-> **Coming from 1.5.5 or older:** 1.6.0 changed the signing key, so the app has to be
-> replaced once. On each handset: **open the app and sync until nothing is waiting**, then
-> uninstall the old app, then install from the link above and sign in again. Uninstalling
-> deletes the phone's local data, and until a signal returns the outbox is the only copy of that
-> day's work. After this one time, every release installs over the last.
->
-> Certificate: `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4`
+> Certificate: `1bc1c332a319c53c432488f844bb2321df9156cde5bbe0c87c81127c08518323`
+
+## 1.7.0 — the certificate carries the company name
+
+Nothing in the app changed. This release exists for one reason: the key that signs it now says
+**D2 SQUARE CREDIT SOLUTIONS** instead of the old company name.
+
+That name is not something a phone ever shows anyone. It sits inside the signature, and the only
+way to see it is to inspect the file with developer tools. The name on the launcher and the
+sign-in screen changed back in 1.6.4.
+
+A certificate's subject cannot be edited, so putting a new name on it means a new key, and a new
+key means every handset uninstalls once — which is why the previous release notes argued for
+leaving it alone. The client asked for it anyway: they want their own name on what signs their
+software, and accepted the reinstall. That is their call to make.
+
+What that buys is a signature that reads correctly to anyone who ever inspects the file. What it
+costs is the reinstall at the top of this page. Worth being clear that the trade is real in both
+directions.
+
+So: same app as 1.6.4, same server, same reminders, same reports. New key, and the one-time
+uninstall that comes with it.
 
 ## 1.6.4 — the new name, and the phone finally reminds you
 
@@ -252,33 +290,39 @@ visit, not a transaction.
 
 ## Details
 
-Built by CI, then signed with the D2 release key. Everything below was read back out of
-the built file rather than taken on trust: zipalign ok, signature schemes **v2 and v3**,
-the version name out of the packaged manifest, the server address out of the compiled
-BuildConfig, the new app name out of the packaged resources with the old one confirmed
-gone, both reminder receivers and their permissions in the merged manifest, the reminder
-wording present in English *and* Hindi, and all sixteen brand images accounted for by size.
+Built by CI, then signed with the release key. Everything below was read back out of the built
+file rather than taken on trust: zipalign ok, signature schemes **v2 and v3**, the certificate
+fingerprint straight off the signature, the version name out of the packaged manifest with 1.6.4
+confirmed gone, the server address out of the compiled BuildConfig with the old host confirmed
+gone, the new company name out of the packaged resources with the old one confirmed gone, both
+reminder receivers in the merged manifest, and the reminder wording present in English *and*
+Hindi.
+
+What was **not** verified, here or in any previous release, is a reminder actually going off on a
+real handset. There is no phone and no emulator in the build environment, so what can be checked
+is that the receivers are registered, the alarms are scheduled and the wording is packaged — not
+that a notification appeared on somebody's screen. That is worth confirming on one handset before
+the build is sent to everybody.
 
 | | |
 | --- | --- |
-| Version | 1.6.4 |
+| Version | 1.7.0 |
 | Server | https://server.d2squarecreditsolutions.in/api/v1/ |
-| Signed by | D2 Recovery Solution, Patna, Bihar, IN |
-| Certificate SHA-256 | `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4` |
-| File SHA-256 | `74b74a975c00b094e17de9790373ef4899bd0fde1ae35c5f563da20fcaa8bd4b` |
+| Signed by | D2 SQUARE CREDIT SOLUTIONS, Patna, Bihar, IN |
+| Certificate SHA-256 | `1bc1c332a319c53c432488f844bb2321df9156cde5bbe0c87c81127c08518323` |
+| File SHA-256 | `2d84ff6286055afe4f8dfd699eb6d929e836af9e42cfa13b982d12ff02e9cbae` |
 | Size | 3.5M |
 
-Same certificate as 1.6.0 through 1.6.3, so this installs straight over any of them
-without uninstalling. Builds up to 1.5.5 used a different key — see the note at the top.
+**A different certificate from 1.6.x**, which is why this one needs an uninstall — see the top
+of this page. Three keys have signed this app now: one up to 1.5.5 that was lost, one for 1.6.0
+through 1.6.4, and this one from 1.7.0 onwards. Each change cost every handset a reinstall.
 
-The certificate still reads **D2 Recovery Solution**, and will keep reading that. A
-certificate's subject cannot be edited, so changing it means a new key — and a new key is a
-new app to every handset in the field, all of which would have to be uninstalled first,
-taking any unsent field work with them. A phone identifies an app by its key, not by the
-name printed on it.
+The certificate reads **D2 SQUARE CREDIT SOLUTIONS**, and reissuing it to say so is the entire
+content of this release. Nobody should change it again without a reason worth another forced
+uninstall — and the company name was, arguably, only just worth this one.
 
 ```
-sha256sum LRMS-v1.6.4-SIGNED.apk     # must match the File SHA-256 above
+sha256sum LRMS-v1.7.0-SIGNED.apk     # must match the File SHA-256 above
 ```
 
 If the certificate fingerprint ever differs from the one above, it was signed with a
