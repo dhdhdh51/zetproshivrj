@@ -1,6 +1,6 @@
 # Where things stand
 
-Last updated: 20 August 2026. Delete or rewrite this once it stops being true — a stale
+Last updated: 30 August 2026. Delete or rewrite this once it stops being true — a stale
 handover is worse than none.
 
 Working branch: `feat/lrms-loan-recovery-system`, open as PR #2.
@@ -339,13 +339,15 @@ The server was not resolving when the rename landed — `server.` had no A recor
 apex answered `/api/v1/ping` with the hosting's own 404 — so no APK went out until it did. It
 answers now, and **v1.6.4 is published**.
 
-Two things that will not change and should not be "fixed":
+One thing that will not change and should not be "fixed":
 
-- **The signing certificate still reads D2 RECOVERY SOLUTION.** A subject cannot be edited, so
-  changing it means a new key, and a new key is a new app to every handset — all of which would
-  have to be uninstalled, taking unsent field work with them. See docs/KEYSTORE-SETUP.md.
 - **The Central Bank of India letterhead on the printed reports is the bank's**, not the vendor's.
   The rename does not touch it.
+
+This list used to have a second entry saying the signing certificate would keep the old company
+name permanently, because changing it costs every handset an uninstall. The user was told that and
+asked for it anyway — **v1.7.0 is signed with a reissued key whose certificate reads D2 SQUARE
+CREDIT SOLUTIONS.** Their call, and a legitimate one; see below and docs/KEYSTORE-SETUP.md.
 
 One thing to watch at build time: CI's `LRMS_API_URL` repository variable **overrides**
 `lrmsReleaseApiUrl`. Reading it needs repository admin rights, so the way to confirm which server
@@ -397,16 +399,27 @@ the packaging was read back out of the APK.
 - Room is at **version 6** (`MIGRATION_5_6` adds `status` and `syncMessage` to
   `sss_enrolments`). 42 tables server-side; a fresh install needs **0** upgrade steps, and an
   existing one needs the rename step only.
-- APK **v1.6.4** is the published build, signed with the same key as every release since 1.6.0:
-  `https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.6.4-SIGNED.apk`
-  File SHA-256 `74b74a975c00b094e17de9790373ef4899bd0fde1ae35c5f563da20fcaa8bd4b`, verified by
-  downloading the published file and checking it against the D2 certificate. Installs over 1.6.0
-  through 1.6.3. It carries the rename, the new logo, the new server and the reminders.
+- APK **v1.7.0** is the published build:
+  `https://raw.githubusercontent.com/dhdhdh51/zetproshivrj/apk/LRMS-v1.7.0-SIGNED.apk`
+  File SHA-256 `2d84ff6286055afe4f8dfd699eb6d929e836af9e42cfa13b982d12ff02e9cbae`, certificate
+  `1bc1c332…`, verified by downloading the published file back and checking both. Functionally
+  identical to 1.6.4 — the only change is the reissued signing key.
+  **It does not install over 1.6.x.** Every handset must sync to empty, uninstall, then install.
+- APK **v1.6.4** is the last build on the old key, still on the branch as the way back:
+  file SHA-256 `74b74a975c00b094e17de9790373ef4899bd0fde1ae35c5f563da20fcaa8bd4b`, certificate
+  `b7d11c52…`. It carries the rename, the new logo, the new server and the reminders, and
+  installs over 1.6.0 through 1.6.3. **1.6.x can no longer be updated in place** — the next
+  build a 1.6.x handset takes is 1.7.0, through an uninstall.
   - Read back out of the built APK rather than trusted: versionName, the server URL from the
     compiled BuildConfig, the app name from the packaged resources with the old one confirmed
     gone, both reminder receivers and their permissions from the merged manifest, the Hindi
     reminder wording, and all sixteen brand images by size — R8 obfuscates resource names in a
     release build, so size is what identifies them.
+  - **Never verified, in any release: a reminder actually firing on a real handset.** There is
+    no phone and no emulator in this environment. What can be checked is that the receivers are
+    registered, the alarms are scheduled and the wording is packaged — not that a notification
+    appeared on somebody's screen. The user has been told this twice. It wants one handset
+    confirming it before a release goes out to everybody.
   - 1.5.4 onwards all stay on the `apk` branch. A download link outlives its release.
 - Web panel published to the `web-app` branch at `79c977c` — the server pulls from it.
 - The repository has been renamed twice and is now `dhdhdh51/zetproshivrj`. `git push` still
@@ -414,33 +427,65 @@ the packaging was read back out of the APK.
   it needs the current name. Old `raw.githubusercontent.com` links do still resolve, but new
   documentation should use the current name.
 
-## The signing key was replaced at v1.6.0
+## The signing key has been replaced twice
 
-The original keystore was lost. It was never a repository secret and no copy survived, so CI
-fell back to Android's debug key and the build could not be handed out.
+Three keys have signed this app. Each change forced every handset to uninstall once.
 
-On the user's instruction a new key was generated and v1.6.0 signed with it:
+| Releases | Certificate SHA-256 | Why |
+| --- | --- | --- |
+| up to v1.5.5 | `8bb48d4e…` | — |
+| v1.6.0 – v1.6.4 | `b7d11c52…` | the first keystore was lost: never a repository secret, no copy survived, CI fell back to the debug key and the build could not be handed out |
+| **v1.7.0 onwards** | **`1bc1c332…`** | reissued at the user's request so the certificate carries the company's own name after the rename |
+
+The current key:
 
 ```
-SHA-256  b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4
-Alias    lrms      RSA 4096      expires 6 January 2054
+SHA-256  1bc1c332a319c53c432488f844bb2321df9156cde5bbe0c87c81127c08518323
+Subject  CN=D2 SQUARE CREDIT SOLUTIONS, OU=LRMS Field, O=D2 Square Credit Solutions,
+         L=Patna, ST=Bihar, C=IN
+Alias    lrms      RSA 4096      expires 15 January 2054
 ```
 
-`EXPECTED_CERT_SHA256` in the Android workflow, `docs/KEYSTORE-SETUP.md` and the steering
-file all carry that fingerprint now. Releases up to v1.5.5 were signed with the old
-`8bb48d4e…` key, which is why:
+`EXPECTED_CERT_SHA256` in the Android workflow, `docs/KEYSTORE-SETUP.md`, the steering file and
+the `apk` branch README all carry that fingerprint.
 
-- **v1.6.0 cannot install over v1.5.5.** Handsets must sync, uninstall, then install v1.6.0.
-  Every release after v1.6.0 installs straight over it.
+What follows from it:
+
+- **v1.7.0 cannot install over v1.6.x**, exactly as v1.6.0 could not install over v1.5.5.
 - Telling supervisors to **sync first** is not optional. Uninstalling takes the local database
   with it, and until a signal returns the outbox is the only copy of a day's field work.
+- The certificate's locality still reads **Patna, Bihar**, carried over because no new address
+  was given. Nothing validates it. **Do not "correct" it** — that would be a third break for
+  something nobody can see on a phone.
 
-**The keystore is not in this repository and not in the sandbox's git history.** It was written
-to `/projects/keystore/lrms-release.jks` with its password in `/projects/keystore/PASSWORD.txt`,
-and the sandbox is not durable — the user was given the base64 and the password to store, and
-asked to put the four signing secrets on the repository so CI can sign by itself. If a later
-session finds no keystore and no secrets, ask them for it before building a release; do not
-generate a third key without saying what it costs.
+### The reissue was advised against, and done anyway
+
+An earlier version of this file and of `docs/KEYSTORE-SETUP.md` argued the subject should be left
+alone: nothing technical depends on the wording, the name people see comes from `app_name`, and a
+certificate is a fingerprint not a letterhead. That argument still holds on its own terms and is
+preserved in KEYSTORE-SETUP.md.
+
+The user was told the cost — every handset syncing and reinstalling — and chose it, because they
+want their own company name on what signs their software. That is an owner's decision to make.
+Recorded here so nobody later reads it as a mistake and reverses it.
+
+### Where the keystore is
+
+**Not in this repository and not in the sandbox's git history.** Both keystores, their passwords,
+and instructions were written to `/projects/sandbox/KEYSTORE-BACKUP/` — inside the workspace, so
+the user can download them, and outside the git working tree, so they cannot be committed by
+accident:
+
+```
+KEYSTORE-BACKUP/READ-ME-FIRST.txt
+KEYSTORE-BACKUP/CURRENT-KEY-v1.7.0-onwards/     lrms-release-2.jks, keystore.b64
+KEYSTORE-BACKUP/OLD-KEY-v1.6.x-only/            lrms-release.jks, keystore.b64
+```
+
+The sandbox is not durable. The user has been asked, twice now, to store the base64 and password
+and to set the four signing secrets on the repository so CI signs by itself. **If a later session
+finds no keystore and no secrets, ask for it before building a release — do not generate a fourth
+key** without spelling out that it means another forced uninstall for every BCA in the field.
 
 ## Open, not blocking
 

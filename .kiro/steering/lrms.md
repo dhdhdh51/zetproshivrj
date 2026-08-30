@@ -179,10 +179,14 @@ end up testing the previous run.
 - Web: `bash deploy/publish-web-branch.sh --push` → the `web-app` branch, which the live
   server pulls. Never commit to that branch by hand; it would reject the next publish.
 - APK: push `build/X.Y.Z` → collect from `staging/vX.Y.Z` → sign with
-  `deploy/sign-apk.sh <apk> /projects/keystore/lrms-release.jks` → publish to the `apk`
-  branch. Every release must be signed with that same key or it will not install over the
-  previous build. Confirm the certificate SHA-256 is
-  `b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4`.
+  `deploy/sign-apk.sh <apk> /projects/sandbox/KEYSTORE-BACKUP/CURRENT-KEY-v1.7.0-onwards/lrms-release-2.jks`
+  → publish to the `apk` branch. Every release must be signed with that same key or it will not
+  install over the previous build. Confirm the certificate SHA-256 is
+  `1bc1c332a319c53c432488f844bb2321df9156cde5bbe0c87c81127c08518323`.
+  The key has been replaced twice (v1.6.0, lost; v1.7.0, reissued for the company rename) and
+  each time every handset had to sync-then-uninstall-then-reinstall. **Never generate a new one
+  without saying what that costs.** `.kiro/HANDOVER.md` and `docs/KEYSTORE-SETUP.md` hold the
+  full chain.
 - **Never commit the keystore or any password.**
 - The GitHub repo has been renamed more than once; read the current name from
   `git remote -v` rather than assuming. Use `gh api` for pull requests and issues —
