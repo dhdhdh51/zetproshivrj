@@ -44,14 +44,15 @@ concurrency:
 
 env:
   JAVA_VERSION: '17'
-  # The D2 release certificate, the same fingerprint printed in KEYSTORE-SETUP.md and
-  # on every published release. Checked after signing, so a build cannot be handed out
-  # under a key that could not update the app already installed.
-  # The D2 release certificate. Replaced on 21 Aug 2026: the original keystore was lost, so
-  # a new 4096-bit key was generated and v1.6.0 signed with it. That release is the one break
-  # in the chain — it has to be installed over an uninstall — and every build after it
-  # installs straight over the last. See docs/KEYSTORE-SETUP.md.
-  EXPECTED_CERT_SHA256: 'b7d11c52707969d94ac3a6c62129ab2b1453437a2c2e02064c2123339e0294a4'
+  # The release certificate, the same fingerprint printed in KEYSTORE-SETUP.md and on every
+  # published release. Checked after signing, so a build cannot be handed out under a key that
+  # could not update the app already installed.
+  #
+  # This is the third key the project has had, and each change forced every handset to uninstall
+  # once. Up to v1.5.5 an earlier key, lost. v1.6.0 to v1.6.4 a replacement for it. From v1.7.0
+  # this one, reissued so the certificate carries the company's own name after the rename — the
+  # client asked for it knowing the cost. See docs/KEYSTORE-SETUP.md for the full chain.
+  EXPECTED_CERT_SHA256: '1bc1c332a319c53c432488f844bb2321df9156cde5bbe0c87c81127c08518323'
   ANDROID_COMPILE_SDK: '35'
   ANDROID_BUILD_TOOLS: '35.0.0'
 
