@@ -1814,6 +1814,22 @@ section('The inspection carries the scheme figures for a window the inspector pi
 
 Auth::setUser($admin);
 
+/*
+ * Anchored to last month, not this one.
+ *
+ * These dates run to the 12th and the 20th, and Inspections::start() refuses an inspection
+ * date more than a day in the future. Read against the current month, this whole section
+ * therefore failed with "The inspection date is not valid" on the first eleven days of every
+ * month and passed for the rest of it — a suite that is green because of the date it was run
+ * on is not telling anybody anything. A month that has already ended is in the past whenever
+ * this is run.
+ *
+ * Nothing here asserts a fixed number of working days or Sundays; every target assertion
+ * multiplies by Sss::workingDaysBetween() of the same window, so the calendar shape of the
+ * month it lands on does not matter.
+ */
+$schemeMonth = date('Y-m-', strtotime(date('Y-m-01') . ' -1 month'));
+
 $schemeBcId = (int) Database::scalar(
     'SELECT id FROM bc_supervisors ORDER BY id LIMIT 1'
 );
@@ -1823,7 +1839,7 @@ $schemeBranchId = (int) Database::scalar(
 );
 
 // A target of ten a working day, and five days actually reported.
-Sss::saveTarget($schemeBcId, date('Y-m-01'), [
+Sss::saveTarget($schemeBcId, $schemeMonth . '01', [
     'apy_target' => 2,
     'pmjjby_target' => 3,
     'pmsby_target' => 1,
@@ -1837,7 +1853,7 @@ foreach ([2, 3, 4, 5, 6] as $dayOfMonth) {
         'uuid' => sprintf('aaaa5555-2222-4333-8444-5555666600%02d', $dayOfMonth),
         'bc_supervisor_id' => $schemeBcId,
         'branch_id' => $schemeBranchId,
-        'enrolment_date' => date('Y-m-') . sprintf('%02d', $dayOfMonth),
+        'enrolment_date' => $schemeMonth . sprintf('%02d', $dayOfMonth),
         'apy_count' => $dayOfMonth,
         'pmjjby_count' => 2,
         'pmsby_count' => 0,
@@ -1854,35 +1870,35 @@ foreach ([2, 3, 4, 5, 6] as $dayOfMonth) {
 $inspectionsService = new Inspections();
 $schemeStart = $inspectionsService->start([
     'bc_supervisor_id' => $schemeBcId,
-    'inspection_date' => date('Y-m-12'),
+    'inspection_date' => $schemeMonth . '12',
     'uuid' => 'aaaa5555-2222-4333-8444-555566660aa1',
 ]);
 $schemeInspectionId = (int) $schemeStart['id'];
 $schemeDraft = Database::selectOne('SELECT * FROM inspections WHERE id = :id', ['id' => $schemeInspectionId]);
 
 equals(
-    ['from' => date('Y-m-01'), 'to' => date('Y-m-12')],
+    ['from' => $schemeMonth . '01', 'to' => $schemeMonth . '12'],
     Inspections::sssWindow($schemeDraft),
     "A window nobody has set covers the inspection's own month, up to the inspection date"
 );
 
 // A slip, not a request for nothing. The panel's own SSS screen swaps a reversed range too.
 equals(
-    ['from' => date('Y-m-05'), 'to' => date('Y-m-20')],
+    ['from' => $schemeMonth . '05', 'to' => $schemeMonth . '20'],
     Inspections::sssWindow([
-        'inspection_date' => date('Y-m-12'),
-        'sss_from' => date('Y-m-20'),
-        'sss_to' => date('Y-m-05'),
+        'inspection_date' => $schemeMonth . '12',
+        'sss_from' => $schemeMonth . '20',
+        'sss_to' => $schemeMonth . '05',
     ]),
     'A window entered backwards is swapped rather than read as empty'
 );
 
 // Half a window would otherwise measure a period nobody asked for.
 equals(
-    ['from' => date('Y-m-01'), 'to' => date('Y-m-12')],
+    ['from' => $schemeMonth . '01', 'to' => $schemeMonth . '12'],
     Inspections::sssWindow([
-        'inspection_date' => date('Y-m-12'),
-        'sss_from' => date('Y-m-03'),
+        'inspection_date' => $schemeMonth . '12',
+        'sss_from' => $schemeMonth . '03',
         'sss_to' => '',
     ]),
     'One date without the other falls back to the default window entirely'
@@ -1890,7 +1906,7 @@ equals(
 
 // A draft shows live figures, and they are the register's figures for the same window.
 $draftBlock = Inspections::sssPerformance($schemeDraft);
-$registerBlock = Sss::forSupervisor($schemeBcId, date('Y-m-01'), date('Y-m-12'));
+$registerBlock = Sss::forSupervisor($schemeBcId, $schemeMonth . '01', $schemeMonth . '12');
 
 ok($draftBlock !== null, 'A draft inspection offers the scheme block');
 equals(false, $draftBlock['frozen'] ?? true, 'And says its figures are not frozen yet');
@@ -1904,8 +1920,8 @@ equals(
 
 lrms_test_inspection_photo($schemeInspectionId);
 
-$schemeFrom = date('Y-m-01');
-$schemeTo = date('Y-m-12');
+$schemeFrom = $schemeMonth . '01';
+$schemeTo = $schemeMonth . '12';
 
 $inspectionsService->submit($schemeInspectionId, [
     'form' => [
@@ -2006,7 +2022,7 @@ Database::update(
     'sss_enrolments',
     ['apy_count' => 900, 'status' => Sss::STATUS_REOPENED, 'updated_at' => now()],
     'bc_supervisor_id = :bc AND enrolment_date = :day',
-    ['bc' => $schemeBcId, 'day' => date('Y-m-02')]
+    ['bc' => $schemeBcId, 'day' => $schemeMonth . '02']
 );
 
 $afterCorrection = Inspections::sssPerformance(
@@ -2051,14 +2067,41 @@ equals(
     Inspections::sssPerformance(Database::selectOne('SELECT * FROM inspections WHERE id = :id', ['id' => $preSchemeId])),
     'An inspection signed before the scheme block existed is given no figures at all'
 );
+/*
+ * This used to assert the reprint carried no scheme block at all, on the reasoning that a
+ * sheet must not gain figures it was never signed with. That reasoning is right and still
+ * holds below — what was wrong was the conclusion that it should therefore print nothing.
+ *
+ * On paper, nothing is indistinguishable from a fault: item 16 ended and the 17-18 band
+ * followed, and the client reported a section missing from around items 14-16. Every
+ * inspection submitted before the block existed reprints in this state, so that is the
+ * common case, not a rare one.
+ *
+ * So the heading stays and says why it is empty, and the figures still do not appear.
+ */
+$preSchemeText = pdf_text_flat(RecordExport::inspectionPdf($preSchemeId)['path']);
+
 ok(
-    !str_contains(pdf_text_flat(RecordExport::inspectionPdf($preSchemeId)['path']), 'Social Security Scheme performance'),
-    'And its reprint carries no scheme block, rather than gaining one it was never signed with'
+    str_contains($preSchemeText, 'Social Security Scheme performance'),
+    'Its reprint still shows the scheme heading, so the section does not silently vanish'
+);
+ok(
+    str_contains($preSchemeText, 'Not recorded on this inspection'),
+    'And says why it carries no figures'
+);
+// Both strings belong to inspectionSssTable() and to nothing else on this sheet: the caption it
+// prints under the heading, and the sentence explaining how a target is derived. Checking for a
+// bare column heading like "Achieved" would pass today and fail confusingly the first time any
+// other section of this report happened to use the word.
+ok(
+    !str_contains($preSchemeText, 'Read from the enrolment records')
+        && !str_contains($preSchemeText, 'working day(s) of the daily figure'),
+    'But gains neither the table nor a single figure it was never signed with'
 );
 
 /* And the register agrees with the sheet ----------------------------------- */
 
-$schemeRegister = Reports::run('bc_inspection', ['from' => date('Y-m-01'), 'to' => today()], 1, 100);
+$schemeRegister = Reports::run('bc_inspection', ['from' => $schemeMonth . '01', 'to' => today()], 1, 100);
 $schemeLabels = array_map(static fn (array $c): string => (string) $c['label'], $schemeRegister['columns']);
 
 ok(in_array('Scheme window', $schemeLabels, true), 'The inspection register has a scheme window column');

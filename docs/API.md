@@ -50,8 +50,10 @@ for `422 validation_failed`.
 | 429 | `rate_limited` | see throttling below |
 | 503 | `no_form`, maintenance | server-side configuration or maintenance |
 
-**Throttling** — sign-in is limited per IP and per username
-(`security.login_max_attempts`, default 5 per 15 minutes). Authenticated calls
+**Throttling** — sign-in is limited per IP and per account
+(`security.login_max_attempts`, default 5 per 15 minutes). The per-account counter
+is keyed on the identifier reduced to canonical form, so the several ways of writing
+one phone number share a single budget rather than getting one each. Authenticated calls
 are limited to `security.api_rate_per_minute` (default 90) per user per minute.
 
 **Time** — every response carries `server_time` in the server timezone
@@ -139,7 +141,7 @@ step.
 
 ```json
 {
-  "username": "bc001",
+  "username": "BC001",
   "password": "…",
   "device": {
     "uuid": "b3f1…",
@@ -150,9 +152,19 @@ step.
 }
 ```
 
-`username` accepts the username, email, employee code, or — for a BCA —
-their **BCBF code** (`bc_supervisors.bc_code`), which is the identifier field staff
-actually know. Matching is case-insensitive, so `BC001` and `bc001` both work.
+`username` is the field name, not the only thing it accepts. It resolves, in order,
+against email, username, employee code, **BCBF code** (`bc_supervisors.bc_code`) and
+**mobile number**. A BCA is created with only a BCBF code and a mobile — the staff form
+stopped issuing usernames and employee codes — so those two are what the app should
+expect people to type; the other three still resolve for accounts that have them.
+
+Matching is case-insensitive, so `BC001` and `bc001` both work. A mobile number is
+matched on its ten digits, so `9876543210`, `09876543210`, `+91 98765 43210` and
+`987-654-3210` are one identifier. If two accounts hold the same number the sign-in is
+**refused** rather than resolved to either of them, so a number is only a usable
+credential while it belongs to one person.
+
+The field name stays `username` because installed handsets post against it.
 `device.uuid` is mandatory (it may also be supplied as the `X-Device-Id` header)
 and is what the token is bound to.
 
@@ -163,7 +175,7 @@ Success:
   "otp_required": false,
   "token": "…80 hex chars…", "token_type": "Bearer",
   "expires_at": "2026-09-17 15:42:10",
-  "user": { "id": 12, "name": "…", "username": "bc001", "mobile": "9…", "role": "bc_supervisor", "must_change_password": false },
+  "user": { "id": 12, "name": "…", "username": null, "mobile": "9…", "role": "bc_supervisor", "must_change_password": false },
   "supervisor": { "id": 4, "bc_code": "BC001", "branch_id": 2, "branch_name": "…", "branch_code": "BR002" },
   "device": { "id": 7, "uuid": "b3f1…" }
 } }

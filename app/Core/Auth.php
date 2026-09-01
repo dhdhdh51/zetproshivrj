@@ -26,20 +26,28 @@ final class Auth
     /* ------------------------------------------------------------------ */
 
     /**
-     * Users may sign in with their email address, username or employee code.
-     */
-    /**
      * Resolve a user from whatever they typed in the login field.
      *
-     * A BCA knows their BCBF code — it is on their paperwork and in the
-     * bank's spreadsheets — far better than a username invented when their
-     * account was created, so it signs them in too. The join is safe: one
-     * bc_supervisors row per user is enforced by `uq_bc_user`, and `uq_bc_code`
-     * keeps the code unique across supervisors.
+     * Five identifiers now: email, username, employee code, BCBF code and mobile number.
+     *
+     * A BCA knows their BCBF code — it is on their paperwork and in the bank's spreadsheets —
+     * and they know their own phone number. Neither has to be invented, written down and read
+     * back over a bad line, which is what the username was. The staff form no longer offers a
+     * username or an employee code at all; both columns stay, because accounts created before
+     * that still have them and those people can still sign in.
+     *
+     * The first four are unique columns, so that query returns one row or none. Mobile is not
+     * unique and is handled separately below.
      */
     public static function findByLogin(string $login): ?array
     {
-        return Database::selectOne(
+        $login = trim($login);
+
+        if ($login === '') {
+            return null;
+        }
+
+        $user = Database::selectOne(
             'SELECT u.*, r.slug AS role, r.name AS role_name
                FROM users u
                JOIN roles r ON r.id = u.role_id
@@ -51,6 +59,163 @@ final class Auth
               LIMIT 1',
             ['login' => $login]
         );
+
+        return $user ?? self::findByMobile($login);
+    }
+
+    /**
+     * A mobile number reduced to the ten digits that identify it, or null if it is not one.
+     *
+     * 9876543210, 09876543210, +91 98765 43210 and 91-9876543210 are one number written four
+     * ways. An Admin types it into the staff form the way it was written on the paperwork; the
+     * BCA types it the way they say it out loud. Without this they are different logins, and
+     * the BCA is locked out by a space somebody else typed.
+     *
+     * Only those four shapes are accepted. Taking the last ten digits of any long number would
+     * let a twelve-digit Aadhaar typed into the login box resolve to somebody's phone.
+     */
+    public static function normaliseMobile(string $value): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $value) ?? '';
+        $length = strlen($digits);
+
+        if ($length === 10) {
+            return $digits;
+        }
+
+        if ($length === 11 && $digits[0] === '0') {
+            return substr($digits, 1);
+        }
+
+        if ($length === 12 && str_starts_with($digits, '91')) {
+            return substr($digits, 2);
+        }
+
+        return null;
+    }
+
+    /**
+     * SQL that strips the punctuation people put in phone numbers, for MySQL 5.7.
+     *
+     * `REGEXP_REPLACE` says this in one call, and it is what this started as — but it arrived in
+     * MySQL 8.0.4 and this project documents 5.7 as supported (README, and deploy/preflight.php
+     * checks for it). CI runs 8.0, so that version would have gone out green and then thrown a
+     * PDOException on every mobile-shaped sign-in and every staff-form save on a 5.7 host. A
+     * REPLACE chain is uglier and works everywhere.
+     *
+     * Only the characters that actually turn up in a written phone number are removed. Anything
+     * else survives, so a value with letters in it matches nothing — which is right, because it
+     * is not a phone number.
+     */
+    public static function mobileSql(string $column): string
+    {
+        $expression = sprintf("COALESCE(%s, '')", $column);
+
+        foreach ([' ', '+', '-', '(', ')', '.', "\t"] as $strip) {
+            $expression = sprintf("REPLACE(%s, '%s', '')", $expression, $strip);
+        }
+
+        return $expression;
+    }
+
+    /**
+     * The three ways a stored value may legitimately spell one ten-digit mobile.
+     *
+     * Compared exactly, rather than by taking the last ten digits of whatever is in the column.
+     * That shortcut is the one normaliseMobile() refuses on the typed side, and allowing it on
+     * the stored side would put the same hole back from the other end: a mistyped
+     * `9876543210123` would reduce to `6543210123` and become a working login for digits nobody
+     * owns, while whoever does own them would resolve to the wrong account.
+     *
+     * @return array<int, string>
+     */
+    public static function mobileCandidates(string $tenDigits): array
+    {
+        return [$tenDigits, '0' . $tenDigits, '91' . $tenDigits];
+    }
+
+    /**
+     * The key the sign-in throttle counts against, for whatever was typed.
+     *
+     * Keying on the raw string was sound while every identifier was compared literally against a
+     * unique column: one account, one key. A phone number is not like that. `9876543210`,
+     * `09876543210`, `+91 98765 43210` and `987-654-3210` all resolve to the same row, and on
+     * the raw string each spelling gets its own attempt budget — so the per-account limit stops
+     * bounding attempts per account exactly where it matters most.
+     *
+     * Reducing a phone number to its ten digits collapses every spelling onto one bucket. It is
+     * also what makes unlocking work: clearing the key for the spelling an Admin happened to
+     * store cannot cover a set that has no end to it.
+     */
+    public static function throttleKey(string $login): string
+    {
+        return self::normaliseMobile($login) ?? strtolower(trim($login));
+    }
+
+    /**
+     * Sign-in by phone number.
+     *
+     * Deliberately a second query rather than another OR on the one above. `users.mobile` has no
+     * unique key and no index, so this cannot use one — running it only when the indexed
+     * identifiers have already missed, and only when the input normalises to a phone number,
+     * keeps that scan off every other sign-in. The table is staff, not customers.
+     *
+     * More than one row is the case that matters. `mobile` is not unique, so two accounts can
+     * hold one number and there is then no way to tell which of them is signing in; `LIMIT 1`
+     * would quietly pick one and could hand somebody another BCA's day of work.
+     *
+     * An active row is preferred before giving up. The common collision is not two working
+     * accounts — it is a number that moved to a new BCA while the old account was disabled
+     * rather than corrected, and refusing on that would take mobile sign-in away from the person
+     * who actually holds the number, permanently, over a row nobody uses. A single match of any
+     * status still resolves, so a suspended user is still told their account is suspended rather
+     * than that their number is wrong.
+     */
+    private static function findByMobile(string $login): ?array
+    {
+        $mobile = self::normaliseMobile($login);
+
+        if ($mobile === null) {
+            return null;
+        }
+
+        $matches = Database::select(
+            'SELECT u.*, r.slug AS role, r.name AS role_name
+               FROM users u
+               JOIN roles r ON r.id = u.role_id
+              WHERE ' . self::mobileSql('u.mobile') . ' IN (:m1, :m2, :m3)
+              LIMIT 10',
+            array_combine(['m1', 'm2', 'm3'], self::mobileCandidates($mobile))
+        );
+
+        if (count($matches) === 1) {
+            return $matches[0];
+        }
+
+        if ($matches === []) {
+            return null;
+        }
+
+        $active = array_values(array_filter(
+            $matches,
+            static fn (array $row): bool => (string) $row['status'] === 'active'
+        ));
+
+        if (count($active) === 1) {
+            return $active[0];
+        }
+
+        // The ids, not only the last four digits. Without them this is a complaint nobody can
+        // act on: the panel's BCA search runs against bc_supervisors.mobile, so a colliding
+        // manager or disabled user is not findable from the screens at all.
+        Logger::warning(sprintf(
+            'Sign-in by mobile refused: %d accounts hold the number ending %s (user ids %s).',
+            count($matches),
+            substr($mobile, -4),
+            implode(', ', array_map(static fn (array $row): string => (string) $row['id'], $matches))
+        ));
+
+        return null;
     }
 
     public static function findById(int $id): ?array

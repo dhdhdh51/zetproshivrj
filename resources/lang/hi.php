@@ -62,7 +62,7 @@ return [
     'auth.sign_in_and_get_code' => 'साइन इन कर कोड पाएँ',
     'auth.sign_out' => 'साइन आउट',
     'auth.intro' => 'एडमिन/सुपरवाइज़र और शाखा प्रबंधक खाते।',
-    'auth.login_field' => 'ईमेल, यूज़रनेम, कर्मचारी कोड या BCBF कोड',
+    'auth.login_field' => 'ईमेल, यूज़रनेम, कर्मचारी कोड, BCBF कोड या मोबाइल नंबर',
     'auth.password' => 'पासवर्ड',
     'auth.app_only_hint' => 'बीसीए LRMS एंड्रॉइड ऐप में काम करते हैं —',
     'auth.app_only_link' => 'जानकारी यहाँ',

@@ -1213,8 +1213,24 @@ foreach (['sp_cbc_name', 'ssa', 'iibf_number', 'dra_id', 'designation', 'aadhaar
     );
 }
 
+// And no longer offers the two it stopped issuing. A BCA signs in with the BCBF code above or
+// their mobile number, so a third identifier was one more thing to invent, write down and read
+// back to somebody over a bad line.
+foreach (['username', 'employee_code'] as $field) {
+    ok(
+        !str_contains($createPage, 'name="' . $field . '"'),
+        'BC creation form no longer offers the ' . $field . ' field'
+    );
+}
+
 $branchForBc = (int) Database::scalar('SELECT id FROM branches ORDER BY id LIMIT 1');
 $bcCode = 'SMOKE' . random_int(100000, 999999);
+/*
+ * Randomised, like the code and the email above it, and for the same reason now: the mobile is
+ * a sign-in identifier and the form rejects one already in use. A constant passed the first run
+ * against a scratch database and failed every run after it, which README documents people doing.
+ */
+$bcMobile = '9' . random_int(100000000, 999999999);
 
 $created = request($base . '/admin/supervisors', [
     'post' => [
@@ -1222,8 +1238,7 @@ $created = request($base . '/admin/supervisors', [
         'name' => 'CHANDRA SHEKHAR',
         'bc_code' => $bcCode,
         'branch_id' => (string) $branchForBc,
-        'mobile' => '7417343844',
-        'username' => 'smoke-bc-' . $bcCode,
+        'mobile' => $bcMobile,
         'email' => strtolower($bcCode) . '@example.test',
         'sp_cbc_name' => 'FIA TECHNOLOGY SERVICES PVT. LTD',
         'ssa' => 'PATIYALI SSA',
@@ -1278,8 +1293,7 @@ if (ok($newBc !== null, 'BCA created through the form')) {
             'name' => 'CHANDRA SHEKHAR',
             'bc_code' => $bcCode,
             'branch_id' => (string) $branchForBc,
-            'mobile' => '7417343844',
-            'username' => 'smoke-bc-' . $bcCode,
+            'mobile' => $bcMobile,
             'status' => 'active',
             'aadhaar_number' => 'XXXX-XXXX-9012',
             'pan_number' => 'ABCDE1234F',
@@ -1301,8 +1315,7 @@ if (ok($newBc !== null, 'BCA created through the form')) {
             'name' => 'CHANDRA SHEKHAR',
             'bc_code' => $bcCode,
             'branch_id' => (string) $branchForBc,
-            'mobile' => '7417343844',
-            'username' => 'smoke-bc-' . $bcCode,
+            'mobile' => $bcMobile,
             'status' => 'active',
             'pan_number' => 'NOTAPAN',
         ],
@@ -1313,6 +1326,90 @@ if (ok($newBc !== null, 'BCA created through the form')) {
         'ABCDE1234F',
         (string) Database::scalar('SELECT pan_number FROM bc_supervisors WHERE id = :id', ['id' => (int) $newBc['id']]),
         'A malformed PAN does not overwrite the stored one'
+    );
+
+    /* The BCA is created with no username, and an old one survives being edited ---------- */
+
+    equals(
+        null,
+        Database::scalar('SELECT username FROM users WHERE id = :id', ['id' => (int) $newBc['user_id']]),
+        'A BCA created through the form gets no username'
+    );
+    equals(
+        null,
+        Database::scalar('SELECT employee_code FROM users WHERE id = :id', ['id' => (int) $newBc['user_id']]),
+        'Nor an employee code'
+    );
+
+    /*
+     * The one guarantee updateSupervisor's omission exists to provide.
+     *
+     * Accounts created before the form stopped issuing usernames still have one and may still be
+     * signing in with it. The form does not show it, so it must not clear it either — otherwise
+     * correcting a village name silently takes away somebody's login, with nothing on screen to
+     * say it happened.
+     */
+    $legacyUsername = 'legacy-' . strtolower($bcCode);
+    Database::update('users', ['username' => $legacyUsername], 'id = :id', ['id' => (int) $newBc['user_id']]);
+
+    $afterEdit = request($base . '/admin/supervisors/' . (int) $newBc['id'], [
+        'post' => [
+            '_token' => csrfToken(page('/admin/supervisors/' . (int) $newBc['id'] . '/edit', 'Edit BCA once more')),
+            'name' => 'CHANDRA SHEKHAR',
+            'bc_code' => $bcCode,
+            'branch_id' => (string) $branchForBc,
+            'mobile' => $bcMobile,
+            'status' => 'active',
+            'village' => 'NAGLA FULU EDITED',
+        ],
+    ]);
+
+    ok(in_array($afterEdit['status'], [200, 302], true), 'Editing a BCA that still has a username is accepted');
+    equals(
+        $legacyUsername,
+        (string) Database::scalar('SELECT username FROM users WHERE id = :id', ['id' => (int) $newBc['user_id']]),
+        'And the username it was created with is left alone, because the form no longer owns it'
+    );
+
+    /* Two people cannot share the number that signs them in ----------------------------- */
+
+    $duplicateCode = 'SMOKE' . random_int(100000, 999999);
+    $duplicateMobile = request($base . '/admin/supervisors', [
+        'post' => [
+            '_token' => csrfToken(page('/admin/supervisors/create', 'Add BCA for the duplicate check')),
+            'name' => 'SOMEBODY ELSE',
+            'bc_code' => $duplicateCode,
+            'branch_id' => (string) $branchForBc,
+            // The same number, written differently. Comparing the stored strings would let this
+            // through, and the sign-in would then have two accounts to choose between.
+            'mobile' => '+91 ' . substr($bcMobile, 0, 5) . ' ' . substr($bcMobile, 5),
+        ],
+    ]);
+
+    ok(in_array($duplicateMobile['status'], [200, 302], true), 'A duplicate mobile is handled without an error page');
+    equals(
+        null,
+        Database::scalar('SELECT id FROM bc_supervisors WHERE bc_code = :code', ['code' => $duplicateCode]),
+        'And the second BCA is not created, however the number was spelled'
+    );
+
+    /* A number that is not a number at all ---------------------------------------------- */
+
+    $badMobileCode = 'SMOKE' . random_int(100000, 999999);
+    request($base . '/admin/supervisors', [
+        'post' => [
+            '_token' => csrfToken(page('/admin/supervisors/create', 'Add BCA with an unusable number')),
+            'name' => 'NO PHONE',
+            'bc_code' => $badMobileCode,
+            'branch_id' => (string) $branchForBc,
+            'mobile' => 'N/A',
+        ],
+    ]);
+
+    equals(
+        null,
+        Database::scalar('SELECT id FROM bc_supervisors WHERE bc_code = :code', ['code' => $badMobileCode]),
+        'A BCA is not created with a mobile they could never sign in with'
     );
 }
 

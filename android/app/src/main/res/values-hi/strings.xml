@@ -22,7 +22,7 @@
 
     <!-- Sign in -->
     <string name="login_subtitle">बीसीए साइन इन</string>
-    <string name="login_identifier">BCBF कोड या यूज़रनेम</string>
+    <string name="login_identifier">BCBF कोड या मोबाइल नंबर</string>
     <string name="login_password">पासवर्ड</string>
     <string name="login_button">साइन इन</string>
     <string name="login_enter_both">अपना BCBF कोड और पासवर्ड दर्ज करें।</string>
@@ -259,9 +259,9 @@
     </plurals>
 
     <!-- composable के बाहर बनने वाले संदेश: साइन-इन, सिंक, लोकेशन, पुष्टि -->
-    <string name="msg_enter_credentials">अपना BCBF कोड और पासवर्ड डालें।</string>
+    <string name="msg_enter_credentials">अपना BCBF कोड या मोबाइल नंबर, और पासवर्ड डालें।</string>
     <string name="msg_enter_otp">आपको भेजा गया सत्यापन कोड डालें।</string>
-    <string name="msg_bad_credentials">BCBF कोड, यूज़रनेम या पासवर्ड ग़लत है।</string>
+    <string name="msg_bad_credentials">BCBF कोड, मोबाइल नंबर या पासवर्ड ग़लत है।</string>
     <string name="msg_otp_rejected">वह कोड स्वीकार नहीं हुआ।</string>
     <string name="msg_no_connection">कोई कनेक्शन नहीं।</string>
     <string name="msg_password_needs_connection">पासवर्ड बदलने के लिए कनेक्शन ज़रूरी है।</string>

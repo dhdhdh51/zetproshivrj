@@ -163,7 +163,7 @@ section('Sign-in and device binding');
 /* -------------------------------------------------------------------------- */
 
 $supervisor = Database::selectOne(
-    'SELECT s.*, u.username, u.id AS user_id FROM bc_supervisors s JOIN users u ON u.id = s.user_id ORDER BY s.id LIMIT 1'
+    'SELECT s.*, u.mobile, u.id AS user_id FROM bc_supervisors s JOIN users u ON u.id = s.user_id ORDER BY s.id LIMIT 1'
 );
 
 if ($supervisor === null) {
@@ -178,10 +178,19 @@ Database::update('users', [
     'locked_until' => null,
 ], 'id = :id', ['id' => (int) $supervisor['user_id']]);
 
-$username = (string) $supervisor['username'];
+/*
+ * The BCBF code, not a username. The staff form stopped issuing usernames — a BCA signs in
+ * with the code on their paperwork or with their own phone number — and the seed stopped
+ * inventing them to match, so `u.username` is NULL on every seeded BCA. These tests drive the
+ * identifier the field actually types.
+ *
+ * The JSON key stays `username`. That is the API contract the installed app posts against, and
+ * renaming it would lock out every handset already in the field to make one test read better.
+ */
+$bcLogin = (string) $supervisor['bc_code'];
 
 $wrong = api('POST', '/api/v1/auth/login', [
-    'username' => $username,
+    'username' => $bcLogin,
     'password' => 'not-the-password',
     'device' => ['uuid' => $deviceUuid],
 ], ['auth' => false]);
@@ -189,15 +198,14 @@ equals(401, $wrong['status'], 'Wrong password returns 401');
 equals('invalid_credentials', $wrong['json']['code'] ?? '', 'Wrong password reports invalid_credentials');
 
 $noDevice = api('POST', '/api/v1/auth/login', [
-    'username' => $username,
+    'username' => $bcLogin,
     'password' => 'AppTest@123',
 ], ['auth' => false]);
 equals(422, $noDevice['status'], 'Sign-in without a device id is refused');
 
-// A BCA knows their BCBF code — it is on their paperwork and in the
-// bank's spreadsheets — better than a username the office invented for them, so
-// the same credentials must work with either. These use the same device uuid as
-// the sign-in below because only one handset may be bound at a time.
+// A BCA knows their BCBF code — it is on their paperwork and in the bank's spreadsheets — and
+// they know their own phone number. Both sign them in. These use the same device uuid as the
+// sign-in below because only one handset may be bound at a time.
 $byBcCode = api('POST', '/api/v1/auth/login', [
     'username' => $supervisor['bc_code'],
     'password' => 'AppTest@123',
@@ -224,8 +232,138 @@ $unknownBcCode = api('POST', '/api/v1/auth/login', [
 ], ['auth' => false]);
 equals(401, $unknownBcCode['status'], 'An unknown BCBF code is refused');
 
+/*
+ * The phone number, written the way people write phone numbers.
+ *
+ * The Admin types it into the staff form off whatever the paperwork says; the BCA types it the
+ * way they say it out loud. If those have to match character for character then a space somebody
+ * else typed locks them out, and nothing on either screen explains why. All four of these are
+ * the same number.
+ */
+$storedMobile = (string) $supervisor['mobile'];
+
+foreach ([
+    $storedMobile => 'the number as stored',
+    '0' . $storedMobile => 'a leading zero',
+    '91' . $storedMobile => 'the country code',
+    '+91 ' . substr($storedMobile, 0, 5) . ' ' . substr($storedMobile, 5) => 'spaces and a plus',
+] as $typed => $describedAs) {
+    $byMobile = api('POST', '/api/v1/auth/login', [
+        'username' => (string) $typed,
+        'password' => 'AppTest@123',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false]);
+
+    equals(200, $byMobile['status'], 'Sign-in by mobile works with ' . $describedAs);
+    equals(
+        $supervisor['bc_code'],
+        $byMobile['json']['data']['supervisor']['bc_code'] ?? '',
+        'And resolves the same supervisor with ' . $describedAs
+    );
+}
+
+// Long enough to be a phone number is not the same as being one. An Aadhaar number typed into
+// the login box must not resolve to whoever's mobile happens to end in the same ten digits.
+$byAadhaarShapedNumber = api('POST', '/api/v1/auth/login', [
+    'username' => '9999' . $storedMobile,
+    'password' => 'AppTest@123',
+    'device' => ['uuid' => $deviceUuid],
+], ['auth' => false]);
+equals(401, $byAadhaarShapedNumber['status'], 'A fourteen-digit number is not read as a mobile');
+
+/*
+ * Two accounts on one number: nobody gets in.
+ *
+ * `users.mobile` has no unique key, so this is possible on data that predates the staff form
+ * rejecting it. There is then no way to tell which of the two is signing in, and picking either
+ * would hand somebody another BCA's day of work — so the sign-in is refused rather than guessed.
+ */
+$collidingUserId = (int) Database::scalar(
+    'SELECT u.id FROM bc_supervisors s JOIN users u ON u.id = s.user_id WHERE u.id <> :used ORDER BY s.id LIMIT 1',
+    ['used' => (int) $supervisor['user_id']]
+);
+$collidingMobileBefore = (string) Database::scalar('SELECT mobile FROM users WHERE id = :id', ['id' => $collidingUserId]);
+
+Database::update('users', ['mobile' => $storedMobile], 'id = :id', ['id' => $collidingUserId]);
+
+/*
+ * try/finally, because the duplicate has to come back off whatever happens in between. Left
+ * behind, it fails every mobile assertion on every later run of this suite against the same
+ * database, for a reason that looks nothing like its cause.
+ */
+try {
+    $ambiguous = api('POST', '/api/v1/auth/login', [
+        'username' => $storedMobile,
+        'password' => 'AppTest@123',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false]);
+    equals(401, $ambiguous['status'], 'A number held by two accounts signs neither of them in');
+
+    // Written another way, it is still the same number and still refused — the collision is on
+    // the digits, not on the spelling.
+    $ambiguousSpelled = api('POST', '/api/v1/auth/login', [
+        'username' => '+91' . $storedMobile,
+        'password' => 'AppTest@123',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false]);
+    equals(401, $ambiguousSpelled['status'], 'However that number is written');
+
+    // And the BCBF code still gets the right person in, because that one is unique.
+    $stillByCode = api('POST', '/api/v1/auth/login', [
+        'username' => $bcLogin,
+        'password' => 'AppTest@123',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false]);
+    equals(200, $stillByCode['status'], 'While the BCBF code still works, being unique');
+} finally {
+    Database::update('users', ['mobile' => $collidingMobileBefore], 'id = :id', ['id' => $collidingUserId]);
+}
+
+/*
+ * One account, one attempt budget, however the number is spelled.
+ *
+ * The throttle used to key on the raw string. A phone number has no fixed spelling, so each one
+ * got its own budget and the per-account limit stopped bounding attempts per account — the one
+ * limit that guards an account rather than an address.
+ */
+$throttleMobile = (string) $supervisor['mobile'];
+$spellings = [
+    $throttleMobile,
+    '0' . $throttleMobile,
+    '91' . $throttleMobile,
+    '+91' . $throttleMobile,
+    substr($throttleMobile, 0, 5) . ' ' . substr($throttleMobile, 5),
+    substr($throttleMobile, 0, 3) . '-' . substr($throttleMobile, 3),
+];
+
+$throttleCodes = [];
+
+foreach (array_merge($spellings, $spellings) as $spelling) {
+    $throttleCodes[] = api('POST', '/api/v1/auth/login', [
+        'username' => $spelling,
+        'password' => 'definitely-not-the-password',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false])['status'];
+}
+
+ok(
+    in_array(429, $throttleCodes, true),
+    'Twelve spellings of one number share one attempt budget (' . implode(',', $throttleCodes) . ')'
+);
+
+// Clear it again, so the sections below are not sitting behind this throttle.
+$unlockTarget = (int) $supervisor['user_id'];
+Database::update(
+    'users',
+    ['failed_attempts' => 0, 'locked_until' => null],
+    'id = :id',
+    ['id' => $unlockTarget]
+);
+App\Core\RateLimiter::clear('api-login:user:' . App\Core\Auth::throttleKey($throttleMobile));
+App\Core\RateLimiter::clear('api-login:ip:127.0.0.1');
+
 $login = api('POST', '/api/v1/auth/login', [
-    'username' => $username,
+    'username' => $bcLogin,
     'password' => 'AppTest@123',
     'device' => [
         'uuid' => $deviceUuid,
@@ -253,7 +391,7 @@ equals(401, $otherDevice['status'], 'Token presented from another device is refu
 
 // A second handset cannot sign in while one is bound.
 $secondDevice = api('POST', '/api/v1/auth/login', [
-    'username' => $username,
+    'username' => $bcLogin,
     'password' => 'AppTest@123',
     'device' => ['uuid' => $deviceUuid . '-second'],
 ], ['auth' => false]);
@@ -295,7 +433,7 @@ section('A handset handed to another BCA');
 $handoverDevice = 'handover-' . substr(sha1((string) getmypid()), 0, 10);
 
 $pair = Database::select(
-    'SELECT s.bc_code, u.username, u.id AS user_id
+    'SELECT s.bc_code, u.id AS user_id
        FROM bc_supervisors s JOIN users u ON u.id = s.user_id
       WHERE u.id <> :used ORDER BY s.id LIMIT 2',
     ['used' => (int) $supervisor['user_id']]
@@ -317,7 +455,7 @@ if (count($pair) < 2) {
 
     $signIn = static function (array $person, string $device): array {
         return api('POST', '/api/v1/auth/login', [
-            'username' => (string) $person['username'],
+            'username' => (string) $person['bc_code'],
             'password' => 'AppTest@123',
             'device' => ['uuid' => $device, 'model' => 'Shared Handset', 'manufacturer' => 'LRMS'],
         ], ['auth' => false]);
@@ -441,7 +579,7 @@ section('One handset per account holds when handsets bind at the same instant');
  * message would blame the device logic for a stall coming from somewhere else.
  */
 $racer = Database::selectOne(
-    'SELECT u.id AS user_id, u.username
+    'SELECT u.id AS user_id, s.bc_code
        FROM bc_supervisors s JOIN users u ON u.id = s.user_id
       WHERE u.id <> :used ORDER BY s.id DESC LIMIT 1',
     ['used' => (int) $supervisor['user_id']]
@@ -465,7 +603,7 @@ if ($racer === null) {
      *
      * @return array<int, int> the status codes, in no particular order
      */
-    $raceLogins = static function (string $username, string $prefix, int $round, int $count): array {
+    $raceLogins = static function (string $identifier, string $prefix, int $round, int $count): array {
         $multi = curl_multi_init();
         $handles = [];
 
@@ -477,7 +615,7 @@ if ($racer === null) {
                 CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/json'],
                 CURLOPT_TIMEOUT => 60,
                 CURLOPT_POSTFIELDS => (string) json_encode([
-                    'username' => $username,
+                    'username' => $identifier,
                     'password' => 'AppTest@123',
                     'device' => [
                         'uuid' => sprintf('%s-r%d-%d', $prefix, $round, $i),
@@ -523,7 +661,7 @@ if ($racer === null) {
     for ($round = 1; $round <= $rounds; $round++) {
         Database::delete('devices', 'user_id = :uid', ['uid' => $racerId]);
 
-        $codes = $raceLogins((string) $racer['username'], $racePrefix, $round, 14);
+        $codes = $raceLogins((string) $racer['bc_code'], $racePrefix, $round, 14);
 
         $activeCounts[] = (int) Database::scalar(
             "SELECT COUNT(*) FROM devices WHERE user_id = :uid AND status = 'active'",

@@ -82,7 +82,10 @@ final class StaffController extends BaseController
             'email' => 'required|email|max:190|unique:users,email',
             'username' => 'nullable|max:80|unique:users,username',
             'employee_code' => 'nullable|max:60|unique:users,employee_code',
-            'mobile' => 'nullable|max:20',
+            // A manager's number resolves a sign-in exactly like a BCA's does, so it has to be
+            // unique for the same reason. Leaving it off here meant this form could quietly
+            // break a BCA's mobile sign-in from a screen that never mentions authentication.
+            'mobile' => 'nullable|max:20|mobile|unique_mobile',
             'branch_id' => 'required|integer|exists:branches,id',
             'designation' => 'nullable|max:120',
             'password' => 'nullable|password',
@@ -161,7 +164,7 @@ final class StaffController extends BaseController
             'email' => 'required|email|max:190|unique:users,email,' . $id,
             'username' => 'nullable|max:80|unique:users,username,' . $id,
             'employee_code' => 'nullable|max:60|unique:users,employee_code,' . $id,
-            'mobile' => 'nullable|max:20',
+            'mobile' => 'nullable|max:20|mobile|unique_mobile:' . $id,
             'branch_id' => 'required|integer|exists:branches,id',
             'designation' => 'nullable|max:120',
             'status' => 'required|in:active,inactive,suspended',
@@ -274,10 +277,10 @@ final class StaffController extends BaseController
         $data = $this->validate($request, [
             'name' => 'required|max:160',
             'bc_code' => 'required|max:60|unique:bc_supervisors,bc_code',
-            'username' => 'required|max:80|unique:users,username',
             'email' => 'nullable|email|max:190|unique:users,email',
-            'employee_code' => 'nullable|max:60|unique:users,employee_code',
-            'mobile' => 'required|max:20',
+            // The BCA signs in with the BCBF code or this number, so it has to identify one
+            // person. There is no username or employee code on this form any more.
+            'mobile' => 'required|max:20|mobile|unique_mobile',
             'branch_id' => 'required|integer|exists:branches,id',
             'village' => 'nullable|max:120',
             'address' => 'nullable|max:255',
@@ -299,8 +302,14 @@ final class StaffController extends BaseController
                 'branch_id' => (int) $data['branch_id'],
                 'name' => (string) $data['name'],
                 'email' => $data['email'] ?: null,
-                'username' => (string) $data['username'],
-                'employee_code' => $data['employee_code'] ?: null,
+                /*
+                 * NULL, not ''. Both columns are UNIQUE and nullable, and MySQL allows any
+                 * number of NULLs in a unique index but only one empty string — so '' would
+                 * create the first BCA and fail the second on uq_users_username with a
+                 * constraint error this form has no way to explain.
+                 */
+                'username' => null,
+                'employee_code' => null,
                 'mobile' => (string) $data['mobile'],
                 'password' => Auth::hashPassword($password),
                 'status' => 'active',
@@ -336,19 +345,27 @@ final class StaffController extends BaseController
                 strtoupper((string) $data['bc_code']),
                 (int) $data['branch_id']
             ),
-            'new' => ['bc_code' => $data['bc_code'], 'username' => $data['username'], 'branch_id' => $data['branch_id']],
+            'new' => [
+                'bc_code' => $data['bc_code'],
+                'mobile' => $data['mobile'],
+                'branch_id' => $data['branch_id'],
+            ],
         ]);
 
         Notify::user(
             $result['user_id'],
             'Welcome to LRMS',
-            'Sign in to the LRMS Android app with your username and the password given to you. Change it after your first sign-in.',
+            'Sign in to the LRMS Android app with your BCBF code or your mobile number, and the '
+                . 'password given to you. Change it after your first sign-in.',
             ['type' => 'info']
         );
 
+        // The code, not the password alone. This message is what an Admin reads out or forwards,
+        // and a password on its own leaves them to guess what to type it against.
         $this->success(sprintf(
-            'BCA created. App username: %s · password: %s (share securely).',
-            $data['username'],
+            'BCA created. They sign in with BCBF code %s or mobile %s · password: %s (share securely).',
+            strtoupper(trim((string) $data['bc_code'])),
+            (string) $data['mobile'],
             $password
         ));
         $this->redirect('/admin/supervisors');
@@ -392,10 +409,8 @@ final class StaffController extends BaseController
         $data = $this->validate($request, [
             'name' => 'required|max:160',
             'bc_code' => 'required|max:60|unique:bc_supervisors,bc_code,' . $id,
-            'username' => 'required|max:80|unique:users,username,' . $userId,
             'email' => 'nullable|email|max:190|unique:users,email,' . $userId,
-            'employee_code' => 'nullable|max:60|unique:users,employee_code,' . $userId,
-            'mobile' => 'required|max:20',
+            'mobile' => 'required|max:20|mobile|unique_mobile:' . $userId,
             'branch_id' => 'required|integer|exists:branches,id',
             'village' => 'nullable|max:120',
             'address' => 'nullable|max:255',
@@ -426,8 +441,15 @@ final class StaffController extends BaseController
             Database::update('users', [
                 'name' => (string) $data['name'],
                 'email' => $data['email'] ?: null,
-                'username' => (string) $data['username'],
-                'employee_code' => $data['employee_code'] ?: null,
+                /*
+                 * `username` and `employee_code` are deliberately not written here.
+                 *
+                 * The form no longer collects them, so it must not clear them either. A BCA
+                 * created before this change still has a username and may still be signing in
+                 * with it; setting it to NULL because an Admin corrected a village name would
+                 * take that away with nothing on screen to say it had happened. They are left
+                 * exactly as they are, and new BCAs simply never get one.
+                 */
                 'mobile' => (string) $data['mobile'],
                 'branch_id' => $newBranch,
                 'status' => (string) $data['status'],
@@ -518,22 +540,34 @@ final class StaffController extends BaseController
         // the supervisor's app kept getting 429 for the rest of the window. Every
         // identifier they might type is cleared, for the app and the web form.
         $identifiers = Database::selectOne(
-            'SELECT u.email, u.username, u.employee_code, s.bc_code
+            'SELECT u.email, u.username, u.employee_code, u.mobile, s.bc_code
                FROM users u
           LEFT JOIN bc_supervisors s ON s.user_id = u.id
               WHERE u.id = :id',
             ['id' => $userId]
         ) ?? [];
 
+        $keys = [];
+
         foreach ($identifiers as $identifier) {
-            $identifier = strtolower(trim((string) $identifier));
+            $identifier = trim((string) $identifier);
 
             if ($identifier === '') {
                 continue;
             }
 
-            RateLimiter::clear('api-login:user:' . $identifier);
-            RateLimiter::clear('login:user:' . $identifier);
+            /*
+             * Through Auth::throttleKey, which is what the sign-in counted against. A phone
+             * number has no fixed spelling, so clearing the one the Admin happened to store
+             * could never be enough on its own — that is the same bug this loop was written to
+             * fix, one identifier later. Canonicalising at both ends is what closes it.
+             */
+            $keys[] = Auth::throttleKey($identifier);
+        }
+
+        foreach (array_unique($keys) as $key) {
+            RateLimiter::clear('api-login:user:' . $key);
+            RateLimiter::clear('login:user:' . $key);
         }
 
         Audit::log(Audit::USER_STATUS_CHANGED, [

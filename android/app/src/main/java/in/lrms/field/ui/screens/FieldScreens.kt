@@ -615,7 +615,13 @@ fun ProfileScreen(viewModel: AppViewModel, onChangePassword: () -> Unit) {
 
                     DetailRow("BC code", viewModel.session.bcCode())
                     DetailRow("Branch", viewModel.session.branchName())
-                    DetailRow("Username", viewModel.session.username())
+                    // The BC code above is what signs them in now. A username only exists on
+                    // accounts created before the panel stopped issuing them, where it still
+                    // works and is worth showing; every BCA created since has none, and a row
+                    // with an empty value beside it is only ever a question.
+                    if (viewModel.session.username().isNotBlank()) {
+                        DetailRow("Username", viewModel.session.username())
+                    }
                     DetailRow("Last sync", Times.humanDateTime(viewModel.session.lastSyncAt()))
                 }
             }

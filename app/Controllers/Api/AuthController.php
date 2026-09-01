@@ -35,7 +35,9 @@ final class AuthController extends ApiController
 
         $login = (string) $data['username'];
         $ipKey = 'api-login:ip:' . $request->ip();
-        $userKey = 'api-login:user:' . strtolower($login);
+        // Auth::throttleKey, not the raw string: a phone number has many spellings that all
+        // resolve to one account, and on the raw string each one would get its own budget.
+        $userKey = 'api-login:user:' . Auth::throttleKey($login);
         $maxAttempts = (int) Config::get('security.login_max_attempts', 5);
         $decay = ((int) Config::get('security.login_decay_minutes', 15)) * 60;
         // The IP ceiling is separate and much higher: a shared carrier address or

@@ -70,7 +70,13 @@
                                 <strong><?= e($s['name']) ?></strong>
                                 <div class="tiny muted">
                                     <?= e($s['bc_code']) ?> · <?= e($s['mobile'] ?: '—') ?>
-                                    <?php if (!empty($s['username'])): ?> · app login <span class="mono"><?= e($s['username']) ?></span><?php endif; ?>
+<?php /*
+                                     * The BCBF code and the number above are the app logins, so
+                                     * they are not labelled as such. A username only appears on
+                                     * accounts created before the form stopped asking for one; it
+                                     * still signs them in, and it is worth seeing while it exists.
+                                     */ ?>
+                                    <?php if (!empty($s['username'])): ?> · old username <span class="mono"><?= e($s['username']) ?></span> still works<?php endif; ?>
                                 </div>
                             </td>
                             <td class="small"><?= e($s['branch_name']) ?><div class="tiny muted"><?= e($s['branch_code']) ?></div></td>

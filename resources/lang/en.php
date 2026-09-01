@@ -62,7 +62,7 @@ return [
     'auth.sign_in_and_get_code' => 'Sign in and get code',
     'auth.sign_out' => 'Sign out',
     'auth.intro' => 'BC Supervisor and Branch Manager accounts.',
-    'auth.login_field' => 'Email, username, employee code or BCBF code',
+    'auth.login_field' => 'Email, username, employee code, BCBF code or mobile number',
     'auth.password' => 'Password',
     'auth.app_only_hint' => 'BCAs work in the LRMS Android app —',
     'auth.app_only_link' => 'details here',

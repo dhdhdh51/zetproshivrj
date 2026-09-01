@@ -427,6 +427,62 @@ the packaging was read back out of the APK.
   it needs the current name. Old `raw.githubusercontent.com` links do still resolve, but new
   documentation should use the current name.
 
+## A BCA signs in with their BCBF code or their phone number
+
+The Add-BCA form no longer asks for an **App username** or an **Employee code**. Both were
+invented at the desk, written down, and read back to somebody over a bad line; the BCBF code is
+already on their paperwork and they know their own number.
+
+`Auth::findByLogin()` resolves five identifiers now — email, username, employee code, BCBF code
+and mobile. The first four are unique columns and resolve in one indexed query. Mobile is a
+second query that only runs when that one misses *and* the input normalises to ten digits, so
+the unindexed scan stays off every other sign-in.
+
+Things worth knowing before touching any of it:
+
+- **`users.username` and `users.employee_code` still exist and still work.** Accounts created
+  before this change have them, and `updateSupervisor` deliberately does not write those columns
+  so an unrelated edit cannot clear one. The **manager** form still issues both.
+- **A phone number is matched on its digits**, in the three shapes `Auth::normaliseMobile()`
+  accepts — ten digits, eleven starting `0`, twelve starting `91`. The stored side is compared
+  the same way, exactly, and *not* by taking the last ten digits of whatever is in the column:
+  that shortcut would turn a mistyped `9876543210123` into a working login for digits nobody
+  owns.
+- **`users.mobile` has no unique key**, so two accounts can hold one number. The sign-in prefers
+  a single active match and otherwise **refuses**, logging the colliding user ids — picking one
+  could hand somebody another BCA's day of work. Both staff forms now reject a number already in
+  use, so this should only fire on older data.
+- **The number is a credential, so it is validated as one** (`mobile` rule). It is also where
+  the OTP goes, and `required|max:20` used to accept "N/A".
+- **The throttle is keyed through `Auth::throttleKey()`**, not the raw string. One number has
+  unbounded spellings that all resolve to the same account; on the raw string each got its own
+  attempt budget and the per-account limit stopped bounding attempts per account. `unlockUser()`
+  clears the same canonical key, which is what makes an unlock actually work.
+- **No `REGEXP_REPLACE`.** It is MySQL 8.0.4+, and README and `docs/DEPLOYMENT.md` promise 5.7.
+  CI runs 8.0, so the first version of this would have gone out green and then thrown on every
+  mobile-shaped sign-in and every staff-form save on a 5.7 host. `Auth::mobileSql()` builds a
+  `REPLACE()` chain instead — uglier, works everywhere. **Do not "simplify" it back.**
+
+## The inspection report no longer goes quiet where the scheme figures are missing
+
+`Inspections::sssPerformance()` returns null for exactly one case: an inspection already
+submitted with no frozen `inspection_sss` row — which is every inspection signed before that
+feature existed. The PDF used to skip the whole block, so item 16 ended and the 17-18 band
+followed with nothing between them. That is what the client reported as a section missing from
+around items 14-16.
+
+It now prints the heading with a short explanation, and still computes **no figures**: reading
+the window today and printing it against a sheet signed weeks ago would be worse than silence,
+because it would look authoritative and be wrong for that date. Both the item-16 branch and the
+tail fallback for forms with no item 16 print it.
+
+**Still outstanding on that report:** item 15 is "Services provided at the BC point, out of the
+39" plus a free-text "Which services". There is no 39-item tick list, although
+`PdfWriter::checkboxes()` names one as the case its page-break logic was written for. Adding it
+needs the client's printed list — every bank publishes a different one — and `database/seed.php`
+sets the rule itself: inventing options would make an inspector pick from something the Bank
+never wrote. Ask for a photo of that page.
+
 ## The signing key has been replaced twice
 
 Three keys have signed this app. Each change forced every handset to uninstall once.

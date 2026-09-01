@@ -24,7 +24,10 @@ visits; their field activity is BCA inspection only.
 | 9. Install the cron entry | server | nothing below the "Automated" heading happens without it |
 | 10. Set targets | **Targets** | daily/monthly, per supervisor or per branch |
 
-Hand each supervisor their username and first password. They sign in on the
+Hand each supervisor their **BCBF code** and first password — the panel prints both on
+the confirmation banner when the BCA is created. They can also sign in with their own
+mobile number, which is why the staff form insists that number belongs to one person.
+There is no username to hand out; the form stopped issuing them. They sign in on the
 Android app; the app forces a password change, then binds to that handset.
 
 ### Upgrading an existing installation

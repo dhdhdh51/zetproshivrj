@@ -21,7 +21,7 @@
     <!-- Sign in -->
     <string name="login_title" translatable="false">D2 SQUARE CREDIT SOLUTIONS</string>
     <string name="login_subtitle">BCA sign-in</string>
-    <string name="login_identifier">BCBF code or username</string>
+    <string name="login_identifier">BCBF code or mobile number</string>
     <string name="login_password">Password</string>
     <string name="login_button">Sign in</string>
     <string name="login_enter_both">Enter your BCBF code and password.</string>
@@ -269,9 +269,9 @@
     </plurals>
 
     <!-- Messages produced outside a composable: sign-in, sync, location, confirmations -->
-    <string name="msg_enter_credentials">Enter your BCBF code and password.</string>
+    <string name="msg_enter_credentials">Enter your BCBF code or mobile number, and your password.</string>
     <string name="msg_enter_otp">Enter the verification code sent to you.</string>
-    <string name="msg_bad_credentials">Incorrect BCBF code, username or password.</string>
+    <string name="msg_bad_credentials">Incorrect BCBF code, mobile number or password.</string>
     <string name="msg_otp_rejected">That code was not accepted.</string>
     <string name="msg_no_connection">No connection.</string>
     <string name="msg_password_needs_connection">Changing your password needs a connection.</string>
