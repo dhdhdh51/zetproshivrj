@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Photographs are captured into the app's private files directory and
+         handed to the camera app through the FileProvider. -->
+    <files-path name="photos" path="photos/" />
+    <cache-path name="cache_photos" path="photos/" />
+</paths>

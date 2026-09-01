@@ -5,6 +5,9 @@
 !/storage/generated/.gitkeep
 /storage/logs/*
 !/storage/logs/.gitkeep
+
+# Written by public/install.php once the site is installed.
+/storage/installed.lock
 .DS_Store
 *.log
 .idea/
@@ -15,3 +18,14 @@
 #  never commit real API keys / passwords into it.)
 
 /config/config.local.php
+
+# Android build output and local SDK pointers
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/keystore.properties
+/android/*.jks
+/android/*.keystore
+/dist/
+/android/.kotlin/

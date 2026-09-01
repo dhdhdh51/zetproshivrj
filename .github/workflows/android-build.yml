@@ -1,0 +1,522 @@
+name: Android build
+
+# Triggers
+#   push to main        → verify, then build signed release artifacts
+#   push to build/X.Y.Z → verify, then build release artifacts named for that version
+#   pull request        → verify only (tests, lint, debug build)
+#   tag v*              → verify, build, and publish a GitHub Release
+#   manual              → Actions ▸ Android build ▸ Run workflow
+on:
+  push:
+    # build/** exists for the case this project is actually in: the signing key is not a
+    # repository secret, so a release APK has to be built here and signed wherever the
+    # key is kept. Pushing build/1.5.3 produces release artifacts named for that version
+    # without publishing anything, which a tag would. Nothing is released from these
+    # branches, and they are meant to be deleted once the artifact has been collected.
+    branches: [main, 'build/**']
+    tags: ['v*']
+    # No paths filter on push, deliberately. A branch created at a commit that is
+    # already on the remote delivers no new commits, so a paths filter has nothing to
+    # match and the build silently never runs — which is exactly what happened the first
+    # time build/1.5.3 was pushed. A push to main or to a build branch is a request for
+    # a build; the filter stays on pull_request, where the noise actually matters.
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'API base URL to compile into the build (e.g. https://lrms.example.com/api/v1/)'
+        required: false
+        type: string
+      version_name:
+        description: 'Version name override (default 1.0.<run number>)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+  # The release certificate, the same fingerprint printed in KEYSTORE-SETUP.md and on every
+  # published release. Checked after signing, so a build cannot be handed out under a key that
+  # could not update the app already installed.
+  #
+  # This is the third key the project has had, and each change forced every handset to uninstall
+  # once. Up to v1.5.5 an earlier key, lost. v1.6.0 to v1.6.4 a replacement for it. From v1.7.0
+  # this one, reissued so the certificate carries the company's own name after the rename — the
+  # client asked for it knowing the cost. See docs/KEYSTORE-SETUP.md for the full chain.
+  EXPECTED_CERT_SHA256: '1bc1c332a319c53c432488f844bb2321df9156cde5bbe0c87c81127c08518323'
+  ANDROID_COMPILE_SDK: '35'
+  ANDROID_BUILD_TOOLS: '35.0.0'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Quality gate: nothing is released unless this passes.
+  # ---------------------------------------------------------------------------
+  verify:
+    name: Tests and static checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_COMPILE_SDK }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Set up Gradle (with dependency cache)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      # Fails fast with a clear message when a dependency cannot be resolved,
+      # rather than surfacing later as a confusing compile error. Must be
+      # :app:dependencies — the configuration belongs to the module, and the
+      # root project has no debugRuntimeClasspath.
+      - name: Resolve dependencies
+        working-directory: android
+        run: ./gradlew --no-daemon :app:dependencies --configuration debugRuntimeClasspath > /dev/null
+
+      # Output is captured to a file as well as the log. A compile error here is the
+      # first thing that fails, and reading the runner's log needs admin rights on the
+      # repository, while an artifact does not — so a failure stays diagnosable by
+      # whoever is actually working on it.
+      - name: Run unit tests
+        working-directory: android
+        run: |
+          mkdir -p build-logs
+          set -o pipefail
+          ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee build-logs/unit-tests.log
+
+      - name: Run Android lint
+        working-directory: android
+        run: ./gradlew --no-daemon lintDebug
+
+      - name: Build debug APK (compile validation)
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      # Published only for pull requests, which produce no release build because
+      # they have no access to the signing secrets. Everywhere else the release
+      # job publishes the real APK, and two APKs side by side is how someone ends
+      # up installing the wrong one. This build now points at the production
+      # server too, so it does work on a handset — it is simply unminified, debug
+      # signed and logs request headers, which is why it is labelled for testing.
+      - name: Upload debug APK (testing only)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LRMS-debug-apk-TESTING-ONLY-use-the-release-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-reports
+          path: |
+            android/build-logs/**
+            android/app/build/reports/tests/**
+            android/app/build/reports/lint-results-*.html
+            android/app/build/reports/lint-results-*.xml
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Signed release artifacts. Skipped for pull requests, which have no access to
+  # the signing secrets anyway.
+  # ---------------------------------------------------------------------------
+  release:
+    name: Release APK and AAB
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_COMPILE_SDK }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Set up Gradle (with dependency cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      # Version name comes from the tag when there is one, so a v1.2.3 tag
+      # produces LRMS-v1.2.3-release.apk. Otherwise it is 1.0.<run number>.
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION_NAME="${GITHUB_REF#refs/tags/v}"
+          elif [[ "${GITHUB_REF}" == refs/heads/build/* ]]; then
+            # The branch names the version, so the artifact is never guessed at.
+            VERSION_NAME="${GITHUB_REF#refs/heads/build/}"
+          elif [[ -n "${{ inputs.version_name }}" ]]; then
+            VERSION_NAME="${{ inputs.version_name }}"
+          else
+            VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
+          fi
+
+          echo "name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "Building LRMS v${VERSION_NAME} (versionCode ${GITHUB_RUN_NUMBER})"
+
+      # The keystore never lives in the repository. It is reconstructed from a
+      # secret into the runner's temp directory, used, and shredded afterwards.
+      - name: Restore signing keystore
+        id: keystore
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          KEYSTORE_PATH="${RUNNER_TEMP}/lrms-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+
+          if [[ ! -s "$KEYSTORE_PATH" ]]; then
+            echo "::error::KEYSTORE_BASE64 did not decode to a usable keystore."
+            exit 1
+          fi
+
+          echo "path=${KEYSTORE_PATH}" >> "$GITHUB_OUTPUT"
+          echo "Keystore restored ($(stat -c%s "$KEYSTORE_PATH") bytes)."
+
+      # A build for a tag is a release someone will hand out or upload. The debug
+      # key fallback exists so there is always an installable APK, but it must not
+      # become the key a release is shipped under: it is Android's shared debug
+      # key, anyone can sign with it, and a store will not take it.
+      - name: Refuse to publish a tag without a signing key
+        if: startsWith(github.ref, 'refs/tags/v') && steps.keystore.outputs.path == ''
+        run: |
+          echo "::error::This tag would be signed with Android's debug key."
+          echo "Add the KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD"
+          echo "secrets, then re-run. See KEYSTORE-SETUP.md."
+          exit 1
+
+      - name: Warn when no signing secrets are configured
+        if: steps.keystore.outputs.path == ''
+        run: |
+          echo "::warning::No signing secrets configured; this APK is signed with the" \
+               "Android debug key. It installs, but it cannot install *over* an APK" \
+               "signed with a different key, so the app must be uninstalled first."
+
+      - name: Build release APK and AAB
+        id: build
+        working-directory: android
+        env:
+          LRMS_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          LRMS_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          LRMS_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ARGS=(
+            --no-daemon
+            "-PlrmsVersionName=${{ steps.version.outputs.name }}"
+            "-PlrmsVersionCode=${{ steps.version.outputs.code }}"
+          )
+
+          API_URL="${{ inputs.api_url }}"
+          if [[ -z "$API_URL" ]]; then
+            API_URL="${{ vars.LRMS_API_URL }}"
+          fi
+
+          if [[ -n "$API_URL" ]]; then
+            echo "Using API base URL from CI: $API_URL"
+            ARGS+=("-PlrmsApiUrl=${API_URL}")
+          else
+            # Not a warning: gradle.properties carries the production URL, so a
+            # build with nothing configured still reaches the real server.
+            API_URL="$(sed -n 's/^lrmsReleaseApiUrl=//p' gradle.properties | tail -1)"
+            echo "Using the committed release API base URL: $API_URL"
+          fi
+
+          # Recorded so the run page states which server this APK talks to.
+          echo "api_url=${API_URL}" >> "$GITHUB_OUTPUT"
+
+          if [[ -n "${{ steps.keystore.outputs.path }}" ]]; then
+            ARGS+=("-PlrmsKeystoreFile=${{ steps.keystore.outputs.path }}")
+            ARGS+=("-PlrmsKeystorePassword=${LRMS_KEYSTORE_PASSWORD}")
+            ARGS+=("-PlrmsKeyAlias=${LRMS_KEY_ALIAS}")
+            ARGS+=("-PlrmsKeyPassword=${LRMS_KEY_PASSWORD}")
+          fi
+
+          mkdir -p ../build-logs
+          set -o pipefail
+          ./gradlew "${ARGS[@]}" assembleRelease bundleRelease lintRelease 2>&1 \
+            | tee ../build-logs/release.log
+
+      - name: Verify the release build is signed
+        id: verify
+        working-directory: android
+        run: |
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          BUILD_TOOLS="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS}"
+
+          echo "Verifying $APK"
+          "${BUILD_TOOLS}/apksigner" verify --verbose --print-certs "$APK" | tee "${RUNNER_TEMP}/verify.txt"
+
+          DIGEST=$(grep -ioE 'certificate SHA-256 digest: [0-9a-f]{64}' "${RUNNER_TEMP}/verify.txt" \
+            | awk '{print tolower($NF)}' | sort -u | head -1)
+
+          echo "cert=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Signed by ${DIGEST}"
+
+          # Naming the expected certificate is what makes "signed" mean something. An
+          # APK carrying a different one cannot install over the copy already on a
+          # handset, so publishing it would strand every agent in the field.
+          if [[ "${DIGEST}" == "${EXPECTED_CERT_SHA256}" ]]; then
+            echo "release_key=true" >> "$GITHUB_OUTPUT"
+            echo "This is the D2 release certificate."
+          else
+            echo "release_key=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Not the D2 release certificate — this build cannot update an installed app."
+          fi
+
+      # A tag is a release someone hands out. Whatever signed it, it must be the key
+      # the app is already published under.
+      - name: Refuse to publish a tag signed with the wrong key
+        if: startsWith(github.ref, 'refs/tags/v') && steps.verify.outputs.release_key != 'true'
+        run: |
+          echo "::error::This tag is signed by ${{ steps.verify.outputs.cert }},"
+          echo "not the D2 release key ${EXPECTED_CERT_SHA256}."
+          echo "Add the KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD"
+          echo "secrets (see KEYSTORE-SETUP.md) and re-run the tag."
+          exit 1
+
+      - name: Name the artifacts
+        id: artifacts
+        working-directory: android
+        run: |
+          VERSION="v${{ steps.version.outputs.name }}"
+          mkdir -p ../dist
+
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          AAB=$(find app/build/outputs/bundle/release -name '*.aab' | head -1)
+
+          cp "$APK" "../dist/LRMS-${VERSION}-release.apk"
+          cp "$AAB" "../dist/LRMS-${VERSION}-release.aab"
+
+          # The mapping file is needed to read production crash reports.
+          if [[ -f app/build/outputs/mapping/release/mapping.txt ]]; then
+            cp app/build/outputs/mapping/release/mapping.txt "../dist/LRMS-${VERSION}-mapping.txt"
+          fi
+
+          ( cd ../dist && sha256sum * > "LRMS-${VERSION}-checksums.txt" )
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          ls -la ../dist
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LRMS-${{ steps.artifacts.outputs.version }}-release-apk
+          path: dist/LRMS-${{ steps.artifacts.outputs.version }}-release.apk
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: LRMS-${{ steps.artifacts.outputs.version }}-release-aab
+          path: dist/LRMS-${{ steps.artifacts.outputs.version }}-release.aab
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload mapping and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: LRMS-${{ steps.artifacts.outputs.version }}-metadata
+          path: |
+            dist/LRMS-*-mapping.txt
+            dist/LRMS-*-checksums.txt
+          retention-days: 90
+          if-no-files-found: warn
+
+      # Hand the build output back through git, not the artifacts API.
+      #
+      # The signing key is not a repository secret, so a release APK is signed where the
+      # key is kept — and that environment can read this repository over git while
+      # GitHub refuses it the artifact download endpoint with HTTP 401. An artifact it
+      # cannot fetch is no use to it.
+      #
+      # This runs whether the build passed or failed, because a failure is the case that
+      # most needs reading and the release job had no way to report one: its artifact
+      # uploads are skipped when an earlier step fails, and a runner log needs admin
+      # rights on the repository. So a build/** push always leaves something behind — the
+      # APK when there is one, the gradle and lint output when there is not.
+      - name: Leave the build output on a branch
+        if: always() && startsWith(github.ref, 'refs/heads/build/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_KEY: ${{ steps.verify.outputs.release_key }}
+        run: |
+          # Taken from the ref rather than an earlier step's output, which is empty when
+          # that step was skipped by a failure.
+          VERSION="v${GITHUB_REF#refs/heads/build/}"
+          BRANCH="staging/${VERSION}"
+          WORK="${RUNNER_TEMP}/staging"
+
+          rm -rf "$WORK"
+          mkdir -p "$WORK"
+
+          APK="dist/LRMS-${VERSION}-release.apk"
+
+          if [[ -f "$APK" ]]; then
+            if [[ "${RELEASE_KEY}" == "true" ]]; then
+              NAME="LRMS-${VERSION}-SIGNED.apk"
+            else
+              # Named for what signed it. Without the signing secrets this carries
+              # Android's debug key: it cannot install over a release build and must not
+              # be handed to anyone.
+              NAME="LRMS-${VERSION}-DEBUGKEY-DO-NOT-DISTRIBUTE.apk"
+            fi
+
+            cp "$APK" "${WORK}/${NAME}"
+            ( cd "$WORK" && sha256sum "$NAME" > "${NAME}.sha256" && cat "${NAME}.sha256" )
+          else
+            echo "No APK was produced. Collecting the output that explains why."
+          fi
+
+          mkdir -p "${WORK}/logs"
+          cp build-logs/*.log "${WORK}/logs/" 2>/dev/null || true
+          cp android/app/build/reports/lint-results-*.txt "${WORK}/logs/" 2>/dev/null || true
+          cp android/app/build/reports/lint-results-*.xml "${WORK}/logs/" 2>/dev/null || true
+          find "$WORK" -type f | sed 's/^/  /'
+
+          # An orphan history: this branch is a delivery mechanism, not part of the
+          # project's history, and force-pushing one commit keeps it that way.
+          cd "$WORK"
+          git init -q
+          git checkout -q -b "$BRANCH"
+          git add -A
+          git \
+            -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Build output for ${VERSION}
+
+          Run ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA}.
+          Signed with the release key: ${RELEASE_KEY:-no}."
+
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
+          echo "Left the output on branch ${BRANCH}."
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.artifacts.outputs.version }}
+        run: |
+          NOTES_FILE="${RUNNER_TEMP}/release-notes.md"
+          APK="dist/LRMS-${VERSION}-release.apk"
+          SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+
+          {
+            echo "## LRMS Field ${VERSION}"
+            echo
+            echo "Android application for BC Supervisor field operations."
+            echo
+            echo "**Download \`LRMS-${VERSION}-release.apk\`** below and open it on the phone."
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Certificate SHA-256 | \`${{ steps.verify.outputs.cert }}\` |"
+            echo "| File SHA-256 | \`${SHA}\` |"
+            echo
+            echo "The certificate was checked against the D2 release key before this was"
+            echo "published, so it installs over any earlier build without uninstalling."
+            echo
+            echo "| Artifact | Purpose |"
+            echo "| --- | --- |"
+            echo "| \`LRMS-${VERSION}-release.apk\` | Direct install / sideload |"
+            echo "| \`LRMS-${VERSION}-release.aab\` | Play Console upload |"
+            echo "| \`LRMS-${VERSION}-checksums.txt\` | SHA-256 checksums |"
+            echo
+            echo "Built from \`${GITHUB_SHA}\` by run [#${GITHUB_RUN_NUMBER}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
+          } > "$NOTES_FILE"
+
+          gh release create "${GITHUB_REF#refs/tags/}" \
+            --title "LRMS Field ${VERSION}" \
+            --notes-file "$NOTES_FILE" \
+            "dist/LRMS-${VERSION}-release.apk" \
+            "dist/LRMS-${VERSION}-release.aab" \
+            "dist/LRMS-${VERSION}-checksums.txt"
+
+      # Always runs, including when an earlier step failed, so a decoded keystore
+      # is never left behind on the runner.
+      # Uploaded even when the build failed, which is the only time it matters.
+      - name: Upload the release build log and lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build-log
+          path: |
+            build-logs/**
+            android/app/build/reports/lint-results-*.html
+            android/app/build/reports/lint-results-*.xml
+            android/app/build/reports/lint-results-*.txt
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Remove the temporary keystore
+        if: always()
+        run: |
+          KEYSTORE_PATH="${RUNNER_TEMP}/lrms-release.jks"
+
+          if [[ -f "$KEYSTORE_PATH" ]]; then
+            shred -u "$KEYSTORE_PATH" 2>/dev/null || rm -f "$KEYSTORE_PATH"
+            echo "Temporary keystore removed."
+          fi
+
+      - name: Build summary
+        if: always()
+        run: |
+          {
+            echo "### LRMS Android build"
+            echo
+            echo "- Version: \`${{ steps.version.outputs.name }}\` (code ${{ steps.version.outputs.code }})"
+            echo "- Server this APK talks to: \`${{ steps.build.outputs.api_url }}\`"
+            echo "- Signing: ${{ steps.keystore.outputs.path != '' && '**release keystore from secrets**' || '**debug key** - no signing secrets configured' }}"
+            if [[ -z "${{ steps.keystore.outputs.path }}" ]]; then
+              echo
+              echo "> This APK is signed with Android's debug key. It installs and runs, but"
+              echo "> it cannot install over an APK signed with a different key, so the old"
+              echo "> app has to be uninstalled first. Add the four signing secrets"
+              echo "> (see \`KEYSTORE-SETUP.md\`) and every build after that upgrades in place."
+            fi
+            echo
+            echo "**Install this one:** artifact \`LRMS-${{ steps.artifacts.outputs.version }}-release-apk\`"
+            echo
+            echo "The \`.aab\` is for Google Play upload only — a phone cannot install it."
+          } >> "$GITHUB_STEP_SUMMARY"

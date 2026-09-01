@@ -1,0 +1,42 @@
+{
+    "name": "lrms/loan-recovery-management-system",
+    "description": "LRMS — Loan Recovery Management System: web panel, Android API and BC Supervisor monitoring for bank loan recovery operations.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-gd": "*",
+        "ext-zip": "*",
+        "ext-curl": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        },
+        "files": [
+            "app/Helpers/functions.php"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true
+    },
+    "scripts": {
+        "lint": "find app config database public routes resources tests -name '*.php' -print0 | xargs -0 -n1 php -l",
+        "install-db": "php database/migrate.php --fresh --seed",
+        "test": [
+            "@lint",
+            "php tests/test-import.php",
+            "php tests/http-smoke.php",
+            "php tests/api-smoke.php"
+        ]
+    },
+    "scripts-descriptions": {
+        "lint": "Syntax check every PHP file.",
+        "install-db": "Create the schema and load baseline data (destructive).",
+        "test": "Run the full suite: importer, web screens and Android API."
+    }
+}

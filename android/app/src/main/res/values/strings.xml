@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    English source strings.
+
+    Every string a supervisor can read belongs here, not in a Kotlin literal, so
+    values-hi/strings.xml can carry the Hindi and Android can pick between them.
+    Hindi wording follows the Bankmitra2 app used by the same field staff, so the
+    two apps do not name the same thing differently.
+-->
+<resources>
+    <string name="app_name" translatable="false">D2 SQUARE CREDIT SOLUTIONS</string>
+    <string name="app_full_name">Loan Recovery Management System</string>
+
+    <!-- Language switcher. Each language is named in its own script. -->
+    <string name="language">Language</string>
+    <string name="language_english" translatable="false">English</string>
+    <string name="language_hindi" translatable="false">हिन्दी</string>
+    <string name="language_system">Phone language</string>
+    <string name="language_change">Change language</string>
+
+    <!-- Sign in -->
+    <string name="login_title" translatable="false">D2 SQUARE CREDIT SOLUTIONS</string>
+    <string name="login_subtitle">BCA sign-in</string>
+    <string name="login_identifier">BCBF code or mobile number</string>
+    <string name="login_password">Password</string>
+    <string name="login_button">Sign in</string>
+    <string name="login_enter_both">Enter your BCBF code and password.</string>
+    <string name="login_device_note">Your account is bound to this device. Ask your BC Supervisor to reset the binding if you change handset.</string>
+    <string name="login_developer_build">This is a developer build. It is set to %1$s, which only exists on an emulator, so sign-in cannot work on a phone. Install the release APK instead.</string>
+
+    <!-- Verification code -->
+    <string name="otp_title">Verify sign-in</string>
+    <string name="otp_default_message">Enter the verification code sent to you.</string>
+    <string name="otp_code">Verification code</string>
+    <string name="otp_verify">Verify and continue</string>
+    <string name="otp_start_again">Start again</string>
+
+    <!-- Password change -->
+    <string name="password_title">Set a new password</string>
+    <string name="password_temporary_note">Your account uses a temporary password. Choose a new one to continue.</string>
+    <string name="password_current">Current password</string>
+    <string name="password_new">New password</string>
+    <string name="password_confirm">Confirm new password</string>
+    <string name="password_rule">At least 8 characters, with a letter and a number.</string>
+    <string name="password_update">Update password</string>
+    <string name="password_change">Change password</string>
+
+    <!-- Home -->
+    <string name="home_role">BCA</string>
+    <string name="home_quick_actions">Quick actions</string>
+    <string name="home_start_visit">Start a customer visit</string>
+    <string name="home_attendance">Attendance</string>
+    <string name="home_check_in">Check in</string>
+    <string name="home_daily_report">Daily report</string>
+    <string name="home_notifications">Notifications</string>
+    <string name="home_sync_now">Sync now</string>
+    <string name="home_visits_today">Visits today</string>
+    <string name="home_todays_visits">Today\'s visits</string>
+    <string name="home_no_visits_today">No visits recorded today</string>
+    <string name="home_start_hint">Open Accounts and start a visit. Everything works offline.</string>
+    <string name="home_continue_visit">Continue this visit</string>
+    <string name="home_waiting_to_sync">Waiting to sync</string>
+    <string name="home_not_visited">Not visited</string>
+    <string name="home_targets_hint">Targets, allocations and inspection results appear here.</string>
+    <string name="home_deadline_unknown">Sync once to load today\'s report deadline.</string>
+    <string name="home_deadline_countdown">Report deadline %1$s — %2$s.</string>
+    <string name="home_deadline_passed">The report deadline (%1$s) has passed.</string>
+    <string name="home_late_needs_approval">A late submission needs BC Supervisor approval.</string>
+
+    <!-- Accounts -->
+    <string name="accounts_title">Allocated accounts</string>
+    <string name="accounts_search_hint">Search account, name, mobile, village</string>
+    <string name="accounts_loading">Loading your accounts…</string>
+    <string name="accounts_empty">No accounts here</string>
+    <string name="accounts_empty_hint">Pull a sync from the Home screen, or clear the filters.</string>
+    <string name="account_loading">Loading account…</string>
+    <string name="account_visited">Visited</string>
+    <string name="account_not_visited">Not visited</string>
+    <string name="account_start_visit">Start visit (captures GPS)</string>
+    <string name="account_gps_waiting">Getting a GPS fix…</string>
+    <string name="account_call">Call customer</string>
+    <string name="account_navigate">Navigate</string>
+
+    <!-- Borrower and loan labels -->
+    <string name="label_borrower">Borrower</string>
+    <string name="label_father">Father / guardian</string>
+    <string name="label_mobile">Mobile</string>
+    <string name="label_village">Village</string>
+    <string name="label_address">Address</string>
+    <string name="label_branch">Branch</string>
+    <string name="label_loan_type">Loan type</string>
+    <string name="label_limit">Limit</string>
+    <string name="label_outstanding">Outstanding</string>
+    <string name="label_overdue">Overdue</string>
+    <string name="label_recovered">Recovered</string>
+    <string name="label_npa_date">NPA date</string>
+    <string name="label_last_visit">Last visit</string>
+    <string name="label_recovery_status">Recovery status</string>
+    <string name="label_remarks">Remarks</string>
+    <string name="label_notes">Notes</string>
+    <string name="label_account">Account</string>
+
+    <!-- Recovery and promise to pay -->
+    <string name="ptp_title">Promise to pay</string>
+    <string name="ptp_add">Add PTP</string>
+    <string name="ptp_amount">Promised amount</string>
+    <string name="ptp_date">Promise date (YYYY-MM-DD)</string>
+    <string name="followup_schedule">Schedule follow-up</string>
+    <string name="followup_date">Follow-up date (YYYY-MM-DD)</string>
+    <string name="followup_reason">Reason / remarks</string>
+    <string name="offline_entries_note">Entries are saved on this device immediately and sent to LRMS when a connection is available.</string>
+
+    <!-- Work streams -->
+    <string name="stream_krm_ots" translatable="false">KRM OTS</string>
+    <string name="stream_ckcc" translatable="false">CKCC OD-2</string>
+
+    <!-- Shared actions -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_retry">Retry</string>
+    <string name="filter_all">All</string>
+    <string name="filter_ptp" translatable="false">PTP</string>
+    <!-- Case type on the visit form: the first thing chosen, because it decides
+         which questions are asked and which box is ticked on the printed report. -->
+    <string name="visit_case_type">Case type</string>
+    <string name="visit_case_type_helper">Choose the report this visit is for</string>
+    <string name="case_type_customer">Recovery visit</string>
+    <string name="case_type_krm_ots" translatable="false">KRM OTS</string>
+    <string name="case_type_ckcc_od2">CKCC OD-2 Renewal</string>
+    <string name="case_type_recovery_followup">Recovery Follow-up</string>
+    <string name="case_type_pre_npa">Pre-NPA Verification</string>
+    <string name="case_type_post_npa">Post-NPA Verification</string>
+    <string name="case_type_other">Other</string>
+    <string name="stream_general">Recovery</string>
+
+    <!-- Visit screen. The screen a field agent spends most of the day on, so every
+         word of it is translated. -->
+    <string name="visit_title">Customer visit</string>
+    <string name="action_back">Back</string>
+    <string name="visit_loading">Loading visit…</string>
+    <string name="visit_started">Started</string>
+    <string name="visit_gps" translatable="false">GPS</string>
+    <string name="visit_mock_location">This fix reports itself as a mock location and the server will reject it.</string>
+    <string name="visit_photographs">Photographs</string>
+    <string name="visit_photo_count">%1$d taken</string>
+    <string name="visit_photo_watermark">Photographs are watermarked with your name, the time and the coordinates.</string>
+    <string name="photo_type_customer">Customer</string>
+    <string name="photo_type_house">House</string>
+    <string name="photo_type_aadhaar">Aadhaar</string>
+    <string name="photo_type_selfie">Your photograph</string>
+    <string name="photo_type_shop">Shop</string>
+    <string name="photo_type_land">Land</string>
+    <string name="photo_type_document">Document</string>
+    <string name="photo_type_other">Other</string>
+    <string name="photo_take">Take photograph</string>
+    <string name="photo_selfie_note">Your own photograph records that you were here, so it can only come from the camera.</string>
+    <string name="visit_outcome">Visit outcome</string>
+    <string name="status_customer_met">Customer met</string>
+    <string name="status_family_met">Family met</string>
+    <string name="status_phone_contact">Phone only</string>
+    <string name="status_house_locked">House locked</string>
+    <string name="status_not_available">Not available</string>
+    <string name="status_address_not_found">Address not found</string>
+    <string name="status_shifted">Shifted</string>
+    <string name="status_deceased">Deceased</string>
+    <string name="status_refused">Refused</string>
+    <string name="status_other">Other</string>
+    <string name="status_queued">queued</string>
+    <string name="visit_possibility">Recovery possibility</string>
+    <string name="possibility_high">High</string>
+    <string name="possibility_medium">Medium</string>
+    <string name="possibility_low">Low</string>
+    <string name="possibility_nil">Nil</string>
+    <string name="visit_recommendation">Your recommendation</string>
+    <string name="visit_form_title">Visit form</string>
+    <string name="visit_form_note">Configured by your BC Supervisor.</string>
+    <string name="visit_submit">Submit visit</string>
+    <string name="visit_discard">Discard this visit</string>
+    <string name="visit_queue_note">Submitting saves the visit on this device and queues it. It reaches LRMS at the next sync, even if you are offline now.</string>
+    <string name="visit_discard_title">Discard visit?</string>
+    <string name="visit_discard_body">The photographs and answers captured for this visit will be deleted.</string>
+    <string name="action_discard">Discard</string>
+    <string name="action_keep">Keep</string>
+    <string name="common_yes">Yes</string>
+    <string name="common_no">No</string>
+    <string name="visit_promise_incomplete">A promise needs both an amount and a date, or it is not recorded as a promise.</string>
+    <string name="visit_promise_section">Promise to pay</string>
+    <string name="visit_promise_blank">Leave blank when the borrower promised nothing.</string>
+    <string name="sync_queued_entries">Entries waiting to sync</string>
+
+    <!-- Bottom navigation -->
+    <string name="tab_home">Home</string>
+    <string name="tab_accounts">Accounts</string>
+    <string name="tab_attendance">Attendance</string>
+    <string name="tab_sync">Sync</string>
+    <string name="tab_profile">Profile</string>
+
+    <!-- Attendance, daily report, sync queue, notifications, profile -->
+    <string name="action_open">Open</string>
+    <string name="action_sign_out">Sign out</string>
+    <string name="label_loan">Loan</string>
+    <string name="attendance_start_day">Start your day</string>
+    <string name="attendance_end_day">End your day</string>
+    <string name="attendance_check_out">Check out</string>
+    <string name="report_today_work">Today\'s work</string>
+    <string name="report_summary">Summary of the day</string>
+    <string name="report_late_reason">Reason for late submission</string>
+    <string name="sync_title">Sync queue</string>
+    <string name="notifications_mark_all">Mark all read</string>
+    <string name="notifications_mark_read">Mark read</string>
+    <string name="profile_this_device">This device</string>
+
+    <!-- Reminders. The channel name and description are what the phone's own settings screen
+         lists, so they have to read as something a person recognises. -->
+    <string name="reminders_channel_name">Work reminders</string>
+    <string name="reminders_channel_description">The daily report deadline, the day\'s pending work, and anything your BC Supervisor sends you.</string>
+    <string name="reminders_title">Reminders</string>
+    <string name="reminders_note">The phone reminds you before the daily deadline, once each morning, and whenever your BC Supervisor sends you something. These work without a signal.</string>
+    <string name="reminders_enabled">Remind me</string>
+    <string name="reminders_morning_time">Morning reminder</string>
+    <string name="reminders_next">Next reminder: %1$s</string>
+    <string name="reminders_next_none">No reminder is due — check the working days with your BC Supervisor.</string>
+    <string name="reminders_blocked">Notifications are switched off for this app in the phone\'s settings, so nothing can be shown. Turn them on there.</string>
+    <string name="reminders_inexact">The phone will not let this app set an exact alarm, so a reminder may arrive a few minutes late.</string>
+    <string name="reminder_deadline_title">Daily report is due</string>
+    <string name="reminder_morning_title">Today\'s work</string>
+    <string name="reminder_morning_clear">Every allocated account has been visited. Remember the daily report.</string>
+    <plurals name="reminder_deadline_minutes">
+        <item quantity="one">%1$d minute left to send today\'s report.</item>
+        <item quantity="other">%1$d minutes left to send today\'s report.</item>
+    </plurals>
+    <plurals name="reminder_deadline_hours">
+        <item quantity="one">%1$d hour left to send today\'s report.</item>
+        <item quantity="other">%1$d hours left to send today\'s report.</item>
+    </plurals>
+    <plurals name="reminder_morning_pending">
+        <item quantity="one">%1$d allocated account has not been visited yet.</item>
+        <item quantity="other">%1$d allocated accounts have not been visited yet.</item>
+    </plurals>
+    <string name="sign_out_title">Sign out?</string>
+    <plurals name="notifications_unread">
+        <item quantity="one">%1$d unread notification</item>
+        <item quantity="other">%1$d unread notifications</item>
+    </plurals>
+
+    <!-- Attendance, daily report, sync queue and sign-out copy -->
+    <string name="attendance_check_in_note">Check in records your location and a selfie, both of which your BC Supervisor can see.</string>
+    <string name="attendance_check_out_note">Check out records your location and computes your working hours.</string>
+    <string name="attendance_done">Attendance complete for today. Thank you.</string>
+    <string name="report_no_deadline">Sync once so the app knows today\'s deadline.</string>
+    <string name="report_deadline_passed">The %1$s deadline has passed. Your report will be submitted as late and needs BC Supervisor approval — give a reason below.</string>
+    <string name="report_deadline_left">Deadline %1$s — %2$s. Server time decides, not this device.</string>
+    <string name="label_date">Date</string>
+    <string name="report_visits_recorded">Visits recorded</string>
+    <string name="report_in_progress">Still in progress</string>
+    <string name="report_submit_late">Submit late report for approval</string>
+    <string name="report_submit">Submit daily report</string>
+    <string name="report_queue_note">The report is queued on this device and sent at the next sync; the server records the exact submission time.</string>
+    <string name="sync_synchronising">Synchronising…</string>
+    <string name="sync_auto_note">Everything recorded on this device is sent automatically when there is a connection.</string>
+    <string name="sync_nothing_waiting">Nothing waiting</string>
+    <string name="sync_all_sent">Everything you have recorded has reached LRMS.</string>
+    <string name="notifications_empty_title">Nothing yet</string>
+    <string name="notifications_empty_message">Targets, allocations, deadline reminders and inspection results appear here.</string>
+    <string name="sign_out_cached_warning">Your cached accounts will be removed from this device.</string>
+    <plurals name="sign_out_queued_warning">
+        <item quantity="one">%1$d record is still queued and will be lost. Sync first if you can.</item>
+        <item quantity="other">%1$d records are still queued and will be lost. Sync first if you can.</item>
+    </plurals>
+
+    <!-- Messages produced outside a composable: sign-in, sync, location, confirmations -->
+    <string name="msg_enter_credentials">Enter your BCBF code or mobile number, and your password.</string>
+    <string name="msg_enter_otp">Enter the verification code sent to you.</string>
+    <string name="msg_bad_credentials">Incorrect BCBF code, mobile number or password.</string>
+    <string name="msg_otp_rejected">That code was not accepted.</string>
+    <string name="msg_no_connection">No connection.</string>
+    <string name="msg_password_needs_connection">Changing your password needs a connection.</string>
+    <string name="msg_sign_in_again">Please sign in again.</string>
+    <string name="msg_session_expired">Your session expired. Please sign in again.</string>
+    <string name="msg_not_signed_in">Not signed in.</string>
+    <string name="msg_password_too_short">Use at least 8 characters.</string>
+    <string name="msg_passwords_differ">The two passwords do not match.</string>
+    <string name="msg_location_permission">Location permission is needed to record field work.</string>
+    <string name="msg_location_off">Turn on location (GPS) to start a visit.</string>
+    <string name="msg_no_gps_fix">Could not get a GPS fix. Move to an open area and try again.</string>
+    <string name="msg_promise_saved">Promise to pay saved and queued.</string>
+    <string name="msg_followup_saved">Follow-up saved and queued.</string>
+    <string name="msg_checked_in">Checked in at %1$s.</string>
+    <string name="msg_checked_out">Checked out at %1$s.</string>
+    <string name="msg_report_queued">Daily report queued for submission.</string>
+    <string name="msg_server_error">Reached %1$s but it answered with an error: %2$s</string>
+
+    <!--
+      Shown when the server refuses something without saying why in words. A bare status
+      code tells a supervisor in a village nothing they can act on, and "403" is the one
+      they were seeing most: it usually comes from the hosting rather than from LRMS, so
+      the app cannot explain it beyond telling them who to call. The number is kept at the
+      end for whoever they call.
+    -->
+    <string name="error_session_expired">Your session has ended. Please sign in again.</string>
+    <string name="error_forbidden">The server refused this request. Tell your BC Supervisor — this is usually a setting on the server, not something you did. (403)</string>
+    <string name="error_not_found">The app could not find that on the server. The server address may be wrong — tell your BC Supervisor. (404)</string>
+    <string name="error_timeout">The server took too long to answer. Your work is saved on this phone; try again in a moment.</string>
+    <string name="error_too_many">Too many attempts. Please wait a minute and try again.</string>
+    <string name="error_server_down">There is a problem on the server. Your work is saved on this phone — tell your BC Supervisor. (%1$d)</string>
+    <string name="error_unexpected">The server would not accept this request. Your work is saved on this phone. Tell your BC Supervisor if it keeps happening. (%1$d)</string>
+    <string name="msg_server_refused">Reached %1$s, but it refused the request. Check the server URL.</string>
+    <plurals name="msg_offline_waiting">
+        <item quantity="one">Offline — %1$d item still waiting.</item>
+        <item quantity="other">Offline — %1$d items still waiting.</item>
+    </plurals>
+    <plurals name="msg_offline_pushed">
+        <item quantity="one">Offline — pushed %1$d item before losing the connection.</item>
+        <item quantity="other">Offline — pushed %1$d items before losing the connection.</item>
+    </plurals>
+
+    <!-- Social Security Scheme enrolments -->
+    <string name="home_sss">SSS enrolments</string>
+    <string name="sss_title">SSS enrolments</string>
+    <string name="sss_intro">How many people you enrolled today. Leave a scheme blank if there were none.</string>
+    <string name="sss_apy">APY</string>
+    <string name="sss_apy_full">Atal Pension Yojana</string>
+    <string name="sss_pmjjby">PMJJBY</string>
+    <string name="sss_pmjjby_full">Pradhan Mantri Jeevan Jyoti Bima Yojana</string>
+    <string name="sss_pmsby">PMSBY</string>
+    <string name="sss_pmsby_full">Pradhan Mantri Suraksha Bima Yojana</string>
+    <string name="sss_pmjdy">PMJDY</string>
+    <string name="sss_pmjdy_full">Pradhan Mantri Jan Dhan Yojana</string>
+    <string name="sss_remarks">Remarks (optional)</string>
+    <string name="sss_total">Total</string>
+    <string name="sss_today_total">Today</string>
+    <string name="sss_month_total">This month</string>
+    <string name="sss_month_meta">Month to date</string>
+    <string name="sss_already_recorded">Recorded for today</string>
+    <string name="sss_status">Status</string>
+    <string name="sss_state_queued">Waiting to be sent</string>
+    <string name="sss_state_sent">Sent</string>
+    <string name="sss_submit">Save enrolments</string>
+    <string name="sss_submit_correction">Save correction</string>
+    <string name="sss_over_limit">A single scheme cannot be more than %1$d in one day. Please check the figure.</string>
+    <string name="sss_queue_note">Saved on this device and sent at the next sync. Saving again for the same day corrects it rather than adding to it.</string>
+    <string name="sss_outbox_label">SSS enrolments for %1$s — %2$d in total</string>
+    <string name="msg_sss_queued">SSS enrolments saved: %1$d in total.</string>
+
+    <!-- The target the BC Supervisor set, and the day against it. None of this can be set here. -->
+    <string name="sss_target_heading">Today against your target</string>
+    <string name="sss_target_today">Target for today</string>
+    <string name="sss_achievement">Done</string>
+    <string name="sss_percent">Achieved</string>
+    <string name="sss_gap">Still to do</string>
+    <string name="sss_target_month_heading">This month so far</string>
+    <string name="sss_target_month">Target so far</string>
+    <string name="sss_target_working_days">Counted over %1$d working day(s). Sundays and holidays are not counted against you.</string>
+    <string name="sss_target_stale">Last received figures. Sync to bring them up to date.</string>
+    <string name="sss_no_target">No target has been set for you yet. Keep recording your enrolments — they are all saved.</string>
+
+    <!-- Submitted, and what to do about it. -->
+    <string name="sss_locked">You have already submitted these figures, so they cannot be changed here. Ask your BC Supervisor to re-open the day if a figure is wrong.</string>
+    <string name="sss_reopened">Your Admin has re-opened this day. Correct the figures and submit them once more.</string>
+    <string name="sss_state_sending">Sending</string>
+    <string name="sss_state_retrying">Not sent yet — will try again</string>
+    <string name="sss_state_rejected">Not accepted by the server</string>
+</resources>

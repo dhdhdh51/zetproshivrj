@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The flat field behind the D2 mark on the launcher icon.
+
+    Its own file because the icon background is referenced by the adaptive icon and
+    by the pre-26 layer-list, and keeping it out of colors.xml makes it obvious that
+    changing it changes the app icon rather than the UI.
+
+    Black, because that is the field the artwork is drawn on. The foreground is a
+    photographic mark and is therefore opaque rather than cut out — keying the black
+    away would eat into the emblem's own dark navy, and masking it to a disc would
+    sever the gold swoosh mid-stroke. So this colour is not normally visible; it
+    matches the foreground so that no seam can show if a launcher shifts the layers
+    against each other for parallax.
+-->
+<resources>
+    <color name="ic_launcher_background">#000000</color>
+
+    <!--
+        And the splash. Same reasoning: the emblem carries its own black field, so the
+        screen behind it has to be black or the mark reads as a box pasted onto navy.
+        Separate from @color/brand, which is the UI's navy and is used elsewhere.
+    -->
+    <color name="splash_background">#000000</color>
+</resources>

@@ -1,0 +1,1836 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Android API smoke test.
+ *
+ * Exercises the real HTTP surface the app uses: sign-in with device binding, the
+ * three-step visit flow with photographs and GPS, money entries, attendance, the
+ * server-authoritative deadline, and the offline sync push (including replaying a
+ * batch, which must be idempotent).
+ *
+ *   php tests/api-smoke.php [base-url]
+ *
+ * Expects a seeded database with imported accounts:
+ *   php database/migrate.php --fresh --demo && php tests/test-import.php
+ */
+
+require __DIR__ . '/../app/bootstrap.php';
+require __DIR__ . '/lib.php';
+
+use App\Core\Auth;
+use App\Core\Config;
+use App\Core\Database;
+
+$base = $argv[1] ?? null;
+$serverProcess = null;
+
+if ($base === null) {
+    $base = 'http://127.0.0.1:8098';
+    $descriptors = [1 => ['file', '/tmp/lrms-api-server.log', 'a'], 2 => ['file', '/tmp/lrms-api-server.log', 'a']];
+    /*
+     * PHP_CLI_SERVER_WORKERS is what makes the concurrency section below mean anything.
+     *
+     * The built-in server is single-process by default, so it accepts one request at a time
+     * and requests fired in parallel are served one after another. A test for a race that
+     * only happens when two requests overlap would then pass whether or not the code guards
+     * against it, which is worse than having no test at all. With workers the overlap is
+     * real: the unguarded version of the device check fails this suite.
+     */
+    $serverProcess = proc_open(
+        sprintf(
+            'LRMS_APP_URL=%s PHP_CLI_SERVER_WORKERS=16 php -S 127.0.0.1:8098 -t %s %s',
+            escapeshellarg($base),
+            escapeshellarg(base_path('public')),
+            escapeshellarg(base_path('public/index.php'))
+        ),
+        $descriptors,
+        $pipes
+    );
+
+    for ($i = 0; $i < 40; $i++) {
+        $socket = @fsockopen('127.0.0.1', 8098, $errno, $errstr, 0.3);
+
+        if ($socket !== false) {
+            fclose($socket);
+            break;
+        }
+
+        usleep(250000);
+    }
+}
+
+$apiToken = null;
+$deviceUuid = 'test-device-' . substr(sha1((string) getmypid()), 0, 12);
+
+/**
+ * @param array<string, mixed>|null $body
+ * @return array{status:int, json:array<string, mixed>, raw:string}
+ */
+function api(string $method, string $path, ?array $body = null, array $options = []): array
+{
+    global $base, $apiToken, $deviceUuid;
+
+    $headers = ['Accept: application/json'];
+
+    if (($options['auth'] ?? true) && $apiToken !== null) {
+        $headers[] = 'Authorization: Bearer ' . $apiToken;
+        $headers[] = 'X-Device-Id: ' . ($options['device'] ?? $deviceUuid);
+    }
+
+    if ($body !== null && !isset($options['multipart'])) {
+        $headers[] = 'Content-Type: application/json';
+    }
+
+    $handle = curl_init($base . $path);
+    curl_setopt_array($handle, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_TIMEOUT => 60,
+    ]);
+
+    if ($body !== null) {
+        curl_setopt(
+            $handle,
+            CURLOPT_POSTFIELDS,
+            isset($options['multipart']) ? $body : (string) json_encode($body)
+        );
+    }
+
+    $raw = (string) curl_exec($handle);
+    $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+    curl_close($handle);
+
+    $json = json_decode($raw, true);
+
+    return ['status' => $status, 'json' => is_array($json) ? $json : [], 'raw' => $raw];
+}
+
+/** A small valid JPEG, so the photo pipeline (GD + watermark) is really exercised. */
+function samplePhoto(int $width = 640, int $height = 480): string
+{
+    $image = imagecreatetruecolor($width, $height);
+    imagefill($image, 0, 0, imagecolorallocate($image, 180, 200, 220));
+    imagefilledrectangle($image, 40, 40, $width - 40, $height - 40, imagecolorallocate($image, 90, 120, 160));
+    imagestring($image, 5, 60, 60, 'LRMS TEST PHOTO', imagecolorallocate($image, 255, 255, 255));
+
+    ob_start();
+    imagejpeg($image, null, 85);
+    $binary = (string) ob_get_clean();
+    imagedestroy($image);
+
+    return base64_encode($binary);
+}
+
+function uuid(): string
+{
+    return uuid4();
+}
+
+// The sign-in throttle keeps its counters in files with a fifteen-minute decay, so
+// they outlive a --fresh database. Left alone, running this suite twice inside that
+// window makes the second run fail on 429s that have nothing to do with the code
+// under test. Cleared here so the suite is repeatable.
+$throttleDir = base_path('storage/logs/throttle');
+
+if (is_dir($throttleDir)) {
+    foreach (glob($throttleDir . '/*.json') ?: [] as $counter) {
+        @unlink($counter);
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+section('Public endpoints');
+/* -------------------------------------------------------------------------- */
+
+$ping = api('GET', '/api/v1/ping', null, ['auth' => false]);
+equals(200, $ping['status'], 'GET /api/v1/ping responds 200');
+ok(($ping['json']['data']['api_version'] ?? '') === 'v1', 'Ping reports the API version');
+ok(!empty($ping['json']['data']['server_time']), 'Ping reports server time (for the countdown)');
+
+$unauthorised = api('GET', '/api/v1/me', null, ['auth' => false]);
+equals(401, $unauthorised['status'], 'Authenticated route without a token returns 401');
+equals('unauthenticated', $unauthorised['json']['code'] ?? '', 'Unauthenticated response carries a machine code');
+
+$badToken = api('GET', '/api/v1/me');
+// No token issued yet, so this is also unauthenticated.
+equals(401, $badToken['status'], 'Missing bearer token is refused');
+
+/* -------------------------------------------------------------------------- */
+section('Sign-in and device binding');
+/* -------------------------------------------------------------------------- */
+
+$supervisor = Database::selectOne(
+    'SELECT s.*, u.mobile, u.id AS user_id FROM bc_supervisors s JOIN users u ON u.id = s.user_id ORDER BY s.id LIMIT 1'
+);
+
+if ($supervisor === null) {
+    exit("No BCA seeded. Run: php database/migrate.php --fresh --demo\n");
+}
+
+// Known password for the test.
+Database::update('users', [
+    'password' => Auth::hashPassword('AppTest@123'),
+    'must_change_password' => 0,
+    'failed_attempts' => 0,
+    'locked_until' => null,
+], 'id = :id', ['id' => (int) $supervisor['user_id']]);
+
+/*
+ * The BCBF code, not a username. The staff form stopped issuing usernames — a BCA signs in
+ * with the code on their paperwork or with their own phone number — and the seed stopped
+ * inventing them to match, so `u.username` is NULL on every seeded BCA. These tests drive the
+ * identifier the field actually types.
+ *
+ * The JSON key stays `username`. That is the API contract the installed app posts against, and
+ * renaming it would lock out every handset already in the field to make one test read better.
+ */
+$bcLogin = (string) $supervisor['bc_code'];
+
+$wrong = api('POST', '/api/v1/auth/login', [
+    'username' => $bcLogin,
+    'password' => 'not-the-password',
+    'device' => ['uuid' => $deviceUuid],
+], ['auth' => false]);
+equals(401, $wrong['status'], 'Wrong password returns 401');
+equals('invalid_credentials', $wrong['json']['code'] ?? '', 'Wrong password reports invalid_credentials');
+
+$noDevice = api('POST', '/api/v1/auth/login', [
+    'username' => $bcLogin,
+    'password' => 'AppTest@123',
+], ['auth' => false]);
+equals(422, $noDevice['status'], 'Sign-in without a device id is refused');
+
+// A BCA knows their BCBF code — it is on their paperwork and in the bank's spreadsheets — and
+// they know their own phone number. Both sign them in. These use the same device uuid as the
+// sign-in below because only one handset may be bound at a time.
+$byBcCode = api('POST', '/api/v1/auth/login', [
+    'username' => $supervisor['bc_code'],
+    'password' => 'AppTest@123',
+    'device' => ['uuid' => $deviceUuid],
+], ['auth' => false]);
+equals(200, $byBcCode['status'], 'Sign-in with the BCBF code succeeds');
+equals(
+    $supervisor['bc_code'],
+    $byBcCode['json']['data']['supervisor']['bc_code'] ?? '',
+    'BCBF-code sign-in resolves the same supervisor'
+);
+
+$byLowerBcCode = api('POST', '/api/v1/auth/login', [
+    'username' => strtolower((string) $supervisor['bc_code']),
+    'password' => 'AppTest@123',
+    'device' => ['uuid' => $deviceUuid],
+], ['auth' => false]);
+equals(200, $byLowerBcCode['status'], 'BCBF code is matched case-insensitively');
+
+$unknownBcCode = api('POST', '/api/v1/auth/login', [
+    'username' => 'BC-no-such-code',
+    'password' => 'AppTest@123',
+    'device' => ['uuid' => $deviceUuid],
+], ['auth' => false]);
+equals(401, $unknownBcCode['status'], 'An unknown BCBF code is refused');
+
+/*
+ * The phone number, written the way people write phone numbers.
+ *
+ * The Admin types it into the staff form off whatever the paperwork says; the BCA types it the
+ * way they say it out loud. If those have to match character for character then a space somebody
+ * else typed locks them out, and nothing on either screen explains why. All four of these are
+ * the same number.
+ */
+$storedMobile = (string) $supervisor['mobile'];
+
+foreach ([
+    $storedMobile => 'the number as stored',
+    '0' . $storedMobile => 'a leading zero',
+    '91' . $storedMobile => 'the country code',
+    '+91 ' . substr($storedMobile, 0, 5) . ' ' . substr($storedMobile, 5) => 'spaces and a plus',
+] as $typed => $describedAs) {
+    $byMobile = api('POST', '/api/v1/auth/login', [
+        'username' => (string) $typed,
+        'password' => 'AppTest@123',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false]);
+
+    equals(200, $byMobile['status'], 'Sign-in by mobile works with ' . $describedAs);
+    equals(
+        $supervisor['bc_code'],
+        $byMobile['json']['data']['supervisor']['bc_code'] ?? '',
+        'And resolves the same supervisor with ' . $describedAs
+    );
+}
+
+// Long enough to be a phone number is not the same as being one. An Aadhaar number typed into
+// the login box must not resolve to whoever's mobile happens to end in the same ten digits.
+$byAadhaarShapedNumber = api('POST', '/api/v1/auth/login', [
+    'username' => '9999' . $storedMobile,
+    'password' => 'AppTest@123',
+    'device' => ['uuid' => $deviceUuid],
+], ['auth' => false]);
+equals(401, $byAadhaarShapedNumber['status'], 'A fourteen-digit number is not read as a mobile');
+
+/*
+ * Two accounts on one number: nobody gets in.
+ *
+ * `users.mobile` has no unique key, so this is possible on data that predates the staff form
+ * rejecting it. There is then no way to tell which of the two is signing in, and picking either
+ * would hand somebody another BCA's day of work — so the sign-in is refused rather than guessed.
+ */
+$collidingUserId = (int) Database::scalar(
+    'SELECT u.id FROM bc_supervisors s JOIN users u ON u.id = s.user_id WHERE u.id <> :used ORDER BY s.id LIMIT 1',
+    ['used' => (int) $supervisor['user_id']]
+);
+$collidingMobileBefore = (string) Database::scalar('SELECT mobile FROM users WHERE id = :id', ['id' => $collidingUserId]);
+
+Database::update('users', ['mobile' => $storedMobile], 'id = :id', ['id' => $collidingUserId]);
+
+/*
+ * try/finally, because the duplicate has to come back off whatever happens in between. Left
+ * behind, it fails every mobile assertion on every later run of this suite against the same
+ * database, for a reason that looks nothing like its cause.
+ */
+try {
+    $ambiguous = api('POST', '/api/v1/auth/login', [
+        'username' => $storedMobile,
+        'password' => 'AppTest@123',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false]);
+    equals(401, $ambiguous['status'], 'A number held by two accounts signs neither of them in');
+
+    // Written another way, it is still the same number and still refused — the collision is on
+    // the digits, not on the spelling.
+    $ambiguousSpelled = api('POST', '/api/v1/auth/login', [
+        'username' => '+91' . $storedMobile,
+        'password' => 'AppTest@123',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false]);
+    equals(401, $ambiguousSpelled['status'], 'However that number is written');
+
+    // And the BCBF code still gets the right person in, because that one is unique.
+    $stillByCode = api('POST', '/api/v1/auth/login', [
+        'username' => $bcLogin,
+        'password' => 'AppTest@123',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false]);
+    equals(200, $stillByCode['status'], 'While the BCBF code still works, being unique');
+} finally {
+    Database::update('users', ['mobile' => $collidingMobileBefore], 'id = :id', ['id' => $collidingUserId]);
+}
+
+/*
+ * One account, one attempt budget, however the number is spelled.
+ *
+ * The throttle used to key on the raw string. A phone number has no fixed spelling, so each one
+ * got its own budget and the per-account limit stopped bounding attempts per account — the one
+ * limit that guards an account rather than an address.
+ */
+$throttleMobile = (string) $supervisor['mobile'];
+$spellings = [
+    $throttleMobile,
+    '0' . $throttleMobile,
+    '91' . $throttleMobile,
+    '+91' . $throttleMobile,
+    substr($throttleMobile, 0, 5) . ' ' . substr($throttleMobile, 5),
+    substr($throttleMobile, 0, 3) . '-' . substr($throttleMobile, 3),
+];
+
+$throttleCodes = [];
+
+foreach (array_merge($spellings, $spellings) as $spelling) {
+    $throttleCodes[] = api('POST', '/api/v1/auth/login', [
+        'username' => $spelling,
+        'password' => 'definitely-not-the-password',
+        'device' => ['uuid' => $deviceUuid],
+    ], ['auth' => false])['status'];
+}
+
+ok(
+    in_array(429, $throttleCodes, true),
+    'Twelve spellings of one number share one attempt budget (' . implode(',', $throttleCodes) . ')'
+);
+
+// Clear it again, so the sections below are not sitting behind this throttle.
+$unlockTarget = (int) $supervisor['user_id'];
+Database::update(
+    'users',
+    ['failed_attempts' => 0, 'locked_until' => null],
+    'id = :id',
+    ['id' => $unlockTarget]
+);
+App\Core\RateLimiter::clear('api-login:user:' . App\Core\Auth::throttleKey($throttleMobile));
+App\Core\RateLimiter::clear('api-login:ip:127.0.0.1');
+
+$login = api('POST', '/api/v1/auth/login', [
+    'username' => $bcLogin,
+    'password' => 'AppTest@123',
+    'device' => [
+        'uuid' => $deviceUuid,
+        'model' => 'Test Handset',
+        'manufacturer' => 'LRMS',
+        'os_version' => '14',
+        'app_version' => '1.0.0-test',
+    ],
+], ['auth' => false]);
+
+equals(200, $login['status'], 'BCA sign-in succeeds');
+$apiToken = $login['json']['data']['token'] ?? null;
+ok(is_string($apiToken) && strlen($apiToken) > 40, 'A bearer token was issued');
+equals($supervisor['bc_code'], $login['json']['data']['supervisor']['bc_code'] ?? '', 'Response carries the BC code');
+
+// Only the hash is stored.
+ok(
+    (int) Database::scalar('SELECT COUNT(*) FROM api_tokens WHERE token_hash = :h', ['h' => hash('sha256', (string) $apiToken)]) === 1,
+    'Only the token hash is stored in the database'
+);
+
+// Device binding: the token must not work from another device id.
+$otherDevice = api('GET', '/api/v1/me', null, ['device' => 'some-other-device']);
+equals(401, $otherDevice['status'], 'Token presented from another device is refused (device binding)');
+
+// A second handset cannot sign in while one is bound.
+$secondDevice = api('POST', '/api/v1/auth/login', [
+    'username' => $bcLogin,
+    'password' => 'AppTest@123',
+    'device' => ['uuid' => $deviceUuid . '-second'],
+], ['auth' => false]);
+equals(403, $secondDevice['status'], 'A second device cannot bind while one is active');
+equals('device_not_allowed', $secondDevice['json']['code'] ?? '', 'Second device reports device_not_allowed');
+
+// Admin credentials must be refused by the app API.
+$adminUser = Database::selectOne(
+    "SELECT u.* FROM users u JOIN roles r ON r.id = u.role_id WHERE r.slug = 'admin' LIMIT 1"
+);
+Database::update('users', ['password' => Auth::hashPassword('AdminTest@123')], 'id = :id', ['id' => (int) $adminUser['id']]);
+
+$adminLogin = api('POST', '/api/v1/auth/login', [
+    'username' => $adminUser['email'],
+    'password' => 'AdminTest@123',
+    'device' => ['uuid' => 'admin-device'],
+], ['auth' => false]);
+equals(403, $adminLogin['status'], 'BC Supervisor cannot sign in to the field app');
+equals('wrong_role', $adminLogin['json']['code'] ?? '', 'Admin sign-in reports wrong_role');
+
+/* -------------------------------------------------------------------------- */
+section('A handset handed to another BCA');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A phone gets handed on. The BCA leaves, or the handset is a branch one that two people
+ * share between shifts, and the branch expects the BC Supervisor to release it and the next
+ * person to sign in.
+ *
+ * That did not work. `devices.device_uuid` is unique, so the row for a handset carries the
+ * first user who ever signed in on it, and a release only changed its status. The next BCA's
+ * sign-in still found a row belonging to somebody else and was refused as "registered to
+ * another user" — permanently, and with nothing on any screen to say what would fix it. The
+ * phone was scrap.
+ *
+ * Four things have to hold, and the fourth is the one that is easy to lose while fixing the
+ * other three: an account still cannot end up with two live handsets.
+ */
+$handoverDevice = 'handover-' . substr(sha1((string) getmypid()), 0, 10);
+
+$pair = Database::select(
+    'SELECT s.bc_code, u.id AS user_id
+       FROM bc_supervisors s JOIN users u ON u.id = s.user_id
+      WHERE u.id <> :used ORDER BY s.id LIMIT 2',
+    ['used' => (int) $supervisor['user_id']]
+);
+
+if (count($pair) < 2) {
+    ok(false, 'Two more BCAs are seeded to hand a handset between');
+} else {
+    [$first, $second] = $pair;
+
+    foreach ($pair as $person) {
+        Database::update('users', [
+            'password' => Auth::hashPassword('AppTest@123'),
+            'must_change_password' => 0,
+            'failed_attempts' => 0,
+            'locked_until' => null,
+        ], 'id = :id', ['id' => (int) $person['user_id']]);
+    }
+
+    $signIn = static function (array $person, string $device): array {
+        return api('POST', '/api/v1/auth/login', [
+            'username' => (string) $person['bc_code'],
+            'password' => 'AppTest@123',
+            'device' => ['uuid' => $device, 'model' => 'Shared Handset', 'manufacturer' => 'LRMS'],
+        ], ['auth' => false]);
+    };
+
+    $firstBind = $signIn($first, $handoverDevice);
+    equals(200, $firstBind['status'], 'The first BCA binds the shared handset');
+
+    // 1. While it is theirs, nobody else gets in — and the refusal says whose it is, because
+    //    "already registered to another user" left the branch with nothing to act on.
+    $blocked = $signIn($second, $handoverDevice);
+    equals(403, $blocked['status'], 'The second BCA cannot sign in on it while it is bound');
+    ok(
+        str_contains((string) ($blocked['json']['message'] ?? ''), (string) $first['bc_code'])
+        || str_contains((string) ($blocked['json']['message'] ?? ''), 'release'),
+        'The refusal names the holder and what to do: ' . (string) ($blocked['json']['message'] ?? '')
+    );
+
+    // 2. The BC Supervisor releases it, exactly as the panel button does.
+    $deviceRow = Database::selectOne(
+        'SELECT * FROM devices WHERE device_uuid = :uuid',
+        ['uuid' => $handoverDevice]
+    );
+    equals((int) $first['user_id'], (int) ($deviceRow['user_id'] ?? 0), 'The row belongs to the first BCA');
+
+    Database::update('devices', ['status' => 'unbound', 'updated_at' => now()], 'id = :id', [
+        'id' => (int) $deviceRow['id'],
+    ]);
+
+    // 3. Now the second BCA can have it, and the row moves to them rather than blocking them.
+    $takeover = $signIn($second, $handoverDevice);
+    equals(200, $takeover['status'], 'After the release the second BCA signs in on the same handset');
+
+    $afterTakeover = Database::selectOne(
+        'SELECT * FROM devices WHERE device_uuid = :uuid',
+        ['uuid' => $handoverDevice]
+    );
+    equals(
+        (int) $second['user_id'],
+        (int) ($afterTakeover['user_id'] ?? 0),
+        'The handset row now belongs to the second BCA'
+    );
+    equals('active', (string) ($afterTakeover['status'] ?? ''), 'And it is active again, not left unbound');
+    equals(
+        1,
+        (int) Database::scalar('SELECT COUNT(*) FROM devices WHERE device_uuid = :uuid', ['uuid' => $handoverDevice]),
+        'One row per handset, not a second one for the new owner'
+    );
+
+    // And the first BCA is now the one locked out of it, which is the point of binding.
+    $firstBack = $signIn($first, $handoverDevice);
+    equals(403, $firstBack['status'], 'The first BCA can no longer sign in on the handset they gave up');
+
+    // 4. The rule that survives all of the above: one live handset per account. The second
+    //    BCA now holds the shared one, so their own phone must still be refused.
+    $ownPhone = $signIn($second, $handoverDevice . '-own');
+    equals(403, $ownPhone['status'], 'The new owner still cannot bind a second handset of their own');
+    equals('device_not_allowed', $ownPhone['json']['code'] ?? '', 'Refused as device_not_allowed');
+
+    // The reverse case: an account that already has a live handset cannot pick up a released
+    // one either. Releasing a phone must not become a way around the one-handset rule.
+    Database::update('devices', ['status' => 'unbound', 'updated_at' => now()], 'device_uuid = :uuid', [
+        'uuid' => $handoverDevice,
+    ]);
+    $secondsOwn = $signIn($second, $handoverDevice . '-own');
+    equals(200, $secondsOwn['status'], 'With the shared handset released they bind their own');
+
+    $greedy = $signIn($second, $handoverDevice);
+    equals(403, $greedy['status'], 'And cannot then also re-take the released shared handset');
+    equals(
+        1,
+        (int) Database::scalar(
+            "SELECT COUNT(*) FROM devices WHERE user_id = :uid AND status = 'active'",
+            ['uid' => (int) $second['user_id']]
+        ),
+        'The account is left with exactly one active handset'
+    );
+
+    // A blocked handset stays blocked for its owner too, not just for strangers.
+    Database::update('devices', ['status' => 'blocked', 'updated_at' => now()], 'device_uuid = :uuid', [
+        'uuid' => $handoverDevice . '-own',
+    ]);
+    $blockedOwn = $signIn($second, $handoverDevice . '-own');
+    equals(403, $blockedOwn['status'], 'A blocked handset is refused to its own owner');
+    ok(
+        str_contains(strtolower((string) ($blockedOwn['json']['message'] ?? '')), 'blocked'),
+        'And the message says it is blocked rather than showing a bare code'
+    );
+
+    Database::delete('devices', 'device_uuid LIKE :like', ['like' => $handoverDevice . '%']);
+}
+
+/* -------------------------------------------------------------------------- */
+section('One handset per account holds when handsets bind at the same instant');
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Every check above binds one handset at a time, and the one-handset rule held for all of
+ * them. It did not hold when two sign-ins overlapped.
+ *
+ * The check was a SELECT for an active device followed by an INSERT. Two requests could both
+ * run the SELECT before either had inserted, both find nothing, and both bind — leaving an
+ * account with two live handsets, which is the whole thing device binding exists to prevent.
+ * Reproduced before it was fixed: fourteen parallel sign-ins, and three rounds out of eight
+ * ended with two active rows.
+ *
+ * `devices.device_uuid` is unique but that does not help here, because each request carries a
+ * different handset. "One active row per user" is not something MySQL can be asked to
+ * enforce either — a partial unique index is not available — so the sign-in takes a row lock
+ * on the user for the duration of the check and the insert.
+ *
+ * This is a race, so it is run repeatedly rather than once. A single round proves nothing:
+ * an unguarded build has been seen pass three rounds cleanly and then break eight out of the
+ * next twelve. Ten rounds is enough to catch a regression almost every time, and cannot fail
+ * on guarded code, because with the lock in place the invariant is not a matter of timing.
+ *
+ * Asserting the lock head-on instead was tried and thrown away: holding the account row from
+ * another connection stalls an unguarded sign-in just as surely as a guarded one, because
+ * both `devices` and `api_tokens` reference `users`, and the foreign key on the insert needs
+ * the very row being held. A check that passes either way is worse than no check, and its
+ * message would blame the device logic for a stall coming from somewhere else.
+ */
+$racer = Database::selectOne(
+    'SELECT u.id AS user_id, s.bc_code
+       FROM bc_supervisors s JOIN users u ON u.id = s.user_id
+      WHERE u.id <> :used ORDER BY s.id DESC LIMIT 1',
+    ['used' => (int) $supervisor['user_id']]
+);
+
+if ($racer === null) {
+    ok(false, 'A BCA is seeded to race sign-ins for');
+} else {
+    Database::update('users', [
+        'password' => Auth::hashPassword('AppTest@123'),
+        'must_change_password' => 0,
+        'failed_attempts' => 0,
+        'locked_until' => null,
+    ], 'id = :id', ['id' => (int) $racer['user_id']]);
+
+    $racePrefix = 'race-' . substr(sha1((string) getmypid()), 0, 8);
+    $racerId = (int) $racer['user_id'];
+
+    /**
+     * Fire `$count` sign-ins for one account at once, each naming a different handset.
+     *
+     * @return array<int, int> the status codes, in no particular order
+     */
+    $raceLogins = static function (string $identifier, string $prefix, int $round, int $count): array {
+        $multi = curl_multi_init();
+        $handles = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $handle = curl_init($GLOBALS['base'] . '/api/v1/auth/login');
+            curl_setopt_array($handle, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/json'],
+                CURLOPT_TIMEOUT => 60,
+                CURLOPT_POSTFIELDS => (string) json_encode([
+                    'username' => $identifier,
+                    'password' => 'AppTest@123',
+                    'device' => [
+                        'uuid' => sprintf('%s-r%d-%d', $prefix, $round, $i),
+                        'model' => 'Race Handset',
+                        'manufacturer' => 'LRMS',
+                    ],
+                ]),
+            ]);
+
+            curl_multi_add_handle($multi, $handle);
+            $handles[] = $handle;
+        }
+
+        // Added to the multi handle first, started only now, so they go out together rather
+        // than trickling out one behind the next.
+        do {
+            $status = curl_multi_exec($multi, $running);
+
+            if ($running > 0) {
+                curl_multi_select($multi, 1.0);
+            }
+        } while ($running > 0 && $status === CURLM_OK);
+
+        $codes = [];
+
+        foreach ($handles as $handle) {
+            $codes[] = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+            curl_multi_remove_handle($multi, $handle);
+            curl_close($handle);
+        }
+
+        curl_multi_close($multi);
+
+        return $codes;
+    };
+
+    $activeCounts = [];
+    $acceptedCounts = [];
+    $unexpected = [];
+
+    $rounds = 10;
+
+    for ($round = 1; $round <= $rounds; $round++) {
+        Database::delete('devices', 'user_id = :uid', ['uid' => $racerId]);
+
+        $codes = $raceLogins((string) $racer['bc_code'], $racePrefix, $round, 14);
+
+        $activeCounts[] = (int) Database::scalar(
+            "SELECT COUNT(*) FROM devices WHERE user_id = :uid AND status = 'active'",
+            ['uid' => $racerId]
+        );
+        $acceptedCounts[] = count(array_filter($codes, static fn (int $c): bool => $c === 200));
+
+        foreach ($codes as $code) {
+            if ($code !== 200 && $code !== 403) {
+                $unexpected[] = $code;
+            }
+        }
+    }
+
+    equals(
+        array_fill(0, $rounds, 1),
+        $activeCounts,
+        'Fourteen simultaneous sign-ins leave exactly one active handset, every round ('
+            . implode(',', $activeCounts) . ')'
+    );
+
+    equals(
+        array_fill(0, $rounds, 1),
+        $acceptedCounts,
+        'Exactly one of the fourteen is accepted, every round (' . implode(',', $acceptedCounts) . ')'
+    );
+
+    // The losers must be told the ordinary thing, not a 500 from a duplicate-key collision or
+    // a 429 from the throttle. A field officer reading a crash has no idea their phone is fine.
+    equals([], $unexpected, 'The rest are refused normally, with no errors or throttling');
+
+    $racedRows = Database::select(
+        'SELECT status FROM devices WHERE user_id = :uid',
+        ['uid' => $racerId]
+    );
+    equals(
+        1,
+        count($racedRows),
+        'No half-written rows are left behind by the sign-ins that lost (' . count($racedRows) . ' rows)'
+    );
+
+    Database::delete('devices', 'user_id = :uid', ['uid' => $racerId]);
+}
+
+/* -------------------------------------------------------------------------- */
+section('Profile and sync pull');
+/* -------------------------------------------------------------------------- */
+
+$me = api('GET', '/api/v1/me');
+equals(200, $me['status'], 'GET /me succeeds');
+ok(isset($me['json']['data']['deadline']['deadline_at']), '/me includes the server deadline');
+ok(isset($me['json']['data']['today']['allocated_accounts']), '/me includes allocated account count');
+
+$pull = api('GET', '/api/v1/sync/pull');
+equals(200, $pull['status'], 'GET /sync/pull succeeds');
+$accounts = $pull['json']['data']['accounts'] ?? [];
+ok(count($accounts) > 0, sprintf('Sync pull returned allocated accounts (%d)', count($accounts)));
+ok(isset($pull['json']['data']['visit_form']['fields']), 'Sync pull includes the visit form definition');
+ok(count($pull['json']['data']['visit_form']['fields'] ?? []) > 5, 'Visit form definition has fields');
+
+// The app has to receive every form, not just the generic one: a KRM OTS or CKCC
+// OD-2 account is verified on its own 13-section form, and sending only the
+// customer form left the supervisor answering 21 questions while the printed
+// report expected 42 or 46 — those sections came out blank with nothing on the
+// phone that could have filled them.
+$forms = $pull['json']['data']['visit_forms'] ?? [];
+$byType = [];
+
+foreach ($forms as $form) {
+    $byType[(string) ($form['visit_type'] ?? '')] = $form;
+}
+
+equals(3, count($forms), 'Sync pull sends all three visit forms');
+
+foreach (['customer', 'krm_ots', 'ckcc_od2'] as $visitType) {
+    ok(isset($byType[$visitType]), 'Sync pull includes the ' . $visitType . ' form');
+    ok(
+        count($byType[$visitType]['fields'] ?? []) > 5,
+        sprintf('The %s form carries its fields (%d)', $visitType, count($byType[$visitType]['fields'] ?? []))
+    );
+}
+
+// The verification forms are the long ones; if they ever collapse to the size of
+// the customer form, the report sections behind them are empty again.
+ok(
+    count($byType['krm_ots']['fields'] ?? []) > count($byType['customer']['fields'] ?? []),
+    'The KRM OTS form is larger than the customer form'
+);
+ok(
+    count($byType['ckcc_od2']['fields'] ?? []) > count($byType['customer']['fields'] ?? []),
+    'The CKCC OD-2 form is larger than the customer form'
+);
+
+// Field keys must be unique within a form, because the handset stores them keyed
+// by (visit type, field key).
+foreach (['customer', 'krm_ots', 'ckcc_od2'] as $visitType) {
+    $keys = array_map(
+        static fn (array $field): string => (string) ($field['key'] ?? ''),
+        $byType[$visitType]['fields'] ?? []
+    );
+
+    equals(count($keys), count(array_unique($keys)), 'The ' . $visitType . ' form has no duplicate field keys');
+}
+
+// Every form the app is told about must be one the server will accept a visit
+// against, so the per-type endpoint has to agree.
+foreach (['customer', 'krm_ots', 'ckcc_od2'] as $visitType) {
+    $single = api('GET', '/api/v1/visit-form?visit_type=' . $visitType);
+    equals(200, $single['status'], 'GET /visit-form?visit_type=' . $visitType . ' succeeds');
+    equals(
+        $visitType,
+        $single['json']['data']['form']['visit_type'] ?? '',
+        'The per-type endpoint returns the ' . $visitType . ' form'
+    );
+}
+ok(isset($pull['json']['data']['rules']['min_visit_photos']), 'Sync pull includes the rules the app enforces');
+
+// Every account returned must belong to this supervisor.
+$leaked = 0;
+
+foreach ($accounts as $account) {
+    $owner = (int) Database::scalar(
+        'SELECT bc_supervisor_id FROM account_assignments WHERE loan_account_id = :id AND is_active = 1',
+        ['id' => (int) $account['id']]
+    );
+
+    if ($owner !== (int) $supervisor['id']) {
+        $leaked++;
+    }
+}
+
+equals(0, $leaked, 'Sync pull only returns accounts allocated to this supervisor');
+
+$accountId = (int) $accounts[0]['id'];
+
+$detail = api('GET', '/api/v1/accounts/' . $accountId);
+equals(200, $detail['status'], 'GET /accounts/{id} succeeds for an allocated account');
+
+// An account belonging to someone else must be refused.
+$otherAccountId = (int) Database::scalar(
+    'SELECT a.id FROM loan_accounts a
+       JOIN account_assignments x ON x.loan_account_id = a.id AND x.is_active = 1
+      WHERE x.bc_supervisor_id <> :bc LIMIT 1',
+    ['bc' => (int) $supervisor['id']]
+);
+
+if ($otherAccountId > 0) {
+    $forbidden = api('GET', '/api/v1/accounts/' . $otherAccountId);
+    equals(403, $forbidden['status'], 'An account allocated to another supervisor is refused (403)');
+} else {
+    ok(true, 'No other supervisor has accounts (skipped)');
+}
+
+/* -------------------------------------------------------------------------- */
+section('Visit flow: start, photo, submit');
+/* -------------------------------------------------------------------------- */
+
+// Nothing about a visit is mandatory any more, location included: a supervisor in
+// a village with no fix, or inside a thick-walled house, files the report instead
+// of losing the visit. What must not happen is the report *claiming* a verified
+// location it does not have — so each case below is accepted and then checked to
+// be recorded as unverified, with the reason kept against the point.
+$verdictOf = static fn (string $uuid): array => Database::selectOne(
+    'SELECT v.gps_verified, g.is_valid, g.validation_note
+       FROM visits v
+  LEFT JOIN visit_gps g ON g.visit_id = v.id
+      WHERE v.uuid = :u
+      LIMIT 1',
+    ['u' => $uuid]
+) ?? [];
+
+$noGpsUuid = uuid();
+$noGps = api('POST', '/api/v1/visits', ['loan_account_id' => $accountId, 'uuid' => $noGpsUuid]);
+equals(201, $noGps['status'], 'A visit with no location can still be started');
+equals(0, (int) ($verdictOf($noGpsUuid)['gps_verified'] ?? -1), 'A visit with no location is not marked GPS-verified');
+
+$badAccuracyUuid = uuid();
+$badAccuracy = api('POST', '/api/v1/visits', [
+    'uuid' => $badAccuracyUuid,
+    'loan_account_id' => $accountId,
+    'gps' => ['latitude' => 25.5389, 'longitude' => 87.5719, 'accuracy' => 5000],
+]);
+equals(201, $badAccuracy['status'], 'A poor fix no longer refuses the visit');
+
+$badAccuracyVerdict = $verdictOf($badAccuracyUuid);
+equals(0, (int) ($badAccuracyVerdict['gps_verified'] ?? -1), 'A fix beyond the accuracy limit is recorded unverified');
+equals(0, (int) ($badAccuracyVerdict['is_valid'] ?? -1), 'The point itself is stored as invalid');
+ok(
+    trim((string) ($badAccuracyVerdict['validation_note'] ?? '')) !== '',
+    'The reason the fix was rejected is kept with it'
+);
+
+$mockUuid = uuid();
+$mock = api('POST', '/api/v1/visits', [
+    'uuid' => $mockUuid,
+    'loan_account_id' => $accountId,
+    'gps' => ['latitude' => 25.5389, 'longitude' => 87.5719, 'accuracy' => 12, 'is_mock' => true],
+]);
+equals(201, $mock['status'], 'A mock location no longer refuses the visit');
+equals(0, (int) ($verdictOf($mockUuid)['gps_verified'] ?? -1), 'A mock location is recorded unverified, not verified');
+
+$nullIslandUuid = uuid();
+$nullIsland = api('POST', '/api/v1/visits', [
+    'uuid' => $nullIslandUuid,
+    'loan_account_id' => $accountId,
+    'gps' => ['latitude' => 0, 'longitude' => 0, 'accuracy' => 8],
+]);
+equals(201, $nullIsland['status'], 'Coordinates of 0,0 no longer refuse the visit');
+equals(0, (int) ($verdictOf($nullIslandUuid)['gps_verified'] ?? -1), 'Coordinates of 0,0 are recorded unverified');
+
+// And a real fix must still come out verified, or the flag would mean nothing.
+$goodUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $goodUuid,
+    'loan_account_id' => $accountId,
+    'gps' => ['latitude' => 25.5391, 'longitude' => 87.5721, 'accuracy' => 8],
+]);
+equals(1, (int) ($verdictOf($goodUuid)['gps_verified'] ?? -1), 'A good fix is still marked GPS-verified');
+
+$visitUuid = uuid();
+$gps = [
+    'latitude' => 25.5391234,
+    'longitude' => 87.5721234,
+    'accuracy' => 8.5,
+    'provider' => 'gps',
+    'address' => 'Test village, Katihar',
+    'captured_at' => date('Y-m-d H:i:s'),
+];
+
+$start = api('POST', '/api/v1/visits', [
+    'uuid' => $visitUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'gps' => $gps,
+]);
+
+equals(201, $start['status'], 'Starting a visit with a valid fix succeeds');
+equals($visitUuid, $start['json']['data']['visit']['uuid'] ?? '', 'The visit keeps the client uuid');
+equals('draft', $start['json']['data']['visit']['status'] ?? '', 'A started visit is a draft until submitted');
+
+/* -------------------------------------------------------------------------- */
+section('This system takes no payments');
+/* -------------------------------------------------------------------------- */
+
+// The field work is the visit. The app no longer records a payment at all — the
+// borrower pays the bank directly — so what is tested here is the legacy path: an app
+// older than that policy flushing a payment it had queued offline. It must land, and it
+// must land as reported, because refusing it would lose the record of money somebody
+// already paid rather than prevent it.
+//
+// No offered payment mode may mean "handed to me", for the older builds still reading
+// this list to draw their chips.
+$offeredModes = payment_modes();
+
+equals(
+    [],
+    array_values(array_filter(
+        $offeredModes,
+        static fn (string $mode): bool => stripos($mode, 'cash') !== false
+    )),
+    'No offered payment mode is cash (' . implode(', ', $offeredModes) . ')'
+);
+
+// The important half. An unrecognised mode used to be replaced by the first entry of
+// the allowed list, which was 'Cash' — so a typo, or an app version older than this
+// one, was filed as a cash collection that never happened. It is kept as reported now,
+// which is what lets a supervisor see an old handset still reporting the old mode
+// instead of the server quietly agreeing with it.
+$legacyUuid = uuid();
+$legacy = api('POST', '/api/v1/recoveries', [
+    'uuid' => $legacyUuid,
+    'loan_account_id' => $accountId,
+    'amount' => 900,
+    'recovery_date' => today(),
+    'payment_mode' => 'Cash',
+    'receipt_number' => 'LEGACY-' . random_int(100000, 999999),
+]);
+
+ok(in_array($legacy['status'], [200, 201], true), 'A payment queued by an older app still lands');
+equals(
+    'Cash',
+    (string) Database::scalar('SELECT payment_mode FROM recoveries WHERE uuid = :u', ['u' => $legacyUuid]),
+    'What that app reported is stored as reported, not relabelled'
+);
+
+$typoUuid = uuid();
+api('POST', '/api/v1/recoveries', [
+    'uuid' => $typoUuid,
+    'loan_account_id' => $accountId,
+    'amount' => 400,
+    'recovery_date' => today(),
+    'payment_mode' => 'NEFT transfer',
+]);
+
+equals(
+    'NEFT transfer',
+    (string) Database::scalar('SELECT payment_mode FROM recoveries WHERE uuid = :u', ['u' => $typoUuid]),
+    'A mode outside the list is not silently turned into a cash collection'
+);
+
+// MariaDB reports a string default with its quotes, MySQL without them, so the
+// comparison strips them the same way database/upgrade.php does.
+equals(
+    'Other',
+    trim((string) Database::scalar(
+        "SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'recoveries' AND COLUMN_NAME = 'payment_mode'"
+    ), "'"),
+    'A row inserted without a mode does not default to claiming cash'
+);
+
+/* -------------------------------------------------------------------------- */
+section('The sign-in throttle does not lock out a whole team');
+/* -------------------------------------------------------------------------- */
+
+// A supervisor reported 429 on sign-in. The throttle counted five failures per IP
+// address, and Indian mobile carriers put many subscribers behind one public
+// address while a branch shares one office connection — so one person mistyping a
+// password locked out everyone who appeared to come from the same place. The
+// per-username limit is what guards an account; the IP ceiling only exists to stop
+// a flood.
+$ipLimit = (int) Config::get('security.login_ip_max_attempts', 50);
+$userLimit = (int) Config::get('security.login_max_attempts', 5);
+
+ok($userLimit <= 10, sprintf('The per-username limit stays strict (%d)', $userLimit));
+ok($ipLimit >= 25, sprintf('The per-IP ceiling is not a team-wide lockout (%d)', $ipLimit));
+ok($ipLimit > $userLimit * 3, 'The IP ceiling is far above the username limit');
+
+// Different accounts from the same address must not consume each other's budget.
+// Six distinct usernames fail here; with the old shared limit of five the sixth
+// would already be throttled instead of simply refused.
+$sameAddressCodes = [];
+
+for ($i = 1; $i <= 6; $i++) {
+    $attempt = api('POST', '/api/v1/auth/login', [
+        'username' => sprintf('no-such-user-%d-%s', $i, bin2hex(random_bytes(3))),
+        'password' => 'definitely-wrong',
+        'device' => ['uuid' => 'throttle-probe-' . $i],
+    ], ['auth' => false]);
+
+    $sameAddressCodes[] = $attempt['status'];
+}
+
+equals(
+    [],
+    array_values(array_filter($sameAddressCodes, static fn (int $code): bool => $code === 429)),
+    'Six failed sign-ins for six different accounts from one address are not throttled'
+);
+
+ok(
+    array_values(array_unique($sameAddressCodes)) === [401],
+    'Each is simply refused as wrong credentials (got ' . implode(',', array_unique($sameAddressCodes)) . ')'
+);
+
+// One account hammered is still stopped — that is the case the limit is for.
+$victim = 'brute-target-' . bin2hex(random_bytes(3));
+$victimCodes = [];
+
+for ($i = 0; $i <= $userLimit; $i++) {
+    $attempt = api('POST', '/api/v1/auth/login', [
+        'username' => $victim,
+        'password' => 'guess-' . $i,
+        'device' => ['uuid' => 'brute-probe'],
+    ], ['auth' => false]);
+
+    $victimCodes[] = $attempt['status'];
+}
+
+ok(
+    in_array(429, $victimCodes, true),
+    'Repeated attempts against one username are throttled (' . implode(',', $victimCodes) . ')'
+);
+
+/* -------------------------------------------------------------------------- */
+section('Case type travels from the handset to the printed report');
+/* -------------------------------------------------------------------------- */
+
+// Section 1 of the paper form ticks one of six case types, and the server has
+// always accepted all six. The app never sent one, so Recovery Follow-up, Pre-NPA
+// Verification and Post-NPA Verification could not be filed at all: whatever the
+// account's work stream happened to be is what got printed. These lock down the
+// wire contract the handset now uses.
+$caseTypes = ['krm_ots', 'ckcc_od2', 'recovery_followup', 'pre_npa', 'post_npa', 'other', 'customer'];
+
+foreach ($caseTypes as $caseType) {
+    $caseUuid = uuid();
+    $started = api('POST', '/api/v1/visits', [
+        'uuid' => $caseUuid,
+        'loan_account_id' => $accountId,
+        'visit_type' => $caseType,
+        'visit_date' => today(),
+        'gps' => $gps,
+    ]);
+
+    equals(201, $started['status'], 'A ' . $caseType . ' visit can be started');
+    equals(
+        $caseType,
+        (string) Database::scalar('SELECT visit_type FROM visits WHERE uuid = :u', ['u' => $caseUuid]),
+        'The server stores the requested case type: ' . $caseType
+    );
+}
+
+// An unknown type must not be stored as given; it falls back to the account's
+// stream rather than putting a value on the form that has no box to tick.
+$junkUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $junkUuid,
+    'loan_account_id' => $accountId,
+    'visit_type' => 'not-a-case-type',
+    'visit_date' => today(),
+    'gps' => $gps,
+]);
+
+$fellBackTo = (string) Database::scalar('SELECT visit_type FROM visits WHERE uuid = :u', ['u' => $junkUuid]);
+ok(
+    in_array($fellBackTo, $caseTypes, true),
+    'An unrecognised case type falls back to a real one (got "' . $fellBackTo . '")'
+);
+
+// Replaying the start must return the same visit, not create a second one.
+$restart = api('POST', '/api/v1/visits', [
+    'uuid' => $visitUuid,
+    'loan_account_id' => $accountId,
+    'gps' => $gps,
+]);
+equals(200, $restart['status'], 'Replaying the start is accepted');
+ok(($restart['json']['data']['created'] ?? true) === false, 'Replaying the start does not create a second visit');
+equals(
+    1,
+    (int) Database::scalar('SELECT COUNT(*) FROM visits WHERE uuid = :uuid', ['uuid' => $visitUuid]),
+    'Exactly one visit row exists for that uuid'
+);
+
+// A visit with no photograph submits: a locked house with nobody to photograph is
+// still a real finding, and refusing it meant the finding was never recorded.
+// Checked on its own visit, because it now really does submit — running it against
+// the visit the rest of this section uses would close it early.
+$noPhotoUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $noPhotoUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'gps' => $gps,
+]);
+
+$noPhoto = api('POST', '/api/v1/visits/' . $noPhotoUuid . '/submit', [
+    'visit_status' => 'house_locked',
+    'form' => ['visit_status' => 'House locked'],
+]);
+
+equals(200, $noPhoto['status'], 'A visit with no photograph and almost nothing filled in submits');
+equals(
+    'submitted',
+    (string) Database::scalar('SELECT status FROM visits WHERE uuid = :u', ['u' => $noPhotoUuid]),
+    'That visit is recorded as submitted'
+);
+equals(
+    0,
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM visit_photos p JOIN visits v ON v.id = p.visit_id WHERE v.uuid = :u',
+        ['u' => $noPhotoUuid]
+    ),
+    'It carries no photographs, and says so'
+);
+
+// A visit with no usable location anywhere in it submits too. This was the last
+// place a report could still be thrown away for its location: the submit step
+// counted the validated points and refused when there were none, so a supervisor in
+// a village with no signal filled in the whole report and lost it at the final tap.
+// It is accepted now, and the report says what the location was worth.
+$noFixUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $noFixUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+]);
+
+$noFixSubmit = api('POST', '/api/v1/visits/' . $noFixUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => ['visit_status' => 'Customer met'],
+]);
+
+equals(200, $noFixSubmit['status'], 'A visit with no usable location still submits');
+
+$noFixRow = Database::selectOne(
+    'SELECT status, gps_verified, gps_note FROM visits WHERE uuid = :u',
+    ['u' => $noFixUuid]
+) ?? [];
+
+equals('submitted', (string) ($noFixRow['status'] ?? ''), 'It is recorded as submitted, not lost');
+equals(0, (int) ($noFixRow['gps_verified'] ?? -1), 'It is not marked GPS-verified');
+ok(
+    trim((string) ($noFixRow['gps_note'] ?? '')) !== '',
+    'The report carries the reason its location is worth nothing'
+);
+
+// The fix taken when the report is filed is kept alongside the one from when the
+// visit was started. Both are real events and the panel shows both.
+$twoFixUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $twoFixUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'gps' => $gps,
+]);
+
+api('POST', '/api/v1/visits/' . $twoFixUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => ['visit_status' => 'Customer met'],
+    'submit_gps' => [
+        'latitude' => 25.5391500,
+        'longitude' => 87.5721500,
+        'accuracy' => 9.0,
+        'captured_at' => date('Y-m-d H:i:s'),
+    ],
+]);
+
+$eventsOf = static fn (string $uuid): array => array_map(
+    static fn (array $row): string => (string) $row['event'],
+    Database::select(
+        'SELECT g.event FROM visit_gps g JOIN visits v ON v.id = g.visit_id
+          WHERE v.uuid = :u ORDER BY g.id',
+        ['u' => $uuid]
+    )
+);
+
+equals(['start', 'submit'], $eventsOf($twoFixUuid), 'The visit keeps both its opening and closing fix');
+
+// Filing the report a long way from the doorstep is recorded. The visit is still
+// accepted — an agent may legitimately reach signal down the road — but a reviewer
+// can see that the report was not filed where the visit happened.
+$driftUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $driftUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'gps' => $gps,
+]);
+
+api('POST', '/api/v1/visits/' . $driftUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => ['visit_status' => 'Customer met'],
+    // Roughly 2 km north of where the visit started.
+    'submit_gps' => [
+        'latitude' => 25.5571234,
+        'longitude' => 87.5721234,
+        'accuracy' => 9.0,
+        'captured_at' => date('Y-m-d H:i:s'),
+    ],
+]);
+
+$driftNote = (string) Database::scalar('SELECT gps_note FROM visits WHERE uuid = :u', ['u' => $driftUuid]);
+ok($driftNote !== '' && str_contains($driftNote, 'from where the visit was started'), 'A report filed far from the doorstep says so (' . $driftNote . ')');
+
+// Picking "Other" for occupation and saying which: the answer typed is what gets
+// stored, so the printed report ticks Other and prints the trade beside it. The
+// column could previously only ever hold the word "Other", which left the report's
+// "Occupation as recorded" line unreachable.
+$occupationUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $occupationUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'visit_type' => 'krm_ots',
+    'gps' => $gps,
+]);
+
+api('POST', '/api/v1/visits/' . $occupationUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => [
+        'customer_available' => 'Yes',
+        'occupation' => 'Other',
+        'occupation_other' => 'Tailoring',
+    ],
+]);
+
+equals(
+    'Tailoring',
+    (string) Database::scalar('SELECT occupation FROM visits WHERE uuid = :u', ['u' => $occupationUuid]),
+    'An "Other" occupation is stored as the trade the agent typed'
+);
+
+// And one of the six listed trades is stored as itself, not overwritten by a stale
+// free-text box the agent filled in and then changed their mind about.
+$listedUuid = uuid();
+api('POST', '/api/v1/visits', [
+    'uuid' => $listedUuid,
+    'loan_account_id' => $accountId,
+    'visit_date' => today(),
+    'visit_type' => 'krm_ots',
+    'gps' => $gps,
+]);
+
+api('POST', '/api/v1/visits/' . $listedUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'form' => [
+        'customer_available' => 'Yes',
+        'occupation' => 'Dairy',
+        'occupation_other' => 'Tailoring',
+    ],
+]);
+
+equals(
+    'Dairy',
+    (string) Database::scalar('SELECT occupation FROM visits WHERE uuid = :u', ['u' => $listedUuid]),
+    'A listed occupation is not overwritten by a leftover "other" box'
+);
+
+$photo = api('POST', '/api/v1/visits/' . $visitUuid . '/photos', [
+    'data' => samplePhoto(),
+    'photo_type' => 'customer',
+    'caption' => 'Borrower at home',
+    'latitude' => $gps['latitude'],
+    'longitude' => $gps['longitude'],
+    'accuracy' => $gps['accuracy'],
+    'address' => $gps['address'],
+    'captured_at' => date('Y-m-d H:i:s'),
+]);
+
+equals(201, $photo['status'], 'Uploading a photograph succeeds');
+equals(1, $photo['json']['data']['photo_count'] ?? 0, 'The visit now has one photograph');
+
+$visitId = (int) Database::scalar('SELECT id FROM visits WHERE uuid = :uuid', ['uuid' => $visitUuid]);
+$photoRow = Database::selectOne('SELECT * FROM visit_photos WHERE visit_id = :id ORDER BY id DESC LIMIT 1', ['id' => $visitId]);
+
+ok($photoRow !== null && (int) $photoRow['watermarked'] === 1, 'The stored photograph is watermarked');
+ok($photoRow !== null && is_file(storage_path((string) $photoRow['file_path'])), 'The photograph file exists on disk');
+ok($photoRow !== null && (string) $photoRow['mime_type'] === 'image/jpeg', 'The photograph was re-encoded as JPEG (EXIF stripped)');
+
+// Re-uploading the identical image must be recognised as a duplicate.
+$duplicatePhoto = api('POST', '/api/v1/visits/' . $visitUuid . '/photos', [
+    'data' => $photoRow === null ? samplePhoto() : base64_encode((string) file_get_contents(storage_path((string) $photoRow['file_path']))),
+    'photo_type' => 'customer',
+]);
+ok(
+    ($duplicatePhoto['json']['data']['photo_count'] ?? 0) <= 2,
+    'Re-uploading a photograph does not multiply the evidence'
+);
+
+$submit = api('POST', '/api/v1/visits/' . $visitUuid . '/submit', [
+    'visit_status' => 'customer_met',
+    'recovery_possibility' => 'high',
+    'form' => [
+        'visit_status' => 'Customer met',
+        'customer_available' => 'Yes',
+        'family_met' => 'Yes',
+        'recovery_possibility' => 'High',
+        'promise_amount' => '5000',
+        'promise_date' => date('Y-m-d', strtotime('+10 days')),
+        'remarks' => 'Borrower met at home; promised part payment.',
+        'recommendation' => 'Follow up after the promise date.',
+    ],
+    'recovery' => [
+        'uuid' => uuid(),
+        'amount' => 1500,
+        'recovery_date' => today(),
+        'payment_mode' => 'UPI',
+        'receipt_number' => 'RCPT-' . random_int(100000, 999999),
+        'remarks' => 'Borrower paid the branch; UPI reference recorded.',
+    ],
+    'followup' => [
+        'uuid' => uuid(),
+        'followup_date' => date('Y-m-d', strtotime('+12 days')),
+        'action' => 'visit',
+        'notes' => 'Confirm the promised payment.',
+    ],
+]);
+
+equals(200, $submit['status'], 'Submitting the visit succeeds');
+equals('submitted', $submit['json']['data']['visit']['status'] ?? '', 'The visit is now submitted');
+ok(($submit['json']['data']['recovery_id'] ?? null) !== null, 'The recovery recorded with the visit was created');
+ok(($submit['json']['data']['promise_id'] ?? null) !== null, 'The promise from the form was created');
+ok(($submit['json']['data']['followup_id'] ?? null) !== null, 'The follow-up was created');
+
+// Server-side effects.
+$visitRow = Database::selectOne('SELECT * FROM visits WHERE id = :id', ['id' => $visitId]);
+equals('customer_met', (string) $visitRow['visit_status'], 'Visit status was mapped from the form');
+equals(1, (int) $visitRow['gps_verified'], 'The visit is marked GPS verified');
+ok((int) $visitRow['photo_count'] >= 1, 'The photo counter was updated');
+
+$account = Database::selectOne('SELECT * FROM loan_accounts WHERE id = :id', ['id' => $accountId]);
+ok((int) $account['visit_count'] >= 1, 'Account visit count rolled up');
+ok((float) $account['total_recovered'] >= 1500, 'Account recovered total rolled up');
+equals('partly_recovered', (string) $account['recovery_status'], 'Account recovery status reflects the payment');
+
+ok(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM visit_form_values WHERE visit_id = :id',
+        ['id' => $visitId]
+    ) > 5,
+    'Form answers were stored against the visit'
+);
+
+// Replayed submission must be reported, not duplicated.
+$resubmit = api('POST', '/api/v1/visits/' . $visitUuid . '/submit', ['visit_status' => 'customer_met']);
+equals(200, $resubmit['status'], 'Replaying the submission is accepted');
+ok(($resubmit['json']['data']['already_submitted'] ?? false) === true, 'Replayed submission is reported as already submitted');
+equals(
+    1,
+    (int) Database::scalar('SELECT COUNT(*) FROM recoveries WHERE visit_id = :id', ['id' => $visitId]),
+    'Replaying does not duplicate the recovery'
+);
+
+/* -------------------------------------------------------------------------- */
+section('Attendance, deadline and the daily report');
+/* -------------------------------------------------------------------------- */
+
+$checkIn = api('POST', '/api/v1/attendance/check-in', [
+    'uuid' => uuid(),
+    'gps' => $gps,
+    'selfie' => 'data:image/jpeg;base64,' . samplePhoto(320, 240),
+]);
+equals(201, $checkIn['status'], 'Attendance check-in succeeds');
+
+$repeatCheckIn = api('POST', '/api/v1/attendance/check-in', ['uuid' => uuid(), 'gps' => $gps]);
+equals(201, $repeatCheckIn['status'], 'A repeated check-in is idempotent');
+equals(
+    1,
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM attendance WHERE bc_supervisor_id = :bc AND attendance_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ),
+    'Only one attendance row exists for today'
+);
+
+$deadline = api('GET', '/api/v1/deadline');
+equals(200, $deadline['status'], 'GET /deadline succeeds');
+ok(isset($deadline['json']['data']['deadline']['seconds_remaining']), 'Deadline response drives the countdown');
+ok(($deadline['json']['data']['counts']['visits'] ?? 0) >= 1, 'Deadline response counts today\'s visits');
+
+$report = api('POST', '/api/v1/reports/daily', ['summary' => 'Covered 1 customer, collected part payment.']);
+equals(200, $report['status'], 'Daily report submission succeeds');
+ok(in_array($report['json']['data']['status'] ?? '', ['submitted', 'late_pending'], true), 'Daily report status is recorded');
+
+$submissionStatus = (string) Database::scalar(
+    'SELECT status FROM report_submissions WHERE bc_supervisor_id = :bc AND report_date = :date',
+    ['bc' => (int) $supervisor['id'], 'date' => today()]
+);
+ok(in_array($submissionStatus, ['submitted', 'late_pending'], true), 'The submission row records the outcome');
+
+$checkOut = api('POST', '/api/v1/attendance/check-out', ['gps' => $gps]);
+equals(200, $checkOut['status'], 'Attendance check-out succeeds');
+ok(
+    (int) Database::scalar(
+        'SELECT working_minutes IS NOT NULL FROM attendance WHERE bc_supervisor_id = :bc AND attendance_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ) === 1,
+    'Working minutes were computed on check-out'
+);
+
+/* -------------------------------------------------------------------------- */
+section('Social Security Scheme enrolments');
+/* -------------------------------------------------------------------------- */
+
+$sssBefore = api('GET', '/api/v1/sss');
+equals(200, $sssBefore['status'], 'GET /sss succeeds');
+// array_key_exists rather than ??, which cannot tell a null value from a missing key —
+// and the endpoint promising the key is part of what is being checked.
+$sssBeforeData = $sssBefore['json']['data'] ?? [];
+ok(
+    array_key_exists('entry', $sssBeforeData) && $sssBeforeData['entry'] === null,
+    'A day with no figures reports nothing rather than zeros'
+);
+equals(4, count($sssBefore['json']['data']['schemes'] ?? []), 'The four schemes come down with the form');
+ok(
+    ($sssBefore['json']['data']['scheme_names']['pmjjby_count'] ?? '') !== '',
+    'Each abbreviation carries its full name, because PMJJBY and PMSBY differ by two letters'
+);
+
+$sssPost = api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 4,
+    'pmjjby_count' => 2,
+    // Blank rather than zero: the app sends an empty box for a scheme with no enrolments.
+    'pmsby_count' => '',
+    'pmjdy_count' => 6,
+    'remarks' => 'Camp at the panchayat office.',
+]);
+equals(201, $sssPost['status'], 'Recording a day of enrolments succeeds');
+equals(12, $sssPost['json']['data']['total'] ?? 0, 'The blank scheme counted as none, not as a refusal');
+
+// The same day again, saying something different. Submitted figures are what the target
+// register is measured on, so the handset cannot move them: a BC Supervisor has to hand the day
+// back first. Before this rule existed the second report simply overwrote the first.
+$sssAgain = api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 5,
+    'pmjjby_count' => 0,
+    'pmsby_count' => 0,
+    'pmjdy_count' => 0,
+]);
+equals(409, $sssAgain['status'], 'Changing a day the app already submitted is refused');
+ok(
+    str_contains(strtolower((string) ($sssAgain['json']['message'] ?? '')), 're-open'),
+    'The refusal tells the supervisor how to get the day back'
+);
+equals(
+    4,
+    (int) Database::scalar(
+        'SELECT apy_count FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ),
+    'The refused change left the figures exactly as they were'
+);
+equals(
+    1,
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ),
+    'Only one enrolment row exists for today'
+);
+
+// The outbox delivers at least once, not exactly once. The same figures arriving a second
+// time is a redelivery, not an edit, and must not be reported to the supervisor as an
+// error — that would strand a queue entry that was never wrong.
+$sssRedelivered = api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 4,
+    'pmjjby_count' => 2,
+    'pmsby_count' => '',
+    'pmjdy_count' => 6,
+    'remarks' => 'Camp at the panchayat office.',
+]);
+equals(200, $sssRedelivered['status'], 'Re-delivering the identical figures is accepted, not refused');
+equals(
+    4,
+    (int) Database::scalar(
+        'SELECT apy_count FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ),
+    'The redelivery left the day as it was'
+);
+
+// An Admin hands the day back. That buys exactly one more submission.
+$sssRowId = (int) Database::scalar(
+    'SELECT id FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+    ['bc' => (int) $supervisor['id'], 'date' => today()]
+);
+ok(\App\Services\Sss::reopen($sssRowId) !== null, 'An Admin can re-open a submitted day');
+
+$sssCorrected = api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 5,
+    'pmjjby_count' => 0,
+    'pmsby_count' => 0,
+    'pmjdy_count' => 0,
+]);
+equals(200, $sssCorrected['status'], 'After a re-open the app may correct the day');
+equals(
+    5,
+    (int) Database::scalar(
+        'SELECT apy_count FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => today()]
+    ),
+    'The correction replaced the figure rather than adding to it'
+);
+
+$sssLockedAgain = api('POST', '/api/v1/sss', ['uuid' => uuid(), 'apy_count' => 9]);
+equals(409, $sssLockedAgain['status'], 'Submitting after a re-open closes the day again');
+
+$sssAfter = api('GET', '/api/v1/sss');
+equals(5, (int) ($sssAfter['json']['data']['entry']['apy_count'] ?? 0), 'The screen reopens on the figures already recorded');
+ok(($sssAfter['json']['data']['month']['total'] ?? 0) >= 5, 'The month-to-date total comes down with the day');
+
+$sssAbsurd = api('POST', '/api/v1/sss', ['apy_count' => 1000]);
+equals(422, $sssAbsurd['status'], 'An absurd figure is refused rather than stored');
+
+$sssFuture = api('POST', '/api/v1/sss', ['enrolment_date' => date('Y-m-d', strtotime('+1 day')), 'apy_count' => 1]);
+equals(422, $sssFuture['status'], 'A day that has not happened yet cannot have enrolments');
+
+// Queued offline, then delivered twice — the whole point of the day being a natural key.
+$sssBatch = [
+    'batch_uuid' => uuid(),
+    'app_version' => '1.0.0-test',
+    'network_type' => 'mobile',
+    'items' => [
+        [
+            'type' => 'sss',
+            'uuid' => uuid(),
+            'payload' => [
+                'enrolment_date' => date('Y-m-d', strtotime('-2 days')),
+                'apy_count' => 1,
+                'pmjjby_count' => 3,
+                'pmsby_count' => 2,
+                'pmjdy_count' => 0,
+            ],
+        ],
+    ],
+];
+
+$sssPush = api('POST', '/api/v1/sync/push', $sssBatch);
+equals(200, $sssPush['status'], 'A queued day of enrolments syncs');
+equals(1, $sssPush['json']['data']['accepted'] ?? 0, 'The queued day was accepted');
+
+$sssReplay = api('POST', '/api/v1/sync/push', $sssBatch);
+equals(1, $sssReplay['json']['data']['duplicates'] ?? 0, 'Replaying the queue reports the day as already recorded');
+equals(
+    1,
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM sss_enrolments WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => date('Y-m-d', strtotime('-2 days'))]
+    ),
+    'Replaying the queue did not double the day'
+);
+equals(
+    6,
+    (int) Database::scalar(
+        'SELECT apy_count + pmjjby_count + pmsby_count + pmjdy_count FROM sss_enrolments
+          WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+        ['bc' => (int) $supervisor['id'], 'date' => date('Y-m-d', strtotime('-2 days'))]
+    ),
+    'The queued figures survived the round trip intact'
+);
+
+// The target the BC Supervisor set, as the handset sees it. The app renders these figures and can
+// produce none of them itself, which is what makes the target the BC Supervisor's alone.
+\App\Services\Sss::saveTarget((int) $supervisor['id'], today(), [
+    'apy_target' => 2,
+    'pmjjby_target' => 3,
+    'pmsby_target' => 1,
+    'pmjdy_target' => 4,
+]);
+
+$sssProgress = api('GET', '/api/v1/sss');
+$progress = $sssProgress['json']['data']['progress'] ?? [];
+
+ok($progress !== [], 'The day comes down with the target beside it');
+ok(($progress['target_set'] ?? false) === true, 'The handset is told a target exists');
+equals(10, (int) ($progress['per_day_total'] ?? 0), 'The daily target is the sum of the four schemes');
+
+// A day off carries no target, so a Sunday reads 0 of 0 rather than as a shortfall.
+$sssWorkingToday = \App\Services\Sss::workingDaysBetween(today(), today()) > 0;
+equals(
+    $sssWorkingToday ? 10 : 0,
+    (int) ($progress['day']['target'] ?? -1),
+    $sssWorkingToday ? "Today's target is the daily figure" : 'A non-working day carries no target'
+);
+
+$sssTodayTotal = (int) Database::scalar(
+    'SELECT apy_count + pmjjby_count + pmsby_count + pmjdy_count FROM sss_enrolments
+      WHERE bc_supervisor_id = :bc AND enrolment_date = :date',
+    ['bc' => (int) $supervisor['id'], 'date' => today()]
+);
+
+equals($sssTodayTotal, (int) ($progress['day']['achievement'] ?? -1), 'Achievement is what was actually reported');
+equals(
+    max(0, ($sssWorkingToday ? 10 : 0) - $sssTodayTotal),
+    (int) ($progress['day']['gap'] ?? -1),
+    'The gap is the target less the achievement, never negative'
+);
+ok(
+    ($progress['month_to_date']['working_days'] ?? 0) > 0,
+    'Month to date counts working days, so Sundays are not a shortfall'
+);
+equals(
+    (int) ($progress['month_to_date']['working_days'] ?? 0) * 10,
+    (int) ($progress['month_to_date']['target'] ?? -1),
+    'The month-to-date target is the daily figure times the working days so far'
+);
+
+// The handset has no way to set its own target. Sent anyway, the keys are ignored: there is
+// no column for them on an enrolment, and nothing reads them.
+api('POST', '/api/v1/sss', [
+    'uuid' => uuid(),
+    'apy_count' => 5,
+    'pmjjby_count' => 0,
+    'pmsby_count' => 0,
+    'pmjdy_count' => 0,
+    'apy_target' => 99,
+    'percent' => 100,
+    'gap' => 0,
+]);
+
+equals(
+    2,
+    (int) Database::scalar(
+        'SELECT apy_target FROM sss_targets WHERE bc_supervisor_id = :bc AND target_month = :month',
+        ['bc' => (int) $supervisor['id'], 'month' => date('Y-m-01')]
+    ),
+    'A target sent up from the app is ignored — only the BC Supervisor sets one'
+);
+
+/* -------------------------------------------------------------------------- */
+section('Offline sync push');
+/* -------------------------------------------------------------------------- */
+
+// A second account for the queued visit.
+$secondAccountId = (int) ($accounts[1]['id'] ?? 0);
+
+if ($secondAccountId === 0) {
+    ok(false, 'Need at least two allocated accounts for the sync push test');
+} else {
+    $batchUuid = uuid();
+    $queuedVisitUuid = uuid();
+    $queuedRecoveryUuid = uuid();
+
+    $batch = [
+        'batch_uuid' => $batchUuid,
+        'app_version' => '1.0.0-test',
+        'network_type' => 'mobile',
+        'items' => [
+            [
+                'type' => 'visit',
+                'uuid' => $queuedVisitUuid,
+                'payload' => [
+                    'uuid' => $queuedVisitUuid,
+                    'loan_account_id' => $secondAccountId,
+                    'visit_date' => today(),
+                    'gps' => $gps,
+                    'visit_status' => 'house_locked',
+                    'form' => [
+                        'visit_status' => 'House locked',
+                        'customer_available' => 'No',
+                        'recovery_possibility' => 'Low',
+                        'remarks' => 'House locked; neighbours said the family is away.',
+                    ],
+                    'photos' => [
+                        ['data' => samplePhoto(480, 360), 'photo_type' => 'house', 'caption' => 'Locked house'],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'recovery',
+                'uuid' => $queuedRecoveryUuid,
+                'payload' => [
+                    'uuid' => $queuedRecoveryUuid,
+                    'loan_account_id' => $accountId,
+                    'amount' => 750,
+                    'recovery_date' => today(),
+                    'payment_mode' => 'UPI',
+                    'receipt_number' => 'UPI-' . random_int(100000, 999999),
+                ],
+            ],
+            [
+                'type' => 'followup',
+                'uuid' => uuid(),
+                'payload' => [
+                    'loan_account_id' => $accountId,
+                    'followup_date' => date('Y-m-d', strtotime('+5 days')),
+                    'action' => 'call',
+                    'notes' => 'Queued offline follow-up.',
+                ],
+            ],
+            [
+                'type' => 'visit',
+                'uuid' => uuid(),
+                'payload' => [
+                    // Deliberately invalid, to prove one bad item cannot poison the
+                    // rest of the batch. The reason is an account this supervisor
+                    // does not hold, which can never become valid however many times
+                    // the phone retries. It used to be a missing GPS fix; that is no
+                    // longer a failure, because a village with no signal is not a
+                    // reason to throw a real visit away.
+                    'loan_account_id' => 999999999,
+                    'visit_date' => today(),
+                ],
+            ],
+        ],
+    ];
+
+    $push = api('POST', '/api/v1/sync/push', $batch);
+
+    equals(200, $push['status'], 'Sync push responds 200');
+    equals(4, $push['json']['data']['received'] ?? 0, 'All four queued items were received');
+    equals(3, $push['json']['data']['accepted'] ?? 0, 'Three valid items were accepted');
+    equals(1, $push['json']['data']['failed'] ?? 0, 'The invalid item failed on its own');
+
+    $results = $push['json']['data']['results'] ?? [];
+    $failedItem = null;
+
+    foreach ($results as $result) {
+        if (($result['status'] ?? '') === 'failed') {
+            $failedItem = $result;
+        }
+    }
+
+    ok($failedItem !== null && !empty($failedItem['message']), 'The failed item carries a readable message');
+    ok($failedItem !== null && ($failedItem['retryable'] ?? true) === false, 'A validation failure is marked as not retryable');
+
+    ok(
+        (int) Database::scalar('SELECT COUNT(*) FROM visits WHERE uuid = :uuid', ['uuid' => $queuedVisitUuid]) === 1,
+        'The queued visit was stored'
+    );
+    equals(
+        'submitted',
+        (string) Database::scalar('SELECT status FROM visits WHERE uuid = :uuid', ['uuid' => $queuedVisitUuid]),
+        'The queued visit was submitted, not left as a draft'
+    );
+    ok(
+        (int) Database::scalar(
+            'SELECT COUNT(*) FROM visit_photos p JOIN visits v ON v.id = p.visit_id WHERE v.uuid = :uuid',
+            ['uuid' => $queuedVisitUuid]
+        ) === 1,
+        'The photograph queued with the visit was stored'
+    );
+
+    // Replaying the whole batch must not duplicate anything.
+    $replay = api('POST', '/api/v1/sync/push', $batch);
+
+    equals(200, $replay['status'], 'Replaying the batch responds 200');
+    ok(($replay['json']['data']['duplicates'] ?? 0) >= 2, 'Replayed items are reported as duplicates');
+
+    equals(
+        1,
+        (int) Database::scalar('SELECT COUNT(*) FROM visits WHERE uuid = :uuid', ['uuid' => $queuedVisitUuid]),
+        'Replaying the batch created no second visit'
+    );
+    equals(
+        1,
+        (int) Database::scalar('SELECT COUNT(*) FROM recoveries WHERE uuid = :uuid', ['uuid' => $queuedRecoveryUuid]),
+        'Replaying the batch created no second recovery'
+    );
+    equals(
+        1,
+        (int) Database::scalar('SELECT COUNT(*) FROM sync_batches WHERE batch_uuid = :uuid', ['uuid' => $batchUuid]),
+        'The batch itself is recorded once'
+    );
+}
+
+/* -------------------------------------------------------------------------- */
+section('Notifications, location ping and sign-out');
+/* -------------------------------------------------------------------------- */
+
+$notifications = api('GET', '/api/v1/notifications');
+equals(200, $notifications['status'], 'GET /notifications succeeds');
+ok(isset($notifications['json']['data']['unread']), 'Notifications response includes the unread count');
+
+$location = api('POST', '/api/v1/sync/location', ['gps' => $gps]);
+equals(200, $location['status'], 'Location ping succeeds');
+ok(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM devices WHERE device_uuid = :uuid AND last_latitude IS NOT NULL',
+        ['uuid' => $deviceUuid]
+    ) === 1,
+    'The device last known position was recorded'
+);
+
+$incremental = api('GET', '/api/v1/sync/pull?since=' . urlencode(date('Y-m-d H:i:s', strtotime('-1 hour'))));
+equals(200, $incremental['status'], 'Incremental sync pull succeeds');
+ok(isset($incremental['json']['data']['removed_account_ids']), 'Incremental pull reports removed allocations');
+
+$logout = api('POST', '/api/v1/auth/logout');
+equals(200, $logout['status'], 'Sign-out succeeds');
+
+$afterLogout = api('GET', '/api/v1/me');
+equals(401, $afterLogout['status'], 'The token no longer works after sign-out');
+
+/* -------------------------------------------------------------------------- */
+section('Audit trail recorded the field activity');
+/* -------------------------------------------------------------------------- */
+
+foreach ([
+    'login' => 'App sign-in',
+    'visit_submitted' => 'Visit submission',
+    'recovery_recorded' => 'Recovery',
+    'promise_recorded' => 'Promise to pay',
+    'attendance_check_in' => 'Attendance check-in',
+    'sync_push' => 'Sync push',
+    'logout' => 'Sign-out',
+] as $action => $label) {
+    ok(
+        (int) Database::scalar('SELECT COUNT(*) FROM audit_logs WHERE action = :a', ['a' => $action]) > 0,
+        $label . ' is in the audit log'
+    );
+}
+
+if ($serverProcess !== null) {
+    proc_terminate($serverProcess);
+}
+
+exit(TestRunner::summary());
