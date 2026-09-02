@@ -912,8 +912,14 @@ function lrms_seed_demo(): void
                 'branch_id' => $branchId,
                 'name' => 'BCA ' . $n,
                 'email' => 'bc' . $n . '@lrms.local',
-                'username' => 'bc' . $n,
-                'employee_code' => $bcCode,
+                /*
+                 * No username and no employee code, because the staff form no longer issues
+                 * either: a BCA signs in with their BCBF code or their mobile number. Demo data
+                 * that still carried a username would be data the panel can no longer produce,
+                 * and the API tests would then be exercising a path the field never takes.
+                 */
+                'username' => null,
+                'employee_code' => null,
                 'mobile' => '9111100' . sprintf('%03d', $n),
                 'password' => $password,
                 'status' => 'active',

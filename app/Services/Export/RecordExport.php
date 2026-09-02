@@ -581,20 +581,36 @@ final class RecordExport
              * the signature block, and a table of figures after the place somebody signs reads
              * as an afterthought stapled on.
              */
-            if ($key === 'sss_awareness' && $sss !== null) {
+            if ($key === 'sss_awareness') {
                 $flush();
-                self::inspectionSssTable($pdf, $sss);
+
+                if ($sss !== null) {
+                    self::inspectionSssTable($pdf, $sss);
+                } else {
+                    self::inspectionSssNotRecorded($pdf);
+                }
+
                 $sssPrinted = true;
             }
         }
 
         $flush();
 
-        // A form that has no item 16 — the retired eleven-question one, or a form edited in the
-        // builder — still prints the figures if the inspection carries them. Better at the end
-        // than not at all.
-        if ($sss !== null && !$sssPrinted) {
-            self::inspectionSssTable($pdf, $sss);
+        /*
+         * A form that has no item 16 — the retired eleven-question one, or a form edited in the
+         * builder — still gets the block at the end. Better there than not at all.
+         *
+         * Both cases, not just the one with figures. This read `$sss !== null` and so left the
+         * original complaint intact on exactly the sheets that comment is about: a submitted
+         * inspection on such a form printed nothing, and nothing is what "a section is missing"
+         * looks like on paper.
+         */
+        if (!$sssPrinted) {
+            if ($sss !== null) {
+                self::inspectionSssTable($pdf, $sss);
+            } else {
+                self::inspectionSssNotRecorded($pdf);
+            }
         }
     }
 
@@ -608,6 +624,42 @@ final class RecordExport
      *
      * @param array<string, mixed> $sss a block from App\Services\Inspections::sssPerformance()
      */
+    /**
+     * Said in place of the table, when the inspection carries no figures.
+     *
+     * Inspections::sssPerformance() returns null for one case only: an inspection already
+     * submitted that has no frozen row, which means it was signed before the scheme figures
+     * were carried on this form. Every inspection the client submitted up to that point is in
+     * that state, so this is the common case on a reprint, not an edge one.
+     *
+     * It used to print nothing at all. That is what "a section has gone missing" looks like on
+     * paper: item 16 ends and the next thing is the 17-18 band, with no way to tell whether the
+     * figures were left out, lost, or never asked for. A heading that says why is a shorter
+     * page than the table and a much longer way from a complaint.
+     *
+     * Live figures are deliberately NOT computed here. The window would be read today and
+     * printed onto a sheet somebody signed weeks ago, so the numbers would be real, wrong for
+     * that date, and indistinguishable from the frozen ones on the sheet next to it. Silence
+     * with a reason beats a figure nobody agreed to.
+     */
+    private static function inspectionSssNotRecorded(PdfWriter $pdf): void
+    {
+        $pdf->noticeBox(
+            'eef2f8',
+            [
+                'Not recorded on this inspection. The scheme figures were added to this form '
+                    . 'later, so an inspection submitted before that carries none. Figures are '
+                    . 'not worked out now and printed here, because they would be read today '
+                    . 'and shown against a sheet that was signed earlier.',
+                "The agent's enrolments for this period are in the Social Security Scheme "
+                    . 'register in the panel. An inspection submitted from now on freezes them '
+                    . 'onto the sheet as it is signed.',
+            ],
+            'Social Security Scheme performance',
+            9.0
+        );
+    }
+
     private static function inspectionSssTable(PdfWriter $pdf, array $sss): void
     {
         $schemes = Sss::schemes();

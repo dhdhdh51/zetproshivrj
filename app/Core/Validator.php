@@ -215,6 +215,72 @@ class Validator
                 }
                 break;
 
+            case 'mobile':
+                /*
+                 * A phone number, in one of the shapes the sign-in understands.
+                 *
+                 * This exists because the number stopped being only a contact detail. A BCA
+                 * signs in with it and the OTP is sent to it, and `required|max:20` accepted
+                 * "N/A", a nine-digit typo, or two numbers in one box — all of which saved
+                 * cleanly while the success banner told the Admin to have the BCA sign in with
+                 * it, and none of which would ever work.
+                 */
+                if (Auth::normaliseMobile((string) $value) === null) {
+                    $this->addError(
+                        $field,
+                        $rule,
+                        $label . ' must be a ten-digit mobile number, with or without +91.'
+                    );
+                }
+                break;
+
+            case 'unique_mobile':
+                /*
+                 * unique_mobile[:ignore_user_id]
+                 *
+                 * A phone number signs a BCA in — see Auth::findByLogin — and `users.mobile`
+                 * has no unique key to lean on. Two accounts holding one number would leave
+                 * the login with no way to tell which of them was signing in, and it refuses
+                 * rather than guess, so the number has to be rejected here or the BCA is
+                 * created unable to sign in by phone at all.
+                 *
+                 * `unique:users,mobile` would not do it. That compares the stored strings, and
+                 * would pass the duplicate that actually matters: the same number entered once
+                 * as "98765 43210" and once as "+919876543210". Both sides are reduced to their
+                 * last ten digits the same way the login reduces them, so what this rejects is
+                 * exactly what would have been ambiguous.
+                 *
+                 * A value that is not a phone number at all is left alone: it cannot be used to
+                 * sign in either, so two of them collide with nothing.
+                 */
+                $mobile = Auth::normaliseMobile((string) $value);
+
+                if ($mobile === null) {
+                    // Not a phone number, so it cannot sign anyone in and cannot collide with
+                    // anything. The `mobile` rule is what rejects it; this one stays out of the
+                    // way so the Admin gets told the shape is wrong, not that it is taken.
+                    break;
+                }
+
+                $sql = 'SELECT COUNT(*) FROM users WHERE '
+                    . Auth::mobileSql('mobile') . ' IN (:m1, :m2, :m3)';
+                $params = array_combine(['m1', 'm2', 'm3'], Auth::mobileCandidates($mobile));
+
+                if ($parameter !== null && (string) $parameter !== '') {
+                    $sql .= ' AND id <> :ignore';
+                    $params['ignore'] = (int) $parameter;
+                }
+
+                if ((int) Database::scalar($sql, $params) > 0) {
+                    $this->addError(
+                        $field,
+                        $rule,
+                        $label . ' already belongs to another account. It is used to sign in, so'
+                            . ' two people cannot share one.'
+                    );
+                }
+                break;
+
             case 'exists':
                 $parts = explode(',', (string) $parameter);
                 $table = $parts[0] ?? '';

@@ -49,7 +49,10 @@ $aadhaarValue = old('aadhaar_number', null)
                 <div class="field <?= has_error('bc_code') ? 'has-error' : '' ?>">
                     <label for="bc_code">BCBF code <span class="req">*</span></label>
                     <input type="text" id="bc_code" name="bc_code" value="<?= e($value('bc_code')) ?>" required maxlength="60">
-                    <div class="help">Must match the code in your Excel sheets — accounts carrying it are allocated here automatically.</div>
+                    <div class="help">
+                        Must match the code in your Excel sheets — accounts carrying it are allocated
+                        here automatically. This is also what the BCA signs in to the app with.
+                    </div>
                     <?php if (has_error('bc_code')): ?><div class="error-text"><?= e(error_for('bc_code')) ?></div><?php endif; ?>
                 </div>
 
@@ -83,7 +86,11 @@ $aadhaarValue = old('aadhaar_number', null)
                 <div class="field <?= has_error('mobile') ? 'has-error' : '' ?>">
                     <label for="mobile">Mobile number <span class="req">*</span></label>
                     <input type="tel" id="mobile" name="mobile" value="<?= e($value('mobile')) ?>" required maxlength="20">
-                    <div class="help">Used for OTP delivery when two-step sign-in is enabled.</div>
+                    <div class="help">
+                        The BCA can sign in to the app with this number as well as with their BCBF
+                        code, so it has to be theirs and not shared with another BCA. Also used for
+                        OTP delivery when two-step sign-in is enabled.
+                    </div>
                     <?php if (has_error('mobile')): ?><div class="error-text"><?= e(error_for('mobile')) ?></div><?php endif; ?>
                 </div>
 
@@ -161,17 +168,14 @@ $aadhaarValue = old('aadhaar_number', null)
                     <input type="email" id="email" name="email" value="<?= e($value('email')) ?>" maxlength="190">
                 </div>
 
-                <div class="field">
-                    <label for="employee_code">Employee code</label>
-                    <input type="text" id="employee_code" name="employee_code" value="<?= e($value('employee_code')) ?>" maxlength="60">
-                </div>
-
-                <div class="field <?= has_error('username') ? 'has-error' : '' ?>">
-                    <label for="username">App username <span class="req">*</span></label>
-                    <input type="text" id="username" name="username" value="<?= e($value('username')) ?>" required maxlength="80">
-                    <?php if (has_error('username')): ?><div class="error-text"><?= e(error_for('username')) ?></div><?php endif; ?>
-                </div>
-
+<?php /*
+ * There was an "App username" and an "Employee code" here.
+ *
+ * Both are gone. A BCA signs in with the BCBF code already entered above, or with their
+ * mobile number — a third identifier invented on this screen was one more thing to make up,
+ * write down, and read back to somebody over a bad line. The code is on their paperwork and
+ * they know their own number.
+ */ ?>
                 <?php if ($editing): ?>
                     <div class="field">
                         <label for="status">Status</label>
